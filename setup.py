@@ -15,8 +15,8 @@ setup(
     version=__version__,
     description="Open-Michrom lib for chromosome simulations",
     url="https://ndb.rice.edu/Open-MiChroM",
-    author="Antonio Bento de Oliveira Junior / Vinicius de Godoy Contessoto",
-    author_email="antonio.oliveira@rice.edu",
+    author=["Antonio Bento de Oliveira Junior","Vinicius de Godoi Contessoto"],
+    author_email=["antonio.oliveira@rice.edu","contessoto@rice.edu"],
     classifiers=[
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Operating System :: OS Independent",
