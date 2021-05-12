@@ -1,0 +1,35 @@
+{% set name = "PACKAGENAME" %}
+{% set version = "0.0.1" %}
+
+package:
+  name: "{{ name|lower }}"
+  version: "{{ version }}"
+
+source:
+  git_url: GIT_URL
+
+build:
+  number: 0
+  script: "$PYTHON -m pip install . --no-deps --ignore-installed -vv "
+
+requirements:
+  host:
+    - python
+    - pip
+  run:
+    - python
+
+test:
+  imports:
+    - PACKAGENAME
+
+about:
+  home: HOMEPAGE
+  license: GPLv3
+  license_family: GPL3
+  license_file: LICENSE
+  summary: SUMMARY
+
+extra:
+  recipe-maintainers:
+    - USERNAME
