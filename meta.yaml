@@ -1,4 +1,4 @@
-{% set name = "PACKAGENAME" %}
+{% set name = "OpenMiChroM" %}
 {% set version = "0.0.1" %}
 
 package:
@@ -21,12 +21,12 @@ requirements:
 
 test:
   imports:
-    - PACKAGENAME
+    - OpenMiChroM
 
 about:
-  home: HOMEPAGE
-  license: GPLv3
-  license_family: GPL3
+  home: https://ndb.rice.edu/Open-MiChroM
+  license: MIT
+  license_family: MIT
   license_file: LICENSE
   summary: SUMMARY
 

@@ -5,18 +5,18 @@ this_dir = path.abspath(path.dirname(__file__))
 with open(path.join(this_dir, "README.md")) as f:
     long_description = f.read()
 
-__version__ = "Undefined"
-for line in open(path.join("PACKAGENAME", "__init__.py")):
+__version__ = "0.0.1"
+for line in open(path.join("OpenMiChroM", "__init__.py")):
     if line.startswith("__version__"):
         exec(line.strip())
 
 setup(
-    name="PACKAGENAME",
+    name="OpenMiChroM",
     version=__version__,
-    description="DESCRIPTION",
-    url="URL",
-    author="YOUR NAME",
-    author_email="youremail@domain.com",
+    description="Open-Michrom lib for chromosome simulations",
+    url="https://ndb.rice.edu/Open-MiChroM",
+    author="Antonio Bento de Oliveira Junior / Vinicius de Godoy Contessoto",
+    author_email="antonio.oliveira@rice.edu",
     classifiers=[
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Operating System :: OS Independent",
@@ -29,7 +29,7 @@ setup(
         "Natural Language :: English",
     ],
     packages=find_packages(),
-    install_requires=["numpy>=1.11"],
+    install_requires=['numpy>1.18', 'six', 'h5py>2', 'openmm>1.6],
     entry_points={"console_scripts": ["CLINAME=PACKAGENAME._cli:main"]},
     zip_safe=True,
     long_description=long_description,
