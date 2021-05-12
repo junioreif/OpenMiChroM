@@ -1,7 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-
 from simtk.openmm.app import *
 import simtk.openmm as openmm
 import simtk.unit as units
