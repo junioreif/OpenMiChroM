@@ -13,9 +13,7 @@ import scipy as sp
 import itertools
 
 
-
-
-class OpenMiChroM:
+class MiChroM:
     
     ##initialize the akroma set##
     def __init__(
