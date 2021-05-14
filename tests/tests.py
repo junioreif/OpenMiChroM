@@ -1,9 +1,11 @@
 import sys
 
-sys.path.insert(1, '../OpenMichroM/OpenMiChroM')
+sys.path.append('../OpenMiChroM')
 
 from ChromDynamics import MiChroM
 from Optimization import FullTraining, CustomMiChroMTraining
+
+
 
 class testMichrom():
     def runDefault(self):
