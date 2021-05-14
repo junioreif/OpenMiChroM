@@ -516,8 +516,8 @@ class MiChroM:
 
         if bondType.lower() == "harmonic":
             self._initHarmonicBondForce()
-            kbond = kbondScalingFactor / (bondSize ** 2)
-            self.forceDict["HarmonicBondForce"].addBond(int(i), int(j), float(distance), float(kbond))
+            #kbond = kbondScalingFactor / (bondSize ** 2)
+            #self.forceDict["HarmonicBondForce"].addBond(int(i), int(j), float(distance), float(kbond))
             self.bondLengths.append([int(i), int(j), float(distance), float(bondSize)])
         elif bondType.lower() == "fene":
             self._initFENEBond(k=k)
@@ -1339,7 +1339,7 @@ class MiChroM:
                 lines.append("{0:.3f} {1:.3f} {2:.3f}\n".format(*particle))
             if filename == None:
                 return lines
-            elif isinstance(filename, six.string_types):
+            elif isinstance(filename, string_types):
                 with open(filename, 'w') as myfile:
                     myfile.writelines(lines)
             else:
@@ -1730,7 +1730,7 @@ class MiChroM:
                 if (self.integrator_type.lower() == 'variablelangevin'
                     or self.integrator_type.lower() == 'variableverlet'):
                     dt = self.integrator.getStepSize()
-                    print('dt=%.1lffs' % (dt / fs), end=' ')
+                    #print('dt=%.1lffs' % (dt / fs), end=' ')
                     mass = self.system.getParticleMass(1)
                     dx = (units.sqrt(2.0 * eK * self.kT / mass) * dt)
                     print('dx=%.2lfpm' % (dx / self.nm * 1000.0), end=' ')
@@ -1815,16 +1815,16 @@ class MiChroM:
             x = r*sin(phi)*cos(theta)
             y = r*sin(phi)*sin(theta)
             z = r*cos(phi)
-            fig = plt.figure()
-            ax = fig.add_subplot(111, projection='3d')
+            #fig = plt.figure()
+            #ax = fig.add_subplot(111, projection='3d')
             xx=np.array(points)[:,0]
             yy=np.array(points)[:,1]
             zz=np.array(points)[:,2]
-            ax.plot_surface(
-                x, y, z,  rstride=1, cstride=1, color='c', alpha=0.4, linewidth=0)
+            #ax.plot_surface(
+            #    x, y, z,  rstride=1, cstride=1, color='c', alpha=0.4, linewidth=0)
 
-            ax.scatter(xx,yy,zz,color="red",s=80)
-            plt.savefig(filename + '.png')
+            #ax.scatter(xx,yy,zz,color="red",s=80)
+            #plt.savefig(filename + '.png')
     
         points = fibonacci_sphere(len(self.chains))
         R_nucleus = ( (self.chains[-1][1]+1) * (1.0/2.)**3 / 0.1 )**(1./3)
@@ -1855,8 +1855,8 @@ class MiChroM:
         if self.PBC != True:
             return self.getData()
         alldata = self.getData()
-        boxsize = numpy.array(self.BoxSizeReal)
-        mults = numpy.floor(alldata / boxsize[None, :])
+        boxsize = np.array(self.BoxSizeReal)
+        mults = np.floor(alldata / boxsize[None, :])
         toRet = alldata - mults * boxsize[None, :]
         assert toRet.min() >= 0
         return toRet
