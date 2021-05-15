@@ -1,5 +1,5 @@
 R"""
-The :class:`~.Optimization` class performs the energy function parameters training of the chromosomes based on experimental Hi-C data.
+The :class:`~.Optimization` classes perform the energy function parameters training of the chromosomes based on experimental Hi-C data.
 """
 
 from simtk.openmm.app import *
@@ -20,11 +20,37 @@ from sklearn.preprocessing import normalize
 
 
 class FullTraining:
+    R"""
+    The :class:`~.FullTraining` class performs the parameters training for each selected loci pair interaction. 
+    
+    Details about the methodology are decribed in "Zhang, B., & Wolynes, P. G. (2015). Topology, structures, and energy landscapes of human chromosomes. Proceedings of the National Academy of Sciences, 112(19), 6062-6067."
+    
+    
+    The :class:`~.FullTraining` class receive a Hi-C matrix (text file) as input. The parameters :math:`\mu` (mi) and rc are part of the probability of crosslink function :math:`f(r_{i,j}) = \frac{1}{2}\left( 1 + tanh\left[\mu(r_c - r_{i,j}\right] \right)`, where :math:`r_{i,j}` is the spatial distance between loci (beads) *i* and *j*.
+    
+    Args:
+        mi (float, required):
+            Parameter in the probability of crosslink function.
+        rc (float, required):
+            Parameter in the probability of crosslink function, :math:`f(rc) = 0.5`.
+        cutoff (float, optional):
+            Cutoff value for reducing the noise in the original data. Values lower than the **cutoff** are considered :math:`0.0`.
+        reduce (bool, optional):
+            Whether to reduce the number of interactions to be considered in the inversion. If False, it will consider every possible interaction :math:`(N*(N-1)/2)`. If True, it is necessary to give values for the lower and higher cutoffs. (Default value: :code:`True`). 
+        pair_h (int, required if **reduce** = :code:`True`):
+            Loci selection to apply the high-resolution cutoff. If **pair_h** = 2, the interaction in the high-resolution index grid :math:`2 : 2 : N × 2:2:N`  are subject to a cutoff value **c_h**, where `N` is the total number of monomers interactions  (Default value = 2).
+        c_h (float, required if **reduce** = :code:`True`)):
+            The the high-resolution cutoff. (Default value = 0.1).
+        pair_l (int, required if **reduce** = :code:`True`)):
+            Loci selection to apply the high-resolution cutoff. If **pair_l** = 4, the interaction in the low-resolution index grid :math:`1:4:N×1:4:N`  are subject to a cutoff value **c_l**, where `N` is the total number of monomers interactions  (Default value = 4).
+        c_l (float, required if **reduce** = :code:`True`)):
+            The the low-resolution cutoff. (Default value = 0.02).
+    """
     def __init__(self, state, expHiC, mi=1.0, rc=2.5, 
-                 cutoff=0.0, reduce=False,
-                 pair_h=2, c_h=0.08, pair_l=3, c_l=0.02, gpu=False 
+                 cutoff=0.0, reduce=True,
+                 pair_h=2, c_h=0.1, pair_l=4, c_l=0.02, gpu=False 
                 ):
-        
+            
         self.mi = mi
         self.rc = rc
         self.cutoff = cutoff
@@ -237,7 +263,7 @@ class CustomMiChroMTraining:
 #### IDEAL CROMOSSOME OPTIMIZATION
 ##########################################################################################
     
-    def probCalculation(self, state, dmax=200):
+    def probCalculation(self, state, dmax=200): ## Usuario chama
         #remember dinit = 3, i.e, Bij[0,1] = 3,4
         PiPj = np.zeros((dmax,dmax))
         self.Pold += self.P
@@ -363,6 +389,7 @@ class CustomMiChroMTraining:
         self.polds_type += p_instant 
         self.Bij_type += PiPj #<PiPj>
         self.Nframes += 1
+        
     
     def calc_exp_phi_types(self, typeList):
 
@@ -396,6 +423,8 @@ class CustomMiChroMTraining:
     
     def getHiCSim(self):
         return self.Pold/self.Nframes
+    
+    
     
     def getPearson(self):
         r1 = self.getHiCSim()
