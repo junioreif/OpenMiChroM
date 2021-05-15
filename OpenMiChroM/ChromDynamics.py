@@ -1,3 +1,6 @@
+# Copyright (c) 2020-2021 The Center for Theoretical Biological Physics (CTBP) - Rice University
+# This file is from the Open-MiChroM project, released under the MIT License.
+
 from simtk.openmm.app import *
 import simtk.openmm as openmm
 import simtk.unit as units
@@ -1493,7 +1496,11 @@ class MiChroM:
 ################################################################################
 
     def localEnergyMinimization(self, tolerance=0.3, maxIterations=0, random_offset=0.02):
-        """        
+        """ 
+        Function based on localEnergyMinimization
+        
+        
+        
         A wrapper to the build-in OpenMM Local Energy Minimization
         
         See caveat below 
