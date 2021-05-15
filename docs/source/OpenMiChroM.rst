@@ -1,8 +1,5 @@
-OpenMiChroM package
+OpenMiChroM
 ===================
-
-Submodules
-----------
 
 OpenMiChroM.ChromDynamics module
 --------------------------------
@@ -16,14 +13,6 @@ OpenMiChroM.Optimization module
 -------------------------------
 
 .. automodule:: OpenMiChroM.Optimization
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Module contents
----------------
-
-.. automodule:: OpenMiChroM
    :members:
    :undoc-members:
    :show-inheritance:
