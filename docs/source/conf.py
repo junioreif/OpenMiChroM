@@ -10,6 +10,7 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
+
 import os
 import sys
 sys.path.insert(0, os.path.abspath(".."))
@@ -20,7 +21,7 @@ sys.path.insert(0, os.path.abspath("../../.."))
 # -- Project information -----------------------------------------------------
 
 project = 'OpenMiChroM'
-copyright = '2021, Antonio B. Oliveira Jr. & Vinícius G. Contessoto'
+copyright = '2020-2021 The Center for Theoretical Biological Physics (CTBP) - Rice University'
 author = 'Antonio B. Oliveira Jr. & Vinícius G. Contessoto'
 
 # The full version, including alpha/beta/rc tags
@@ -43,7 +44,10 @@ extensions = [
     "sphinx.ext.autosummary",
     "nbsphinx",
     "jupyter_sphinx",
+    "sphinxcontrib.bibtex",
 ]
+
+bibtex_bibfiles = ["Reference/OpenMiChroM.bib"]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -75,6 +79,10 @@ html_theme = "sphinx_rtd_theme"
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 # html_static_path = ['_static']
+
+html_logo = "images/Open-MichroM_chr1_A549.png" 
+html_favicon = "images/Open-MichroM_chr1_A549_icon.png"
+
 html_static_path = []
 
 html_show_sourcelink = True
