@@ -64,7 +64,14 @@ class FullTraining:
         if (reduce):
             self.appCutoff(pair_h, c_h, pair_l, c_l)
        
-        self.ind = self.get_indices(self.hic_sparse)           
+
+        self.ind = self.get_indices(self.hic_sparse)
+        if (self.gpu):
+            import pycuda.driver as drv
+            import pycuda.gpuarray as gpuarray
+            import pycuda.autoinit
+            import skcuda.linalg as linalg
+
         self.size = len(self.ind)     
         self.Pi = np.zeros(self.size)
         self.Prod_dist = np.zeros(self.hic_sparse.shape)
@@ -149,14 +156,16 @@ class FullTraining:
             Pi.append(Prob[i[0], i[1]])
         Pi = np.array(Pi)
     
-        if (self.gpu):
-            linalg.init()
-            Pi_gpu = gpuarray.to_gpu(Pi)
-            PiPj_gpu = linalg.dot(Pi_gpu, Pi_gpu)
-            self.PiPj += PiPj_gpu
-        else:
-            PiPj = np.outer(Pi,Pi)
-            self.PiPj += PiPj                                           
+
+        #if (self.gpu):
+        #    linalg.init()
+        #    Pi_gpu = gpuarray.to_gpu(Pi)
+        #    PiPj_gpu = linalg.dot(Pi_gpu, Pi_gpu)
+        #    self.PiPj += PiPj_gpu
+        #else:
+        PiPj = np.outer(Pi,Pi)
+        self.PiPj += PiPj                                       
+
      
         self.Prod_dist += Prob
         self.Pi += Pi
@@ -184,7 +193,7 @@ class FullTraining:
         random.seed(SEED)
         print(len(list(r1[np.triu_indices(np.shape(r1)[0])])))
         print("\n")
-        print(np.int(0.01*np.shape(r1)[0]*np.shape(r1)[0]))                              #0,01*137*137
+        print(np.int(0.01*np.shape(r1)[0]*np.shape(r1)[0]))                              
         
         a1 = np.asarray(random.sample(list(r1[np.triu_indices(np.shape(r1)[0])]),np.int(0.01*np.shape(r1)[0]*np.shape(r1)[0])))
         a1 = r1[np.triu_indices(np.shape(r1)[0])]
@@ -210,18 +219,19 @@ class FullTraining:
 
         Bij = PiPj_mean - Pi2_mean
         
-        if (self.gpu):
-            Bij_gpu = gpuarray.to_gpu(Bij)
-            invBij_gpu = linalg.pinv(Bij_gpu)
-        else:
-            invBij = sp.linalg.pinvh(Bij)
+        #if (self.gpu):
+        #    Bij_gpu = gpuarray.to_gpu(Bij)
+        #    invBij_gpu = linalg.pinv(Bij_gpu)
+        #else:
+        invBij = sp.linalg.pinvh(Bij)
 
-        if (self.gpu):
-            gij_gpu = gpuarray.to_gpu(gij)
-            lambdas_gpu = linalg.dot(invBij_gpu, gij_gpu)
-            lambdas = lambdas_gpu.get()
-        else:
-            lambdas = np.matmul(invBij, gij)
+        #calculate lambdas
+        #if (self.gpu):
+        #    gij_gpu = gpuarray.to_gpu(gij)
+        #    lambdas_gpu = linalg.dot(invBij_gpu, gij_gpu)
+        #    lambdas = lambdas_gpu.get()
+        #else:
+        lambdas = np.matmul(invBij, gij)
 
         
         lamb_matrix = sp.sparse.csr_matrix((lambdas,(self.rows,self.cols)), shape=(self.expHiC.shape[0],self.expHiC.shape[0]))
@@ -258,6 +268,11 @@ class CustomMiChroMTraining:
     """
    
     def __init__(self, state, ChromSeq="chr_beads.txt", mi=3.22, rc=1.78, cutoff=0.0, dinit=3, dend=200):
+
+ 
+    def __init__(self, state, TypeList=None, name='distMatrix', nHood=3, cutoff=0.0, mi=5.33, rc=1.61,lamb_size=200): 
+        self.name = name
+
         self.size = len(state)
         self.P=np.zeros((self.size,self.size))
         self.Pold=np.zeros((self.size,self.size))
