@@ -1,7 +1,7 @@
 # Copyright (c) 2020-2021 The Center for Theoretical Biological Physics (CTBP) - Rice University
 # This file is from the Open-MiChroM project, released under the MIT License.
 
-R"""
+R"""  
 The :class:`~.Optimization` classes perform the energy function parameters training of the chromosomes based on experimental Hi-C data.
 """
 

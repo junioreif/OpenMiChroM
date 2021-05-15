@@ -1,5 +1,5 @@
 # Copyright (c) 2020-2021 The Center for Theoretical Biological Physics (CTBP) - Rice University
-# This file is from the Open-MiChroM project, released under the MIT License.
+# This file is from the Open-MiChroM project, released under the MIT License. 
 
 from simtk.openmm.app import *
 import simtk.openmm as openmm
