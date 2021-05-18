@@ -362,7 +362,34 @@ class MiChroM:
         spherForce.addGlobalParameter("SPHtt", 0.01)
         return r
     
-    
+    def addSphericalHarmonic(self, kr=5*10**-3, raddi=10):
+        
+        """
+        Spherical Flat Harmonic 
+
+        Parameters
+        ----------
+        kr : float
+            spring constant 
+        
+        raddi : float 
+            flatten distance
+        """
+        
+        #raddi = (3 * self.N / (4 * 3.141592 * density)) ** (1 / 3.)
+        #print(raddi)
+
+        
+        restraintForce = self.mm.CustomExternalForce("step(r-r_res) * 0.5 * kr * (r-r_res)^2; r=sqrt(x*x+y*y+z*z)")
+        restraintForce.addGlobalParameter('r_res', raddi)
+        restraintForce.addGlobalParameter('kr', kr)
+        
+        for i in range(self.N):
+            restraintForce.addParticle(i, [])
+            
+        self.forceDict["SphericalHarmonic"] = restraintForce
+        
+        
     def addSphericalConfinementLJ(self,
                 r="density",  # radius... by default uses certain density
                 density=0.1):  # target density, measured in particles
@@ -1228,14 +1255,19 @@ class MiChroM:
             1-colunm file with types in letter format of types
         """        
         
+        
+        
         Type_conversion = {'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6}
         my_list = []
         af = open(filename,'r')
         pos = af.read().splitlines()
         for t in range(len(pos)):
             pos[t] = pos[t].split()
-            my_list.append(Type_conversion[pos[t][1]])
-        
+            
+            if pos[t][1] in Type_conversion:
+                my_list.append(Type_conversion[pos[t][1]])
+            else:
+                my_list.append(t)
         self.type_list = my_list
 
     def create_line(self,N, sig=1.0):
