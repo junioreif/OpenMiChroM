@@ -267,8 +267,7 @@ class CustomMiChroMTraining:
             The last neighbor in sequence separation (Genomic Distance) to be considered in the Ideal Chromosome potential for training. (Default value = 200).
     """
    
-    def __init__(self, state, ChromSeq="chr_beads.txt", mi=3.22, rc=1.78, cutoff=0.0, dinit=3, dend=200):
-
+    #def __init__(self, state, ChromSeq="chr_beads.txt", mi=3.22, rc=1.78, cutoff=0.0, dinit=3, dend=200):
  
     def __init__(self, state, TypeList=None, name='distMatrix', nHood=3, cutoff=0.0, mi=5.33, rc=1.61,lamb_size=200): 
         self.name = name
