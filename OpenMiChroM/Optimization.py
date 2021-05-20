@@ -29,10 +29,10 @@ class FullTraining:
     Details about the methodology are decribed in "Zhang, Bin, and Peter G. Wolynes. "Topology, structures, and energy landscapes of human chromosomes." Proceedings of the National Academy of Sciences 112.19 (2015): 6062-6067."
     
     
-    The :class:`~.FullTraining` class receive a Hi-C matrix (text file) as input. The parameters :math:`\mu` (mi) and rc are part of the probability of crosslink function :math:`f(r_{i,j}) = \frac{1}{2}\left( 1 + tanh\left[\mu(r_c - r_{i,j}\right] \right)`, where :math:`r_{i,j}` is the spatial distance between loci (beads) *i* and *j*.
+    The :class:`~.FullTraining` class receive a Hi-C matrix (text file) as input. The parameters :math:`\mu` (mu) and rc are part of the probability of crosslink function :math:`f(r_{i,j}) = \frac{1}{2}\left( 1 + tanh\left[\mu(r_c - r_{i,j}\right] \right)`, where :math:`r_{i,j}` is the spatial distance between loci (beads) *i* and *j*.
     
     Args:
-        mi (float, required):
+        mu (float, required):
             Parameter in the probability of crosslink function.
         rc (float, required):
             Parameter in the probability of crosslink function, :math:`f(rc) = 0.5`.
@@ -49,12 +49,12 @@ class FullTraining:
         c_l (float, required if **reduce** = :code:`True`)):
             The the low-resolution cutoff. (Default value = 0.02).
     """
-    def __init__(self, state, expHiC, mi=1.0, rc=2.5, 
+    def __init__(self, state, expHiC, mu=1.0, rc=2.5, 
                  cutoff=0.0, reduce=True,
                  pair_h=2, c_h=0.1, pair_l=4, c_l=0.02, gpu=False 
                 ):
             
-        self.mi = mi
+        self.mi = mu
         self.rc = rc
         self.cutoff = cutoff
         self.gpu = gpu
@@ -255,7 +255,7 @@ class CustomMiChroMTraining:
     Args:
         ChromSeq (file, required):
            Chromatin sequence of types file. The first column should contain the locus index. The second column should have the locus type annotation. A template of the chromatin sequence of types file can be found at the `Nucleome Data Bank (NDB) <https://ndb.rice.edu/static/text/chr10_beads.txt>`_.
-        mi (float, required):
+        mu (float, required):
             Parameter in the probability of crosslink function (Default value = 3.22, for human chromosomes in interphase).
         rc (float, required):
             Parameter in the probability of crosslink function, :math:`f(rc) = 0.5` (Default value = 1.78, for human chromosomes in interphase).
@@ -267,16 +267,16 @@ class CustomMiChroMTraining:
             The last neighbor in sequence separation (Genomic Distance) to be considered in the Ideal Chromosome potential for training. (Default value = 200).
     """
    
-    #def __init__(self, state, ChromSeq="chr_beads.txt", mi=3.22, rc=1.78, cutoff=0.0, dinit=3, dend=200): 
+    #def __init__(self, state, ChromSeq="chr_beads.txt", mu=3.22, rc=1.78, cutoff=0.0, dinit=3, dend=200): 
  
-    def __init__(self, state, TypeList=None, name='distMatrix', nHood=3, cutoff=0.0, mi=5.33, rc=1.61,lamb_size=200): 
+    def __init__(self, state, TypeList=None, name='distMatrix', nHood=3, cutoff=0.0, mu=5.33, rc=1.61,lamb_size=200): 
         self.name = name
 
         self.size = len(state)
         self.P=np.zeros((self.size,self.size))
         self.Pold=np.zeros((self.size,self.size))
         self.r_cut = rc 
-        self.mu  = mi 
+        self.mu  = mu
         self.Bij = np.zeros((dend,dend))
         self.diff_types = set(ChromSeq)
         self.n_types = len(self.diff_types)

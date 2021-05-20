@@ -1,6 +1,10 @@
 # Copyright (c) 2020-2021 The Center for Theoretical Biological Physics (CTBP) - Rice University
 # This file is from the Open-MiChroM project, released under the MIT License. 
 
+R"""  
+The :class:`~.ChromDynamics` classes perform chromatin dynamics based on the compartment annotations sequence of chromosomes. The simulations can be performed either using the default parameters of MiChroM (Minimal Chromatin Model) or using custom values for the type-to-type and Ideal Chromosome parameters..
+"""
+
 from simtk.openmm.app import *
 import simtk.openmm as openmm
 import simtk.unit as units
@@ -17,30 +21,53 @@ import itertools
 
 
 class MiChroM:
+    R"""
+    The :class:`~.MiChroM` class performs chromatin dynamics employing the default MiChroM energy function parameters for the type-to-type and Ideal Chromosome interactions.
     
-    ##initialize the akroma set##
+    Details about the MiChroM (Minimal Chromatin Model) energy function and the default parameters are decribed in "Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173."
+    
+    
+    The :class:`~.MiChroM` sets the environment to start the chromatin dynamics simulations.
+    
+    Args:
+        time_step (float, required):
+            Simulation time step in units of :math:`\tau`. (Default value = 0.01).
+        collision_rate (float, required):
+            Friction/Damping constant in units of reciprocal time (:math:`1/\tau`). (Default value = 0.1).
+        temperature (float, required):
+            Temperature in reduced units. (Default value = 1.0).
+        verbose (bool, optional):
+            Whether to output the information in the screen during the simulation. (Default value: :code:`False`). 
+        velocity_reinitialize (bool, optional):
+            Reset/Reinitialize velocities if :math:`E_{kin}` is greater than 5.0. (Default value: :code:`True`). 
+        name (str):
+            Name used in the output files. (Default value: *Chromosome*). 
+        length_scale (float, required):
+            Length scale used in the distances of the system in units of reduced length :math:`\sigma`. (Default value = 1.0).
+        mass_scale (float, required):
+            Mass scale used in units of :math:`\mu`. (Default value = 1.0).
+    """
     def __init__(
-        self, timestep=0.01, thermostat=0.1, temperature=120,
+        self, time_step=0.01, collision_rate=0.1, temperature=1.0,
         verbose=False,
-        velocityReinitialize=True,
-        # reinitialize velocities at every block if E_kin is more than 2.4
-        name="sim",
+        velocity_reinitialize=True,
+        name="Chromosome",
         length_scale=1.0,
-        mass_scale=1.0):  # name to print out 
+        mass_scale=1.0):
             self.name = name
-            self.timestep = timestep #in tau
-            self.collisionRate = thermostat  #in 1/tau
-            self.temperature = temperature 
+            self.timestep = time_step
+            self.collisionRate = collision_rate
+            self.temperature = temperature * 120.0
             self.verbose = verbose
-            self.velocityReinitialize = velocityReinitialize
-            self.loaded = False  # check if the data is loaded
+            self.velocityReinitialize = velocity_reinitialize
+            self.loaded = False
             self.forcesApplied = False
             self.folder = "."
             self.metadata = {}
             self.length_scale = length_scale
             self.mass_scale = mass_scale
-            self.eKcritical = 50000000  # Max allowed kinetic energy
-            self.nm = units.meter * 1e-9 
+            self.eKcritical = 50000000
+            self.nm = units.meter * 1e-9
             self.Sigma = 1.0
             self.Epsilon = 1.0
             #####################        A1         A2        B1        B2        B3        B4       NA   
@@ -52,44 +79,33 @@ class MiChroM:
                                      -0.266760,-0.301320,-0.336630,-0.329350,-0.341230,-0.341230,-0.349490, #B4
                                      -0.225646,-0.245080,-0.209919,-0.282536,-0.349490,-0.349490,-0.255994] #NA
             
-    #############################################
-    #important features must be initialize here!!
-    #############################################
+
     def setup(self, platform="CUDA", PBC=False, PBCbox=None, GPU="default",
               integrator="langevin", errorTol=None, precision="mixed"):
         
-        """Sets up the important low-level parameters of the platform.
-        Mandatory to run.
+        """Sets up the parameters of the simulation OpenMM platform.
 
-        Parameters
-        ----------
+        Args:
 
-        platform : string, optional
-            Platform to use
+            platform (str, optional):
+                Platform to use in the simulations. Opitions are *CUDA*, *OpenCL*, *CPU*, *Reference*. (Default value: *CUDA*). 
 
-        PBC : bool, optional
-            Use periodic boundary conditions, default:False
+            PBC (bool, optional)
+                Whether to use periodic boundary conditions. (Default value: :code:`False`). 
 
-        PBCbox : (float,float,float), optional
-            Define size of the bounding box for PBC
+            PBCbox ([float,float,float], optional):
+                Define size of the bounding box for PBC. (Default value: :code:`None`).
 
-        GPU : "0" or "1", optional
-            Switch to another GPU. Mostly unnecessary.
-            Machines with 1 GPU automatically select right GPU.
-            Machines with 2 GPUs select GPU that is less used.
+            GPU ( :math:`0` or :math:`1`, optional):
+                Switch to another GPU. Machines with one GPU automatically select the right GPU. Machines with two or more GPUs select GPU that is less used.
 
-        integrator : "langevin", "variableLangevin", "verlet", "variableVerlet",
-                     "brownian", optional Integrator to use
-                     (see Openmm class reference)
+            integrator (str):
+                Integrator to use in the simulations. Options are *langevin*,  *variableLangevin*, *verlet*, *variableVerlet* and, *brownian*. (Default value: *langevin*).
+            verbose (bool, optional):
+                Whether to output the information in the screen during the simulation. (Default value: :code:`False`).
 
-        verbose : bool, optional
-            Shout out loud about every change.
-
-        errorTol : float, optional
-            Error tolerance parameter for variableLangevin integrator
-            Values of 0.03-0.1 are reasonable for "nice" simulation
-            Simulations with strong forces may need 0.01 or less
-
+            errorTol (float, required if **integrator** = *variableLangevin*):
+                Error tolerance parameter for *variableLangevin* integrator.
         """
 
         self.step = 0
@@ -100,24 +116,20 @@ class MiChroM:
         if precision not in ["mixed", "single", "double"]:
             raise ValueError("Presision must be mixed, single or double")
 
-        self.kB = units.BOLTZMANN_CONSTANT_kB *             units.AVOGADRO_CONSTANT_NA  # Boltzmann constant
-        self.kT = self.kB * self.temperature  # thermal energy
+        self.kB = units.BOLTZMANN_CONSTANT_kB * units.AVOGADRO_CONSTANT_NA  
+        self.kT = self.kB * self.temperature  
         self.mass = 10.0 * units.amu * self.mass_scale
-        # All masses are the same,
-        # unless individual mass multipliers are specified in self.load()
         self.bondsForException = []
         self.mm = openmm
-        #self.conlen = 1. * nm * self.length_scale
         self.system = self.mm.System()
         self.PBC = PBC
 
-        if self.PBC == True:  # if periodic boundary conditions
-            if PBCbox is None:  # Automatically setting up PBC box
-                data = self.getData()
+        if self.PBC == True:  
+            if PBCbox is None:  
+                data = self.getPositions()
                 data -= np.min(data, axis=0)
 
-                datasize = 1.1 * (2 + (np.max(self.getData(), axis=0) -                                        np.min(self.getData(), axis=0)))
-                # size of the system plus some overhead
+                datasize = 1.1 * (2 + (np.max(self.getPositions(), axis=0) -                                        np.min(self.getPositions(), axis=0)))
 
                 self.SolventGridSize = (datasize / 1.1) - 2
                 print("density is ", self.N / (datasize[0]
@@ -131,7 +143,7 @@ class MiChroM:
                 0.], [0., datasize[1], 0.], [0., 0., datasize[2]])
             self.BoxSizeReal = datasize
 
-        self.GPU = str(GPU)  # setting default GPU
+        self.GPU = str(GPU)
         properties = {}
         if self.GPU.lower() != "default":
             properties["DeviceIndex"] = str(GPU)
@@ -152,10 +164,10 @@ class MiChroM:
 
 
         else:
-            self.exit("\n!!!!!!!!!!unknown platform!!!!!!!!!!!!!!!\n")
+            self.exit("\n!!!! Unknown platform !!!!\n")
         self.platform = platformObject
 
-        self.forceDict = {}  # Dictionary to store forces
+        self.forceDict = {}
 
         self.integrator_type = integrator
         if isinstance(integrator, string_types):
@@ -183,31 +195,34 @@ class MiChroM:
             self.integrator_type = "UserDefined"
             
     def saveFolder(self, folder):
-        """
-        sets the folder where to save data.
+        
+        """Sets the folder path to save data.
 
-        Parameters
-        ----------
-            folder : string
-                folder to save the data
+        Args:
 
+            folder (str, optional):
+                Folder path to save the simulation data. If the folder path does not exist, the function will create the directory.
         """
+    
         if os.path.exists(folder) == False:
             os.mkdir(folder)
         self.folder = folder
         
-    def load(self, filename,  # input data array
-             center=False,  # Shift center of mass to zero?
+    def loadStructure(self, filename,
+             center=True,
              masses=None,
              ):
+ 
+        """Loads the 3D position of each bead of the chromosome polymer in the OpenMM system platform.
 
+        Args:
+
+            center (bool, optional):
+                Whether to move the center of mass of the chromosome to the 3D position ``[0, 0, 0]`` before starting the simulation. (Default value: :code:`True`).
+            masses (array, optional):
+                Masses of each chromosome bead measured in units of :math:`\mu`. (Default value: :code:`None`).
         """
-        center : bool, optional
-            Move center of mass to zero before starting the simulation
-        masses : array
-            Masses of each atom, measured in self.mass (default: 100 AMU,
-            but could be modified by self.mass_scale)
-        """
+    
         data = filename
 
         data = np.asarray(data, float)
@@ -215,9 +230,9 @@ class MiChroM:
         if len(data) == 3:
             data = np.transpose(data)
         if len(data[0]) != 3:
-            self._exitProgram("strange data file")
+            self._exitProgram("Wrong file format")
         if np.isnan(data).any():
-            self._exitProgram("\n!!!!!!!!!!file contains NANS!!!!!!!!!\n")
+            self._exitProgram("\n!!!! The file contains NAN's !!!!\n")
 
         if center is True:
             av = np.mean(data, 0)
@@ -227,9 +242,8 @@ class MiChroM:
             minvalue = np.min(data, 0)
             data -= minvalue
 
-        self.setData(data) #import data to openmm
-        #self.randomizeData() #just a randomize in u use intergers
-
+        self.setPositions(data)
+       
         if masses == None:
             self.masses = [1. for _ in range(self.N)]
         else:
@@ -239,41 +253,33 @@ class MiChroM:
             self.setChains()
             
     def setChains(self, chains=[(0, None, 0)]):
+        
+        """Sets configuration of the chains in the system. This information is later used for adding Bonds and Angles of the Homopolymer potential.
+
+        Args:
+
+            chains (list of tuples, optional):
+                The list of chains in the format [(start, end, isRing)]. isRing is a boolean whether the chromosome chain is circular or not (Used to simulate bacteria genome, for example). The particle range should be semi-open, i.e., a chain  :math:`(0,3,0)` links the particles :math:`0`, :math:`1`, and :math:`2`. If :code:`bool(isRing)` is :code:`True` , the first and last particles of the chain are linked, forming a ring. The default value links all particles of the system into one chain. (Default value: :code:`[(0, None, 0)]`).
         """
-        Sets configuration of the chains in the system. This information is
-        later used by the chain-forming methods, e.g. addHarmonicPolymerBonds()
-        and addStiffness().
-        This method supersedes the less general getLayout().
-
-        Parameters
-        ----------
-
-        chains: list of tuples
-            The list of chains in format [(start, end, isRing)]. The particle
-            range should be semi-open, i.e. a chain (0,3,0) links
-            the particles 0, 1 and 2. If bool(isRing) is True than the first
-            and the last particles of the chain are linked into a ring.
-            The default value links all particles of the system into one chain.
-        """
-
-        #f not hasattr(self, "N"):
-        #   raise ValueError("Load the chain first, or provide chain length")
 
         self.chains = [i for i in chains]  
         for i in range(len(self.chains)):
             start, end, isRing = self.chains[i]
             self.chains[i] = (start, end, isRing)
             
-    def setData(self, data, random_offset = 1e-5):
-        """Sets particle positions
+    def setPositions(self, beadsPos , random_offset = 1e-5):
+        
+        """Sets the 3D position of each bead of the chromosome polymer in the OpenMM system platform.
 
-        Parameters
-        ----------
+        Args:
 
-        data : Nx3 array-line
-            Array of positions with distance ~1 between connected atoms.
+            beadsPos (:math:`(N, 3)` :class:`numpy.ndarray`):
+                Array of XYZ positions for each bead (locus) in the polymer model.
+            random_offset (float, optional):
+                A small increment in the positions to avoid numeral instability and guarantee that a *float* parameter will be used. (Default value = 1e-5).       
         """
-        data = np.asarray(data, dtype="float")
+        
+        data = np.asarray(beadsPos, dtype="float")
         if random_offset:
             data = data + (np.random.random(data.shape) * 2 - 1) * random_offset
         
@@ -282,36 +288,40 @@ class MiChroM:
         if hasattr(self, "context"):
             self.initPositions()
             
-
-    def randomizeData(self):
+    def getPositions(self):
         """
-        Runs automatically to offset data if it is integer based
+        Returns:
+            :math:`(N, 3)` :class:`numpy.ndarray`:
+                Returns an array of positions.
         """
-        data = self.getData()
-        data = data + np.random.randn(*data.shape) * 0.0001
-        self.setData(data)
-
-    def getData(self):
-        "Returns an Nx3 array of positions"
-        return np.asarray(self.data / self.nm, dtype=np.float32)
         
-    def getLoops(self, filenames):
+        return np.asarray(self.data / self.nm, dtype=np.float32)
+
+        
+    def randomizePositions(self):
         """
-        Get the loop position for each chromosome
-        note: if you run multi-chain simulations, the order of files is important!
+        Runs automatically to offset the positions if it is an integer (int) variable.
+        """
+        data = self.getPositions()
+        data = data + np.random.randn(*data.shape) * 0.0001
+        self.setPositions(data)
+        
+    def getLoops(self, looplists):
+        """
+        Get the loop position (CTFC anchor points) for each chromosome.
+        
+        .. note:: For Multi-chain simulations, the ordering of the loop list files is important! The order of the files should be the same as used in the other functions.
 
-        Parameters
-        ----------
+        Args:
 
-        filenames : text file 
-            a 2-colunm file contain the index pair of loop contact
+            looplists (text file): 
+                A two-column text file containing the index *i* and *j* of a loci pair that form loop interactions.
         """
         self.loopPosition = []
         for file, chain in zip(filenames,self.chains):
             aFile = open(file,'r')
             pos = aFile.read().splitlines()
             m = int(chain[0])
-            #print(m)
             for t in range(len(pos)):
                 pos[t] = pos[t].split()
                 pos[t][0] = int(pos[t][0]) +m
@@ -322,11 +332,11 @@ class MiChroM:
         ################## FORCES AND BONDS HERE ########################################
     ##########################################################################################
 
-    def addSphericalConfinement(self,
+    def addSphericalConfinementLJ(self,
                 r="density",  # radius... by default uses certain density
-                k=5.,  # How steep the walls are
                 density=0.1):  # target density, measured in particles
                                 # per cubic nanometer (bond size is 1 nm)
+                                         # per cubic nanometer (bond size is 1 nm)
         """Constrain particles to be within a sphere.
         With no parameters creates sphere with density .3
 
@@ -342,35 +352,8 @@ class MiChroM:
             Density is calculated in particles per nm^3,
             i.e. at density 1 each sphere has a 1x1x1 cube.
         """
-        self.metadata["SphericalConfinement"] = repr({"r": r, "k": k,
-            "density": density})
-
-        spherForce = self.mm.CustomExternalForce(
-            "step(r-SPHaa) * SPHkb * (sqrt((r-SPHaa)*(r-SPHaa) + SPHt*SPHt) - SPHt) "
-            ";r = sqrt(x^2 + y^2 + z^2 + SPHtt^2)")
-        self.forceDict["SphericalConfinement"] = spherForce
-
-        for i in range(self.N):
-            spherForce.addParticle(i, [])
-        if r == "density":
-            r = (3 * self.N / (4 * 3.141592 * density)) ** (1 / 3.)
-
-        self.sphericalConfinementRadius = r
-        if self.verbose == True:
-            print("Spherical confinement with radius = %lf" % r)
-        # assigning parameters of the force
-        spherForce.addGlobalParameter("SPHkb", k )
-        spherForce.addGlobalParameter("SPHaa", (r - 1. / k) )
-        spherForce.addGlobalParameter("SPHt", (1. / k) / 10.)
-        spherForce.addGlobalParameter("SPHtt", 0.01)
-        return r
-    
-    
-    def addSphericalConfinementLJ(self,
-                r="density",  # radius... by default uses certain density
-                density=0.1):  # target density, measured in particles
-                                # per cubic nanometer (bond size is 1 nm)
- 
+        
+        
         spherForce = self.mm.CustomExternalForce("(4 * GROSe * ((GROSs/r)^12 - (GROSs/r)^6) + GROSe) * step(GROScut - r);"
                                                  "r= R - sqrt(x^2 + y^2 + z^2) ")
             
@@ -1308,11 +1291,11 @@ class MiChroM:
                     pass
             maxkey = max(myKeys) if myKeys else 1
             self.step = maxkey - 1
-            self.setData(self.storage[str(maxkey - 1)])
+            self.setPositions(self.storage[str(maxkey - 1)])
 
                     
     def save(self, filename=None, mode="auto", h5dictKey="1", pdbGroups=None):
-        data = self.getData()
+        data = self.getPositions()
 
         
         if filename is None:
@@ -1573,7 +1556,7 @@ class MiChroM:
         eP = self.state.getPotentialEnergy() / self.N / units.kilojoule_per_mole
         coords = self.state.getPositions(asNumpy=True)
         self.data = coords
-        self.setData(self.getData(), random_offset = random_offset)        
+        self.setPositions(self.getPositions(), random_offset = random_offset)        
         locTime = self.state.getTime()
         print("after minimization eK={0}, eP={1}, time={2}".format(eK, eP, locTime))
 
@@ -1726,7 +1709,7 @@ class MiChroM:
                 print("eK={0}, eP={1}, trying one more time at step {2} ".format(eK, eP, self.step))
             else:
                 dif = np.sqrt(np.mean(np.sum((newcoords -
-                    self.getData()) ** 2, axis=1)))
+                    self.getPositions()) ** 2, axis=1)))
                 print("dr=%.2lf" % (dif,), end=' ')
                 self.data = coords
                 print("t=%2.1lfps" % (self.state.getTime() / units.second * 1e-12), end=' ')
@@ -1860,8 +1843,8 @@ class MiChroM:
     def getScaledData(self):
         """Returns data, scaled back to PBC box """
         if self.PBC != True:
-            return self.getData()
-        alldata = self.getData()
+            return self.getPositions()
+        alldata = self.getPositions()
         boxsize = np.array(self.BoxSizeReal)
         mults = np.floor(alldata / boxsize[None, :])
         toRet = alldata - mults * boxsize[None, :]
