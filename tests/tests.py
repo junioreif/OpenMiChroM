@@ -9,11 +9,11 @@ from Optimization import FullTraining, CustomMiChroMTraining
 
 class testMichrom():
     def runDefault(self):
-        a = MiChroM(name="test", temperature=120, timestep=0.01)
+        a = MiChroM(name="test", temperature=1.0, time_step=0.01)
         a.setup(platform="cuda", integrator="Langevin", precision='single')
         a.saveFolder('output')
-        mypol = a.create_springSpiral(type_list=sys.path[0]+'/chr10/chr10_beads.txt')
-        a.load(mypol, center=True)
+        myChrom = a.create_springSpiral(type_list=sys.path[0]+'/chr10/chr10_beads.txt')
+        a.loadStructure(myChrom, center=True)
         a.addFENEBonds(k=30.0) 
         a.addAngles(k=2.0)
         a.addRepulsiveSoftCore(Ecut=4.0)
