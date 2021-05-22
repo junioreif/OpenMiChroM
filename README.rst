@@ -9,5 +9,5 @@ Open-MiChroM package receives the chromatin sequence of compartments and subcomp
 
 .. raw:: html
 
-    <img src="./docs/source/images/A549_NDB.jpg" height="400px">
+    <img align="center" height="400px"  src="./docs/source/images/A549_NDB.jpg" >
 
