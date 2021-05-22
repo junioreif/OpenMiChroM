@@ -332,53 +332,38 @@ class MiChroM:
         ################## FORCES AND BONDS HERE ########################################
     ##########################################################################################
 
-    def addSphericalHarmonic(self, kr=5*10**-3, raddi=10):
+    def addFlatBottomHarmonic(self, kr=5*10**-3, n_rad=10.0):
         
-        """
-        Spherical Flat Harmonic 
+        """Sets a Flat-Bottom Harmonic potential to collapse the chromosome chain inside the nucleus wall. The potential is defined as: :math:`step(r-r0) * (kr/2)*(r-r0)^2`.
 
-        Parameters
-        ----------
-        kr : float
-            spring constant 
-        
-        raddi : float 
-            flatten distance
-        """
-        
-        #raddi = (3 * self.N / (4 * 3.141592 * density)) ** (1 / 3.)
-        #print(raddi)
+        Args:
 
-        
+            kr (float, required):
+                Spring constant. (Default value = 5e-3). 
+            n_rad (float, required):
+                Nucleus wall radius in units of :math:`\sigma`. (Default value = 10.0).  
+        """
+
         restraintForce = self.mm.CustomExternalForce("step(r-r_res) * 0.5 * kr * (r-r_res)^2; r=sqrt(x*x+y*y+z*z)")
-        restraintForce.addGlobalParameter('r_res', raddi)
+        restraintForce.addGlobalParameter('r_res', n_rad)
         restraintForce.addGlobalParameter('kr', kr)
         
         for i in range(self.N):
             restraintForce.addParticle(i, [])
             
-        self.forceDict["SphericalHarmonic"] = restraintForce
+        self.forceDict["FlatBottomHarmonic"] = restraintForce
     
-    def addSphericalConfinementLJ(self,
-                r="density",  # radius... by default uses certain density
-                density=0.1):  # target density, measured in particles
-                                # per cubic nanometer (bond size is 1 nm)
-                                         # per cubic nanometer (bond size is 1 nm)
-        """Constrain particles to be within a sphere.
-        With no parameters creates sphere with density .3
+    def addSphericalConfinementLJ(self, r="density", density=0.1):
+                                
+        """Sets the nucleus wall potential according to MiChroM Energy function. The confinement potential describes the interaction between the chromosome and a spherical wall.
 
-        Parameters
-        ----------
-        r : float or "density", optional
-            Radius of confining sphere. If "density" requires density,
-            or assumes density = .3
-        k : float, optional
-            Steepness of the confining potential, in kT/nm
-        density : float, optional, <1
-            Density for autodetection of confining radius.
-            Density is calculated in particles per nm^3,
-            i.e. at density 1 each sphere has a 1x1x1 cube.
-        """
+        Args:
+
+            r (float or str="density", optional):
+                Radius of the nucleus wall. If **r="density"** requires a **density** value.
+            density (float, required if **r="density"**):
+                Density of the chromosome beads inside the nucleus. (Default value = 0.1).  
+        """        
 
         spherForce = self.mm.CustomExternalForce("(4 * GROSe * ((GROSs/r)^12 - (GROSs/r)^6) + GROSe) * step(GROScut - r);"
                                                  "r= R - sqrt(x^2 + y^2 + z^2) ")
@@ -392,7 +377,6 @@ class MiChroM:
 
         self.sphericalConfinementRadius = r
 
-        # assigning parameters of the force
         spherForce.addGlobalParameter('R', r)
         spherForce.addGlobalParameter('GROSe', 1.0)
         spherForce.addGlobalParameter('GROSs', 1.0)
@@ -400,86 +384,36 @@ class MiChroM:
         
         return r
 
-    def addHarmonicPolymerBonds(self,
-                                wiggleDist=0.05,
-                                bondLength=1.0,
-                                exceptBonds=True):
-        """Adds harmonic bonds connecting polymer chains
-
-        Parameters
-        ----------
-
-        wiggleDist : float
-            Average displacement from the equilibrium bond distance
-        bondLength : float
-            The length of the bond
-        exceptBonds : bool
-            If True then do not calculate non-bonded forces between the
-            particles connected by a bond. True by default.
-        """
-
-
-        for start, end, isRing in self.chains:
-            for j in range(start, end - 1):
-                self.addBond(j, j + 1, wiggleDist,
-                    distance=bondLength,
-                    bondType="Harmonic", verbose=False)
-                if exceptBonds:
-                    self.bondsForException.append((j, j + 1))
-
-            if isRing:
-                self.addBond(start, end - 1, wiggleDist,
-                    distance=bondLength, bondType="Harmonic")
-                if exceptBonds:
-                    self.bondsForException.append((start, end - 1))
-                if self.verbose == True:
-                    print("ring bond added", start, end - 1)
-
-        self.metadata["HarmonicPolymerBonds"] = repr(
-            {"wiggleDist": wiggleDist, 'bondLength':bondLength})
-   
-    def _initHarmonicBondForce(self):
-        "Internal, inits harmonic forse for polymer and non-polymer bonds"
-        if "HarmonicBondForce" not in list(self.forceDict.keys()):
-            self.forceDict["HarmonicBondForce"] = self.mm.HarmonicBondForce()
-        self.bondType = "Harmonic"
         
-    def addFENEBonds(self, k=30):
-        """Adds FENE bonds according to Halverson-Grosberg paper.
-        (Halverson, Jonathan D., et al. "Molecular dynamics simulation study of
-         nonconcatenated ring polymers in a melt. I. Statics."
-         The Journal of chemical physics 134 (2011): 204904.)
-
-        This method has a repulsive potential build-in,
-        so that FENE bonds could be used with truncated potentials.
+    def addFENEBonds(self, kfb=30.0):
         
-        Parameters
-        ----------
-        k : float, optional
-            Arbitrary parameter; default value as in Grosberg paper.
+        """Adds FENE (Finite Extensible Nonlinear Elastic) bonds between neighbor loci :math:`i` and :math:`i+1` according to "Halverson, J.D., Lee, W.B., Grest, G.S., Grosberg, A.Y. and Kremer, K., 2011. Molecular dynamics simulation study of nonconcatenated ring polymers in a melt. I. Statics. The Journal of chemical physics, 134(20), p.204904".
 
-         """
+        Args:
+
+            kfb (float, required):
+                Bond coefficient. (Default value = 30.0).
+          """
 
         for start, end, isRing in self.chains:
             for j in range(start, end):
-                self.addBond(j, j + 1, bondType="FENE",k=k)
+                self.addBond(j, j + 1, kfb=kfb)
                 self.bondsForException.append((j, j + 1))
 
             if isRing:
-                self.addBond(start, end, distance=1, bondType="FENE", k=k)
+                self.addBond(start, end, distance=1, kfb=kfb)
                 self.bondsForException.append((start, end ))
 
-        self.metadata["FENEBond"] = repr({"k": k})
+        self.metadata["FENEBond"] = repr({"kfb": kfb})
         
-    def _initFENEBond(self, k=30):
+    def _initFENEBond(self, kfb=30):
         """
-        inits FENE bond force
+        Internal function that inits FENE bond force.
         """
         if "FENEBond" not in list(self.forceDict.keys()):
-            force = ("- 0.5 * k * r0 * r0 * log(1-(r/r0)*(r/r0)) + (4 * e * ((s/r)^12 - (s/r)^6) + e) * step(cut - r)")
+            force = ("- 0.5 * kfb * r0 * r0 * log(1-(r/r0)*(r/r0)) + (4 * e * ((s/r)^12 - (s/r)^6) + e) * step(cut - r)")
             bondforceGr = self.mm.CustomBondForce(force)
-            bondforceGr.addGlobalParameter("k", k)
-                
+            bondforceGr.addGlobalParameter("kfb", kfb)
             bondforceGr.addGlobalParameter("r0", 1.5) 
             bondforceGr.addGlobalParameter('e', 1.0)
             bondforceGr.addGlobalParameter('s', 1.0)
@@ -487,88 +421,69 @@ class MiChroM:
                 
             self.forceDict["FENEBond"] = bondforceGr
         
-    def addBond(self,
-                i, j,  # particles connected by bond
-                bondWiggleDistance=0.2,
-                distance=None,  # Equilibrium length of the bond
-                bondType=None,  # Harmonic, FENE
-                k=30): #Kb for FENE bond  
-                
-        """Adds bond between two particles, allows to specify parameters
+    def addBond(self, i, j, distance=None, kfb=30):
+        
+        """Adds bonds between loci :math:`i` and :math:`j` 
 
-        Parameters
-        ----------
+        Args:
 
-        i,j : int
-            Particle numbers
-
-        bondWiggleDistance : float
-            Average displacement from the equilibrium bond distance
-
-        bondType : "Harmonic" or "Grosberg"
-            Type of bond. Distance and bondWiggleDistance can be
-            specified for harmonic bonds only
-        """
-
-        if not hasattr(self, "bondLengths"):
-            self.bondLengths = []
+            kfb (float, required):
+                Bond coefficient. (Default value = 30.0).
+            i (int, required):
+                Locus index **i**.
+            j (int, required):
+                Locus index **j**
+          """
 
         if (i >= self.N) or (j >= self.N):
-            raise ValueError("\nCannot add bond with monomers %d,%d that"            "are beyound the polymer length %d" % (i, j, self.N))
-        bondSize = float(bondWiggleDistance)
+            raise ValueError("\n Cannot add a bond between beads  %d,%d that are beyond the chromosome length %d" % (i, j, self.N))
         if distance is None:
             distance = self.length_scale
         else:
             distance = self.length_scale * distance
         distance = float(distance)
 
- 
-        if bondType is None:
-            bondType = self.bondType
+        self._initFENEBond(kfb=kfb)
+        self.forceDict["FENEBond"].addBond(int(i), int(j), [])
 
-        if bondType.lower() == "harmonic":
-            self._initHarmonicBondForce()
-            #kbond = kbondScalingFactor / (bondSize ** 2)
-            #self.forceDict["HarmonicBondForce"].addBond(int(i), int(j), float(distance), float(kbond))
-            self.bondLengths.append([int(i), int(j), float(distance), float(bondSize)])
-        elif bondType.lower() == "fene":
-            self._initFENEBond(k=k)
-            self.forceDict["FENEBond"].addBond(int(i), int(j), [])
-        else:
-            self._exitProgram("Bond type not known")
             
-    def addAngles(self, k=2.0):
-        """Adds stiffness according to the Grosberg paper.
-        (Halverson, Jonathan D., et al. "Molecular dynamics simulation study of
-         nonconcatenated ring polymers in a melt. I. Statics."
-         The Journal of chemical physics 134 (2011): 204904.)
+    def addAngles(self, ka=2.0):
+        
+        """
+        Adds an angular potential between bonds connecting beads :math:`i − 1, i` and :math:`i, i + 1` according to "Halverson, J.D., Lee, W.B., Grest, G.S., Grosberg, A.Y. and Kremer, K., 2011. Molecular dynamics simulation study of nonconcatenated ring polymers in a melt. I. Statics. The Journal of chemical physics, 134(20), p.204904".
+        
+        Args:
 
-        Parameters
-        ----------
-
-        k : float or N-long list of floats
-            Synchronized with regular stiffness.
+            ka (float, required):
+                Angle potential coefficient. (Default value = 2.0).
         """
         
         try:
-            k[0]
+            ka[0]
         except:
-            k = np.zeros(self.N, float) + k
+            ka = np.zeros(self.N, float) + ka
         angles = self.mm.CustomAngleForce(
-            "k *  (1 - cos(theta - 3.141592))")
+            "ka *  (1 - cos(theta - 3.141592))")
         
-        angles.addPerAngleParameter("k")
+        angles.addPerAngleParameter("ka")
         for start, end, isRing in self.chains:
             for j in range(start + 1, end):
-                angles.addAngle(j - 1, j, j + 1, [k[j]])
+                angles.addAngle(j - 1, j, j + 1, [ka[j]])
                 
                 
             if isRing:
-                angles.addAngle(end - 1, end , start, [k[end]])
-                angles.addAngle(end , start, start + 1, [k[start]])
+                angles.addAngle(end - 1, end , start, [ka[end]])
+                angles.addAngle(end , start, start + 1, [ka[start]])
 
-        self.metadata["AngleForce"] = repr({"stiffness": k})
+        self.metadata["AngleForce"] = repr({"stiffness": ka})
         self.forceDict["AngleForce"] = angles
+        
+        
+        
+        ############# Vini here ##########
+        
+        
+        
         
     def addRepulsiveSoftCore(self, Ecut=4.0):
        
