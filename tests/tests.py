@@ -17,7 +17,7 @@ class testMichrom():
         a.addFENEBonds(kfb=30.0) 
         a.addAngles(ka=2.0)
         a.addRepulsiveSoftCore(Ecut=4.0)
-        a.addTypetoType(mi=3.22, rc=1.78)
+        a.addTypetoType(mu=3.22, rc=1.78)
         a.addIdealChromosome(mi=3.22, rc=1.78)
         a.addFlatBottomHarmonic(kr=5*10**-3, n_rad=10.0)
 

@@ -83,7 +83,7 @@ class MiChroM:
     def setup(self, platform="CUDA", PBC=False, PBCbox=None, GPU="default",
               integrator="langevin", errorTol=None, precision="mixed"):
         
-        """Sets up the parameters of the simulation OpenMM platform.
+        R"""Sets up the parameters of the simulation OpenMM platform.
 
         Args:
 
@@ -196,7 +196,7 @@ class MiChroM:
             
     def saveFolder(self, folder):
         
-        """Sets the folder path to save data.
+        R"""Sets the folder path to save data.
 
         Args:
 
@@ -213,7 +213,7 @@ class MiChroM:
              masses=None,
              ):
  
-        """Loads the 3D position of each bead of the chromosome polymer in the OpenMM system platform.
+        R"""Loads the 3D position of each bead of the chromosome polymer in the OpenMM system platform.
 
         Args:
 
@@ -254,7 +254,7 @@ class MiChroM:
             
     def setChains(self, chains=[(0, None, 0)]):
         
-        """Sets configuration of the chains in the system. This information is later used for adding Bonds and Angles of the Homopolymer potential.
+        R"""Sets configuration of the chains in the system. This information is later used for adding Bonds and Angles of the Homopolymer potential.
 
         Args:
 
@@ -269,7 +269,7 @@ class MiChroM:
             
     def setPositions(self, beadsPos , random_offset = 1e-5):
         
-        """Sets the 3D position of each bead of the chromosome polymer in the OpenMM system platform.
+        R"""Sets the 3D position of each bead of the chromosome polymer in the OpenMM system platform.
 
         Args:
 
@@ -289,7 +289,7 @@ class MiChroM:
             self.initPositions()
             
     def getPositions(self):
-        """
+        R"""
         Returns:
             :math:`(N, 3)` :class:`numpy.ndarray`:
                 Returns an array of positions.
@@ -299,7 +299,7 @@ class MiChroM:
 
         
     def randomizePositions(self):
-        """
+        R"""
         Runs automatically to offset the positions if it is an integer (int) variable.
         """
         data = self.getPositions()
@@ -307,7 +307,7 @@ class MiChroM:
         self.setPositions(data)
         
     def getLoops(self, looplists):
-        """
+        R"""
         Get the loop position (CTFC anchor points) for each chromosome.
         
         .. note:: For Multi-chain simulations, the ordering of the loop list files is important! The order of the files should be the same as used in the other functions.
@@ -328,13 +328,11 @@ class MiChroM:
                 pos[t][1] = int(pos[t][1]) +m
                 self.loopPosition.append(pos[t])
                 
-##########################################################################################
-        ################## FORCES AND BONDS HERE ########################################
-    ##########################################################################################
 
     def addFlatBottomHarmonic(self, kr=5*10**-3, n_rad=10.0):
         
-        """Sets a Flat-Bottom Harmonic potential to collapse the chromosome chain inside the nucleus wall. The potential is defined as: :math:`step(r-r0) * (kr/2)*(r-r0)^2`.
+        R"""
+        Sets a Flat-Bottom Harmonic potential to collapse the chromosome chain inside the nucleus wall. The potential is defined as: :math:`step(r-r0) * (kr/2)*(r-r0)^2`.
 
         Args:
 
@@ -355,7 +353,8 @@ class MiChroM:
     
     def addSphericalConfinementLJ(self, r="density", density=0.1):
                                 
-        """Sets the nucleus wall potential according to MiChroM Energy function. The confinement potential describes the interaction between the chromosome and a spherical wall.
+        R"""
+        Sets the nucleus wall potential according to MiChroM Energy function. The confinement potential describes the interaction between the chromosome and a spherical wall.
 
         Args:
 
@@ -387,7 +386,8 @@ class MiChroM:
         
     def addFENEBonds(self, kfb=30.0):
         
-        """Adds FENE (Finite Extensible Nonlinear Elastic) bonds between neighbor loci :math:`i` and :math:`i+1` according to "Halverson, J.D., Lee, W.B., Grest, G.S., Grosberg, A.Y. and Kremer, K., 2011. Molecular dynamics simulation study of nonconcatenated ring polymers in a melt. I. Statics. The Journal of chemical physics, 134(20), p.204904".
+        R"""
+        Adds FENE (Finite Extensible Nonlinear Elastic) bonds between neighbor loci :math:`i` and :math:`i+1` according to "Halverson, J.D., Lee, W.B., Grest, G.S., Grosberg, A.Y. and Kremer, K., 2011. Molecular dynamics simulation study of nonconcatenated ring polymers in a melt. I. Statics. The Journal of chemical physics, 134(20), p.204904".
 
         Args:
 
@@ -407,7 +407,7 @@ class MiChroM:
         self.metadata["FENEBond"] = repr({"kfb": kfb})
         
     def _initFENEBond(self, kfb=30):
-        """
+        R"""
         Internal function that inits FENE bond force.
         """
         if "FENEBond" not in list(self.forceDict.keys()):
@@ -423,7 +423,8 @@ class MiChroM:
         
     def addBond(self, i, j, distance=None, kfb=30):
         
-        """Adds bonds between loci :math:`i` and :math:`j` 
+        R"""
+        Adds bonds between loci :math:`i` and :math:`j` 
 
         Args:
 
@@ -449,7 +450,7 @@ class MiChroM:
             
     def addAngles(self, ka=2.0):
         
-        """
+        R"""
         Adds an angular potential between bonds connecting beads :math:`i − 1, i` and :math:`i, i + 1` according to "Halverson, J.D., Lee, W.B., Grest, G.S., Grosberg, A.Y. and Kremer, K., 2011. Molecular dynamics simulation study of nonconcatenated ring polymers in a melt. I. Statics. The Journal of chemical physics, 134(20), p.204904".
         
         Args:
@@ -478,25 +479,29 @@ class MiChroM:
         self.metadata["AngleForce"] = repr({"stiffness": ka})
         self.forceDict["AngleForce"] = angles
         
-        
-        
-        ############# Vini here ##########
-        
-        
-        
+
         
     def addRepulsiveSoftCore(self, Ecut=4.0):
-       
         
-        nbCutOffDist = self.Sigma * 2. ** (1. / 6.) # cutoff in sigma*2^(1/6) #1.112
+        R"""
+        Adds a soft-core repulsive interaction that allows chain crossing, which represents the activity of topoisomerase II. Details can be found in the following publications: 
         
-        Ecut = Ecut*self.Epsilon #Ecut Definition
-        # NOTe: must be changed if E_cut value is changed
+            - Oliveira Jr., A.B., Contessoto, V.G., Mello, M.F. and Onuchic, J.N., 2021. A scalable computational approach for simulating complexes of multiple chromosomes. Journal of Molecular Biology, 433(6), p.166700.
+            - Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173.
+            - Naumova, N., Imakaev, M., Fudenberg, G., Zhan, Y., Lajoie, B.R., Mirny, L.A. and Dekker, J., 2013. Organization of the mitotic chromosome. Science, 342(6161), pp.948-953.
+
+        Args:
+
+            Ecut (float, required):
+                Energy cost for the chain passing in units of :math:`k_{b}T`. (Default value = 4.0).
+          """
+        
+        nbCutOffDist = self.Sigma * 2. ** (1. / 6.) #1.112
+        
+        Ecut = Ecut*self.Epsilon
+        
         r_0 = self.Sigma*(((0.5*Ecut)/(4.0*self.Epsilon) - 0.25 +((0.5)**(2.0)))**(1.0/2.0) +0.5)**(-1.0/6.0)
         
-        #" + step(r_0 - r)* 0.5 * Ecut * (1.0 + tanh( (2.0 * LJ/Ecut) - 1.0 ));"
-        #"LJ = 4.0 * Epsi * ((Sig/r)^12 - (Sig/r)^6) + Epsi"
-        #* step(r - r_0) * step(CutOff - r)
         repul_energy = ("LJ * step(r - r_0) * step(CutOff - r)"
                        " + step(r_0 - r)* 0.5 * Ecut * (1.0 + tanh( (2.0 * LJ/Ecut) - 1.0 ));"
                        "LJ = 4.0 * Epsi * ((Sig/r)^12 - (Sig/r)^6) + Epsi")
@@ -514,26 +519,33 @@ class MiChroM:
         for _ in range(self.N):
             repulforceGr.addParticle(())
         
-    def addTypetoType(self, mi=3.22, rc = 1.78 ):
-        '''this force is based in type to type interactions, important see the list of types first!
-        '''
+    def addTypetoType(self, mu=3.22, rc = 1.78 ):
+        R"""
+        Adds the type-to-type interactions according to the MiChroM energy function parameters reported in "Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173". The parameters :math:`\mu` (mu) and rc are part of the probability of crosslink function :math:`f(r_{i,j}) = \frac{1}{2}\left( 1 + tanh\left[\mu(r_c - r_{i,j}\right] \right)`, where :math:`r_{i,j}` is the spatial distance between loci (beads) *i* and *j*.
+        
+        Args:
 
-        self.metadata["TypetoType"] = repr({"mi": mi})
-        if not hasattr(self, "type_list"): #if any list exist, create a random one!
+            mu (float, required):
+                Parameter in the probability of crosslink function. (Default value = 3.22).
+            rc (float, required):
+                Parameter in the probability of crosslink function, :math:`f(rc) = 0.5`. (Default value = 1.78).
+        """
+
+        self.metadata["TypetoType"] = repr({"mu": mu})
+        if not hasattr(self, "type_list"): 
              self.type_list = self.random_type(self.N)
 
-        energy = "mapType(t1,t2)*0.5*(1. + tanh(mi*(rc - r)))*step(r-1.0)"
+        energy = "mapType(t1,t2)*0.5*(1. + tanh(mu*(rc - r)))*step(r-1.0)"
         
         crossLP = self.mm.CustomNonbondedForce(energy)
     
-        crossLP.addGlobalParameter('mi', mi)
+        crossLP.addGlobalParameter('mu', mu)
         crossLP.addGlobalParameter('rc', rc)
         crossLP.setCutoffDistance(3.0)
         
-        fTypes = self.mm.Discrete2DFunction(7,7,self.inter_Chrom_types) #create de tabular function
-        crossLP.addTabulatedFunction('mapType', fTypes)  ##add tabular function
+        fTypes = self.mm.Discrete2DFunction(7,7,self.inter_Chrom_types)
+        crossLP.addTabulatedFunction('mapType', fTypes) 
         
-        #print(fTypes.getFunctionParameters())
         
         crossLP.addPerParticleParameter("t")
 
@@ -541,33 +553,45 @@ class MiChroM:
                 value = [float(self.type_list[i])]
                 crossLP.addParticle(value)
                 
-                
         self.forceDict["TypetoType"] = crossLP
 
-    def addCustomTypes(self, mi=3.22, rc = 1.78, lambdas=[0,0,0]):
-        """
-        Type to type interactions using trained new parameters
+    def addCustomTypes(self, mu=3.22, rc = 1.78, TypesTable=None):
+        R"""
+        Adds the type-to-type potential using custom values for interactions between the chromatin types. The parameters :math:`\mu` (mu) and rc are part of the probability of crosslink function :math:`f(r_{i,j}) = \frac{1}{2}\left( 1 + tanh\left[\mu(r_c - r_{i,j}\right] \right)`, where :math:`r_{i,j}` is the spatial distance between loci (beads) *i* and *j*.
         
-        Parameters
-        ----------
+        The function receives a txt/TSV/CSV file containing the upper triangular matrix of the type-to-type interactions. A file example can be found `here <https://www.ndb.rice.edu>`_.
+        
+        +---+------+-------+-------+
+        |   |   A  |   B   |   C   |
+        +---+------+-------+-------+
+        | A | -0.2 | -0.25 | -0.15 |
+        +---+------+-------+-------+
+        | B |      |  -0.3 | -0.15 |
+        +---+------+-------+-------+
+        | C |      |       | -0.35 |
+        +---+------+-------+-------+
+        
+        Args:
+        
+            mu (float, required):
+                Parameter in the probability of crosslink function. (Default value = 3.22).
+            rc (float, required):
+                Parameter in the probability of crosslink function, :math:`f(rc) = 0.5`. (Default value = 1.78).
+            TypesTable (file, required):
+                A txt/TSV/CSV file containing the upper triangular matrix of the type-to-type interactions.
 
-        mi : float 
-            constant values from Probability of Crosslinking equation
-        rc : float
-            constant values from Probability of Crosslinking equation
-        lambdas : 3-sized list [AA,AB,BB]
-            values for types interactions
+
         """
 
-        self.metadata["CrossLink"] = repr({"mi": mi})
-        if not hasattr(self, "type_list"): #if any list exist, create a random one!
+        self.metadata["CrossLink"] = repr({"mu": mu})
+        if not hasattr(self, "type_list"):
              self.type_list = self.random_type(self.N)
 
-        energy = "mapType(t1,t2)*0.5*(1. + tanh(mi*(rc - r)))*step(r-lim)"
+        energy = "mapType(t1,t2)*0.5*(1. + tanh(mu*(rc - r)))*step(r-lim)"
         
         crossLP = self.mm.CustomNonbondedForce(energy)
     
-        crossLP.addGlobalParameter('mi', mi)
+        crossLP.addGlobalParameter('mu', mu)
         crossLP.addGlobalParameter('rc', rc)
         crossLP.addGlobalParameter('lim', 1.0)
         crossLP.setCutoffDistance(3.0)
@@ -576,14 +600,12 @@ class MiChroM:
         print(len(lambdas))
         lambdas = list(np.ravel(lambdas))
         
+      
         
-        #lambdas = [lambdas[0],lambdas[1], lambdas[1],lambdas[2]]      
+        fTypes = self.mm.Discrete2DFunction(diff_types,diff_types,lambdas)
+        crossLP.addTabulatedFunction('mapType', fTypes) 
         
-        fTypes = self.mm.Discrete2DFunction(diff_types,diff_types,lambdas) #create de tabular function
-        crossLP.addTabulatedFunction('mapType', fTypes)  ##add tabular function
-        
-         
-        #AB_types = [1 if value == 2 else value for value in self.type_list]
+     
         AB_types = self.changeType_list()
         crossLP.addPerParticleParameter("t")
 
