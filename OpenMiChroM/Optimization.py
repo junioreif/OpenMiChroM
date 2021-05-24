@@ -33,9 +33,9 @@ class FullTraining:
     
     Args:
         mu (float, required):
-            Parameter in the probability of crosslink function.
+            Parameter in the probability of crosslink function. (Default value = 2.0).
         rc (float, required):
-            Parameter in the probability of crosslink function, :math:`f(rc) = 0.5`.
+            Parameter in the probability of crosslink function, :math:`f(rc) = 0.5`. (Default value = 2.5).
         cutoff (float, optional):
             Cutoff value for reducing the noise in the original data. Values lower than the **cutoff** are considered :math:`0.0`.
         reduce (bool, optional):
@@ -49,7 +49,7 @@ class FullTraining:
         c_l (float, required if **reduce** = :code:`True`)):
             The the low-resolution cutoff. (Default value = 0.02).
     """
-    def __init__(self, state, expHiC, mu=1.0, rc=2.5, 
+    def __init__(self, state, expHiC, mu=2.0, rc=2.5, 
                  cutoff=0.0, reduce=True,
                  pair_h=2, c_h=0.1, pair_l=4, c_l=0.02, gpu=False 
                 ):
@@ -386,10 +386,6 @@ class CustomMiChroMTraining:
         
         return(np.dot(invRes,gij))
     
-##########################################################################################
-#### TYPES OPTIMIZATION
-##########################################################################################
-
 
     def probCalculation_types(self, state, typeList):
         R"""
