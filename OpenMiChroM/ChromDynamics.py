@@ -18,6 +18,7 @@ import h5py
 from scipy.spatial import distance
 import scipy as sp
 import itertools
+from pandas import DataFrame
 
 
 class MiChroM:
@@ -208,10 +209,7 @@ class MiChroM:
             os.mkdir(folder)
         self.folder = folder
         
-    def loadStructure(self, filename,
-             center=True,
-             masses=None,
-             ):
+    def loadStructure(self, filename,center=True,masses=None):
  
         R"""Loads the 3D position of each bead of the chromosome polymer in the OpenMM system platform.
 
@@ -521,7 +519,9 @@ class MiChroM:
         
     def addTypetoType(self, mu=3.22, rc = 1.78 ):
         R"""
-        Adds the type-to-type interactions according to the MiChroM energy function parameters reported in "Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173". The parameters :math:`\mu` (mu) and rc are part of the probability of crosslink function :math:`f(r_{i,j}) = \frac{1}{2}\left( 1 + tanh\left[\mu(r_c - r_{i,j}\right] \right)`, where :math:`r_{i,j}` is the spatial distance between loci (beads) *i* and *j*.
+        Adds the type-to-type interactions according to the MiChroM energy function parameters reported in "Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173". 
+        
+        The parameters :math:`\mu` (mu) and rc are part of the probability of crosslink function :math:`f(r_{i,j}) = \frac{1}{2}\left( 1 + tanh\left[\mu(r_c - r_{i,j}\right] \right)`, where :math:`r_{i,j}` is the spatial distance between loci (beads) *i* and *j*.
         
         Args:
 
@@ -533,7 +533,7 @@ class MiChroM:
 
         self.metadata["TypetoType"] = repr({"mu": mu})
         if not hasattr(self, "type_list"): 
-             self.type_list = self.random_type(self.N)
+             self.type_list = self.random_ChromSeq(self.N)
 
         energy = "mapType(t1,t2)*0.5*(1. + tanh(mu*(rc - r)))*step(r-1.0)"
         
@@ -578,14 +578,14 @@ class MiChroM:
             rc (float, required):
                 Parameter in the probability of crosslink function, :math:`f(rc) = 0.5`. (Default value = 1.78).
             TypesTable (file, required):
-                A txt/TSV/CSV file containing the upper triangular matrix of the type-to-type interactions.
+                A txt/TSV/CSV file containing the upper triangular matrix of the type-to-type interactions. (Default value: :code:`None`).
 
 
         """
 
         self.metadata["CrossLink"] = repr({"mu": mu})
         if not hasattr(self, "type_list"):
-             self.type_list = self.random_type(self.N)
+             self.type_list = self.random_ChromSeq(self.N)
 
         energy = "mapType(t1,t2)*0.5*(1. + tanh(mu*(rc - r)))*step(r-lim)"
         
@@ -617,6 +617,9 @@ class MiChroM:
         self.forceDict["CustomTypes"] = crossLP
     
     def changeType_list(self):
+        R"""
+        Internal function for indexing unique chromatin types.
+        """
         n = set(self.type_list)
         lista = np.array(self.type_list)
         k=0
@@ -625,29 +628,31 @@ class MiChroM:
             k += 1
         return(list(lista))
         
-    def addLoops(self, mi=3.22, rc = 1.78, X=-1.612990, filename=None):
-        """
-        Loop interactions betweens pair of beads
+    def addLoops(self, mu=3.22, rc = 1.78, X=-1.612990, looplists=None):
+        R"""
+        Adds the Loops interactions according to the MiChroM energy function parameters reported in "Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173". 
         
-        Parameters
-        ----------
+        The parameters :math:`\mu` (mu) and rc are part of the probability of crosslink function :math:`f(r_{i,j}) = \frac{1}{2}\left( 1 + tanh\left[\mu(r_c - r_{i,j}\right] \right)`, where :math:`r_{i,j}` is the spatial distance between loci (beads) *i* and *j*.
+        
+        .. note:: For Multi-chain simulations, the ordering of the loop list files is important! The order of the files should be the same as used in the other functions.
+        
+        Args:
 
-        mi : float 
-            constant value from Probability of Crosslinking equation
-        rc : float
-            constant value from Probability of Crosslinking equation
-        X : float
-            constant value for loop parameter
-        filename : list of files
-            2 colunm file containg the pair base interaciton
+            mu (float, required):
+                Parameter in the probability of crosslink function. (Default value = 3.22).
+            rc (float, required):
+                Parameter in the probability of crosslink function, :math:`f(rc) = 0.5`. (Default value = 1.78).
+            X (float, required):
+                Loop interaction parameter. (Default value = -1.612990).
+            looplists (file, optional):
+                A two-column text file containing the index *i* and *j* of a loci pair that form loop interactions. (Default value: :code:`None`).
         """
-
-
-        ELoop = "qsi*0.5*(1. + tanh(mi*(rc - r)))"
+            
+        ELoop = "qsi*0.5*(1. + tanh(mu*(rc - r)))"
                 
         Loop = self.mm.CustomBondForce(ELoop)
         
-        Loop.addGlobalParameter('mi', mi)  
+        Loop.addGlobalParameter('mu', mu)  
         Loop.addGlobalParameter('rc', rc) 
         Loop.addGlobalParameter('qsi', X) 
         
@@ -659,43 +664,41 @@ class MiChroM:
         
         self.forceDict["Loops"] = Loop  
         
-    def addCustomIC(self, mi=3.22, rc = 1.78, dcutl=3, dcutupper=200, lambdas=None):
-        """
-        Ideal chromosome interaction using trainer parameters
+    def addCustomIC(self, mu=3.22, rc = 1.78, dinit=3, dend=200, IClist=None):
+        R"""
+        Adds the Ideal Chromosome potential using custom values for interactions between beads separated by a genomic distance :math:`d`. The parameters :math:`\mu` (mu) and rc are part of the probability of crosslink function :math:`f(r_{i,j}) = \frac{1}{2}\left( 1 + tanh\left[\mu(r_c - r_{i,j}\right] \right)`, where :math:`r_{i,j}` is the spatial distance between loci (beads) *i* and *j*.
         
-        Parameters
-        ----------
-
-        mi : float 
-            constant value from Probability of Crosslinking equation
-        rc : float
-            constant value from Probability of Crosslinking equation
-        X : float
-            constant value for loop parameter
-        dcutl : integer
-            value of the first neighbor to apply IC interaction
-        dcutupper : integer
-            value of the last neighbor to apply IC interaction
-        lambdas : array of floats
-            1D array of values using to trainner lambdas, each value represent a neighbor interaction
+        Args:
+        
+            mu (float, required):
+                Parameter in the probability of crosslink function. (Default value = 3.22).
+            rc (float, required):
+                Parameter in the probability of crosslink function, :math:`f(rc) = 0.5`. (Default value = 1.78).
+            dinit (int, required):
+                The first neighbor in sequence separation (Genomic Distance) to be considered in the Ideal Chromosome potential. (Default value = 3).
+            dend (int, required):
+                The last neighbor in sequence separation (Genomic Distance) to be considered in the Ideal Chromosome potential. (Default value = 200).
+            IClist (file, optional):
+                A one-column text file containing the energy interaction values for loci *i* and *j* separated by a genomic distance :math:`d`. (Default value: :code:`None`).
+        
         """
 
-        energyIC = ("step(d-dcutlower)*lambdas(d)*step(dcutupper -d)*f*step(r-lim);"
-                    "f=0.5*(1. + tanh(mi*(rc - r)));"
+        energyIC = ("step(d-dinit)*IClists(d)*step(dend -d)*f*step(r-lim);"
+                    "f=0.5*(1. + tanh(mu*(rc - r)));"
                     "d=abs(idx2-idx1)")
 
         IC = self.mm.CustomNonbondedForce(energyIC)
 
         
-        lambdas = np.append(np.zeros(dcutl),lambdas)[:-dcutl]
+        IClist = np.append(np.zeros(dcutl),IClist)[:-dcutl]
         
-        tablamb = self.mm.Discrete1DFunction(lambdas) #create de tabular function
-        IC.addTabulatedFunction('lambdas', tablamb)  ##add tabular function
+        tabIClist = self.mm.Discrete1DFunction(IClist)
+        IC.addTabulatedFunction('IClist', tabIClist) 
 
-        IC.addGlobalParameter('dcutlower', dcutl)  #initial cutoff d > 3
-        IC.addGlobalParameter('dcutupper', dcutupper) #mode distance cutoff  d < 200
+        IC.addGlobalParameter('dinit', dinit) 
+        IC.addGlobalParameter('dend', dend)
         
-        IC.addGlobalParameter('mi', mi)  
+        IC.addGlobalParameter('mu', mu)  
         IC.addGlobalParameter('rc', rc) 
         IC.addGlobalParameter('lim', 1.0)
         
@@ -709,34 +712,37 @@ class MiChroM:
         
         self.forceDict["CustomIC"] = IC
         
-    def addIdealChromosome(self, mi=3.22, rc = 1.78, Gamma1=-0.030,Gamma2=-0.351,
-                           Gamma3=-3.727, dcutl=3, dcutupper=500):
-        """
-        Ideal chromosome interaction using human genome parameters
+    def addIdealChromosome(self, mu=3.22, rc = 1.78, Gamma1=-0.030,Gamma2=-0.351,
+                           Gamma3=-3.727, dinit=3, dend=500):
         
-        Parameters
-        ----------
-
-        mi : float 
-            constant value from Probability of Crosslinking equation
-        rc : float
-            constant value from Probability of Crosslinking equation
-        X : float
-            constant value for loop parameter
-        Gamma1 : float
-            Constant for fitting equantion
-        Gamma2 : float
-            Constant for fitting equantion
-        Gamma3 : float
-            Constant for fitting equantion
-        dcutl : integer
-            value of the first neighbor to apply IC interaction
-        dcutupper : integer
-            value of the last neighbor to apply IC interaction
+        R"""
+        Adds the Ideal Chromosome potential for interactions between beads separated by a genomic distance :math:`d` according to the MiChroM energy function parameters reported in "Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173". 
+        
+        The set of parameters :math:`\{\gamma_d\}` of the Ideal Chromosome potential is fitted in a function: :math:`\gamma(d) = \frac{\gamma_1}{\log{(d)}} +\frac{\gamma_2}{d} +\frac{\gamma_3}{d^2}`. 
+        
+        The parameters :math:`\mu` (mu) and rc are part of the probability of crosslink function :math:`f(r_{i,j}) = \frac{1}{2}\left( 1 + tanh\left[\mu(r_c - r_{i,j}\right] \right)`, where :math:`r_{i,j}` is the spatial distance between loci (beads) *i* and *j*.
+        
+        Args:
+        
+            mu (float, required):
+                Parameter in the probability of crosslink function. (Default value = 3.22).
+            rc (float, required):
+                Parameter in the probability of crosslink function, :math:`f(rc) = 0.5`. (Default value = 1.78).
+            Gamma1 (float, required):
+                Ideal Chromosome parameter. (Default value = -0.030).
+            Gamma2 (float, required):
+                Ideal Chromosome parameter. (Default value = -0.351).
+            Gamma3 (float, required):
+                Ideal Chromosome parameter. (Default value = -3.727).
+            dinit (int, required):
+                The first neighbor in sequence separation (Genomic Distance) to be considered in the Ideal Chromosome potential. (Default value = 3).
+            dend (int, required):
+                The last neighbor in sequence separation (Genomic Distance) to be considered in the Ideal Chromosome potential. (Default value = 500).
         """
 
-        energyIC = ("step(d-dcutlower)*(gamma1/log(d) + gamma2/d + gamma3/d^2)*step(dcutupper -d)*f;"
-                   "f=0.5*(1. + tanh(mi*(rc - r)));"
+
+        energyIC = ("step(d-dinit)*(gamma1/log(d) + gamma2/d + gamma3/d^2)*step(dend -d)*f;"
+                   "f=0.5*(1. + tanh(mu*(rc - r)));"
                    "d=abs(idx1-idx2)")
 
         IC = self.mm.CustomNonbondedForce(energyIC)
@@ -744,10 +750,10 @@ class MiChroM:
         IC.addGlobalParameter('gamma1', Gamma1) 
         IC.addGlobalParameter('gamma2', Gamma2)
         IC.addGlobalParameter('gamma3', Gamma3)
-        IC.addGlobalParameter('dcutlower', dcutl)  #initial cutoff d > 3
-        IC.addGlobalParameter('dcutupper', dcutupper) #mode distance cutoff  d < 200
+        IC.addGlobalParameter('dinit', dinit) 
+        IC.addGlobalParameter('dend', dend) 
         
-        IC.addGlobalParameter('mi', mi)  
+        IC.addGlobalParameter('mu', mu)  
         IC.addGlobalParameter('rc', rc) 
         
         IC.setCutoffDistance(3.0)
@@ -761,35 +767,38 @@ class MiChroM:
         self.forceDict["IdealChromosome"] = IC
         
         
-    def addPoliIdealChromosome(self, mi=3.22, rc = 1.78, Gamma1=-0.030,Gamma2=-0.351,
-                           Gamma3=-3.727, dcutl=3, dcutupper=200, chain=None):
-        """
-        Ideal chromosome interaction apply for multiples chains 
+    def addMultiChainIC(self, mu=3.22, rc = 1.78, Gamma1=-0.030,Gamma2=-0.351,
+                           Gamma3=-3.727, dinit=3, dend=500, chains=None):
         
-        Parameters
-        ----------
-
-        mi : float 
-            constant value from Probability of Crosslinking equation
-        rc : float
-            constant value from Probability of Crosslinking equation
-        X : float
-            constant value for loop parameter
-        Gamma1 : float
-            Constant for fitting equantion
-        Gamma2 : float
-            Constant for fitting equantion
-        Gamma3 : float
-            Constant for fitting equantion
-        dcutl : integer
-            value of the first neighbor to apply IC interaction
-        dcutupper : integer
-            value of the last neighbor to apply IC interaction
-        chain : 
+        R"""
+        Adds the Ideal Chromosome potential for multiple chromosome simulations. The interactions between beads separated by a genomic distance :math:`d` is applied according to the MiChroM energy function parameters reported in "Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173". 
+        
+        The set of parameters :math:`\{\gamma_d\}` of the Ideal Chromosome potential is fitted in a function: :math:`\gamma(d) = \frac{\gamma_1}{\log{(d)}} +\frac{\gamma_2}{d} +\frac{\gamma_3}{d^2}`. 
+        
+        The parameters :math:`\mu` (mu) and rc are part of the probability of crosslink function :math:`f(r_{i,j}) = \frac{1}{2}\left( 1 + tanh\left[\mu(r_c - r_{i,j}\right] \right)`, where :math:`r_{i,j}` is the spatial distance between loci (beads) *i* and *j*.
+        
+        Args:
+        
+            mu (float, required):
+                Parameter in the probability of crosslink function. (Default value = 3.22).
+            rc (float, required):
+                Parameter in the probability of crosslink function, :math:`f(rc) = 0.5`. (Default value = 1.78).
+            Gamma1 (float, required):
+                Ideal Chromosome parameter. (Default value = -0.030).
+            Gamma2 (float, required):
+                Ideal Chromosome parameter. (Default value = -0.351).
+            Gamma3 (float, required):
+                Ideal Chromosome parameter. (Default value = -3.727).
+            dinit (int, required):
+                The first neighbor in sequence separation (Genomic Distance) to be considered in the Ideal Chromosome potential. (Default value = 3).
+            dend (int, required):
+                The last neighbor in sequence separation (Genomic Distance) to be considered in the Ideal Chromosome potential. (Default value = 500).
+            chains (list of tuples, optional):
+                The list of chains in the format [(start, end, isRing)]. isRing is a boolean whether the chromosome chain is circular or not (Used to simulate bacteria genome, for example). The particle range should be semi-open, i.e., a chain  :math:`(0,3,0)` links the particles :math:`0`, :math:`1`, and :math:`2`. If :code:`bool(isRing)` is :code:`True` , the first and last particles of the chain are linked, forming a ring. The default value links all particles of the system into one chain. (Default value: :code:`[(0, None, 0)]`).
         """
 
-        energyIC = ("step(d-dcutlower)*(gamma1/log(d) + gamma2/d + gamma3/d^2)*step(dcutupper-d)*f;"
-                   "f=0.5*(1. + tanh(mi*(rc - r)));"
+        energyIC = ("step(d-dinit)*(gamma1/log(d) + gamma2/d + gamma3/d^2)*step(dend-d)*f;"
+                   "f=0.5*(1. + tanh(mu*(rc - r)));"
                    "d=abs(idx1-idx2)")
         
         
@@ -798,16 +807,16 @@ class MiChroM:
         IC.addGlobalParameter('gamma1', Gamma1) 
         IC.addGlobalParameter('gamma2', Gamma2)
         IC.addGlobalParameter('gamma3', Gamma3)
-        IC.addGlobalParameter('dcutlower', dcutl)  #initial cutoff d > 3
-        IC.addGlobalParameter('dcutupper', dcutupper) #mode distance cutoff  d < 200
+        IC.addGlobalParameter('dinit', dinit)
+        IC.addGlobalParameter('dend', dend)
         
       
-        IC.addGlobalParameter('mi', mi)  
+        IC.addGlobalParameter('mu', mu)  
         IC.addGlobalParameter('rc', rc) 
         
         IC.setCutoffDistance(3)
         
-        groupList = list(range(chain[0],chain[1]+1))
+        groupList = list(range(ChromChain[0],ChromChain[1]+1))
         
         IC.addInteractionGroup(groupList,groupList)
         
@@ -816,9 +825,13 @@ class MiChroM:
         for i in range(self.N):
                 IC.addParticle([i])
         
-        self.forceDict["IdealChromosome_chain_"+str(chain[0])] = IC
+        self.forceDict["IdealChromosome_chain_"+str(ChromChain[0])] = IC
         
+
     def _loadParticles(self):
+        R"""
+        Internal function that loads the chromosome beads into the simulations system.
+        """
         if not hasattr(self, "system"):
             return
         if not self.loaded:
@@ -829,10 +842,7 @@ class MiChroM:
             self.loaded = True
             
     def _applyForces(self):
-        """Adds all particles to the system.
-        Then applies all the forces in the forcedict.
-        Forces should not be modified after that, unless you do it carefully
-        (see openmm reference)."""
+        R"""Internal function that adds all loci to the system and applies all the forces present in the forcedict."""
 
         if self.forcesApplied == True:
             return
@@ -845,9 +855,9 @@ class MiChroM:
             exc = np.array(exc)
             exc = np.sort(exc, axis=1)
             exc = [tuple(i) for i in exc]
-            exc = list(set(exc))  # only unique pairs are left
+            exc = list(set(exc)) 
 
-        for i in list(self.forceDict.keys()):  # Adding exceptions
+        for i in list(self.forceDict.keys()): 
             force = self.forceDict[i]
             if hasattr(force, "addException"):
                 print('Add exceptions for {0} force'.format(i))
@@ -857,7 +867,6 @@ class MiChroM:
             elif hasattr(force, "addExclusion"):
                 print('Add exclusions for {0} force'.format(i))
                 for pair in exc:
-                    # force.addExclusion(*pair)
                     force.addExclusion(int(pair[0]), int(pair[1]))
 
             if hasattr(force, "CutoffNonPeriodic") and hasattr(
@@ -869,7 +878,7 @@ class MiChroM:
                     force.setNonbondedMethod(force.CutoffNonPeriodic)
             print("adding force ", i, self.system.addForce(self.forceDict[i]))
         
-        #Create force group for each added force
+       
         for i,name in enumerate(self.forceDict):
             self.forceDict[name].setForceGroup(i)
             
@@ -877,59 +886,55 @@ class MiChroM:
         self.initPositions()
         self.initVelocities()
         self.forcesApplied = True
-        #if hasattr(self, "storage") and hasattr(self, "metadata"):
-        #    self.storage["metadata"] = self.metadata
-        
-##############################################################################################                    
-    ####################### FUNCTIONS FOR CREATE A POLYMER #########################
-##############################################################################################
+      
 
-    def create_random_walk(self, step_size, N, segment_length=1):
-        """
-        Create a polymer chain with positions based on random walk
+    def createRandomWalk(self, step_size=1.0, Nbeads=1000, segment_length=1):    
+        R"""
+        Creates a chromosome polymer chain with beads position based on a random walk.
         
-        Parameters
-        ----------
+        Args:
 
-        step_size : float
-            The step size of random walk
-        N : interger
-            Number of beads
-        segment_length : intenger
-            Distance between beads
-            
-        Return
-        -------
-        
-        3D-Arrays of positions
-        
+            step_size (float, required):
+                The step size of the random walk. (Default value = 1.0).
+            Nbeads (int, required):
+                Number of beads of the chromosome polymer chain. (Default value = 1000).
+            segment_length (int, required):
+                Distance between beads. (Default value = 1).
+        Returns:
+            :math:`(N, 3)` :class:`numpy.ndarray`:
+                Returns an array of positions.
+   
         """
-        theta = np.repeat(np.random.uniform(0., 1., N // segment_length + 1),
+        
+        theta = np.repeat(np.random.uniform(0., 1., Nbeads // segment_length + 1),
                       segment_length)
-        theta = 2.0 * np.pi * theta[:N]
-        u = np.repeat(np.random.uniform(0., 1., N // segment_length + 1),
+        theta = 2.0 * np.pi * theta[:Nbeads]
+        u = np.repeat(np.random.uniform(0., 1., Nbeads // segment_length + 1),
                   segment_length)
-        u = 2.0 * u[:N] - 1.0
+        u = 2.0 * u[:Nbeads] - 1.0
         x = step_size * np.sqrt(1. - u * u) * np.cos(theta)
         y = step_size * np.sqrt(1. - u * u) * np.sin(theta)
         z = step_size * u
         x, y, z = np.cumsum(x), np.cumsum(y), np.cumsum(z)
         return np.vstack([x, y, z]).T
     
-    def loadNdb(self, filename=None):
-        """
-        Load ndb file (or multiples files) to get position and types of beads
+    def loadNDB(self, NDBfiles=None):
+        R"""
+        Loads a single or multiple *.ndb* files and gets position and types of the chromosome beads.
+        Details about the NDB file format can be found at the `Nucleome Data Bank <https://ndb.rice.edu/ndb-format>`_.
         
-        Parameters
-        ----------
+            - Contessoto, V.G., Cheng, R.R., Hajitaheri, A., Dodero-Rojas, E., Mello, M.F., Lieberman-Aiden, E., Wolynes, P.G., Di Pierro, M. and Onuchic, J.N., 2021. The Nucleome Data Bank: web-based resources to simulate and analyze the three-dimensional genome. Nucleic Acids Research, 49(D1), pp.D172-D182.
+        
+        Args:
 
-        filename : list of .ndb files.
-        
-        Return
-        -------
-        
-        3D-Arrays of positions
+            NDBfiles (file, required):
+                Single or multiple files in *.ndb* file format.  (Default value: :code:`None`).
+        Returns:
+            :math:`(N, 3)` :class:`numpy.ndarray`:
+                Returns an array of positions.
+   
         """
+
         Type_conversion = {'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'UN' :6}
         x = []
         y = []
@@ -968,19 +973,22 @@ class MiChroM:
         return np.vstack([x,y,z]).T
     
     
-    def loadGro(self, filename=None):
-        """
-        Load gro file (or multiples files) to get position and types of beads
+    def loadGRO(self, GROfiles=None):
+        R"""
+        Loads a single or multiple *.gro* files and gets position and types of the chromosome beads.
+        Initially, the MiChroM energy function was implemented in GROMACS. Details on how to run and use these files can be found at the `Nucleome Data Bank <https://ndb.rice.edu/GromacsInput-Documentation>`_.
         
-        Parameters
-        ----------
+            - Contessoto, V.G., Cheng, R.R., Hajitaheri, A., Dodero-Rojas, E., Mello, M.F., Lieberman-Aiden, E., Wolynes, P.G., Di Pierro, M. and Onuchic, J.N., 2021. The Nucleome Data Bank: web-based resources to simulate and analyze the three-dimensional genome. Nucleic Acids Research, 49(D1), pp.D172-D182.
+        
+        Args:
 
-        filename : list of .gro files.
-        
-        Return
-        -------
-        
-        3D-Arrays of positions
+            GROfiles (file, required):
+                Single or multiple files in  *.gro* file format.  (Default value: :code:`None`).
+                
+        Returns:
+            :math:`(N, 3)` :class:`numpy.ndarray`:
+                Returns an array of positions.
+   
         """
         
         Type_conversion = {'ZA':0, 'OA':1, 'FB':2, 'SB':3,'TB':4, 'LB' :5, 'UN' :6}
@@ -1015,19 +1023,21 @@ class MiChroM:
         self.setChains(chains)
         return np.vstack([x,y,z]).T
                     
-    def loadMultiplePDB(self, filename):
-        """
-        Load multiples pdb files to get position and types of beads
+    def loadPDB(self, PDBfiles=None):
         
-        Parameters
-        ----------
+        R"""
+        Loads a single or multiple *.pdb* files and gets position and types of the chromosome beads.
+        Here we consider the chromosome beads as the carbon-alpha to mimic a protein. This trick helps to use the standard macromolecules visualization software. 
+        The type-to-residue conversion follows: {'ALA':0, 'ARG':1, 'ASP':2, 'GLU':3,'GLY':4, 'LEU' :5, 'ASN' :6}.
+        
+        Args:
 
-        filename : list of .pdbs files.
-        
-        Return
-        -------
-        
-        3D-Arrays of positions
+            PDBfiles (file, required):
+                Single or multiple files in *.pdb* file format.  (Default value: :code:`None`).
+        Returns:
+            :math:`(N, 3)` :class:`numpy.ndarray`:
+                Returns an array of positions.
+   
         """
         
         Type_conversion = {'ALA':0, 'ARG':1, 'ASP':2, 'GLU':3,'GLY':4, 'LEU' :5, 'ASN' :6}
@@ -1061,70 +1071,38 @@ class MiChroM:
         self.index = list(range(len(self.type_list)))
         self.setChains(chains)
         return np.vstack([x,y,z]).T
+
     
-    def loadPDB(self, filename):
+
+    def create_springSpiral(self,Nbeads=1000, ChromSeq=None, isRing=False):
+        
+        R"""
+        Creates a spring-spiral-like shape for the initial configuration of the chromosome polymer.
+        
+        Args:
+
+            Nbeads (int, required):
+                Number of beads of the chromosome polymer chain. (Default value = 1000).
+            ChromSeq (file, required):
+                Chromatin sequence of types file. The first column should contain the locus index. The second column should have the locus type annotation. A template of the chromatin sequence of types file can be found at the `Nucleome Data Bank (NDB) <https://ndb.rice.edu/static/text/chr10_beads.txt>`_.
+            isRing (bool, optional):
+                Whether the chromosome chain is circular or not (Used to simulate bacteria genome, for example). f :code:`bool(isRing)` is :code:`True` , the first and last particles of the chain are linked, forming a ring. (Default value = :code:`False`).
+                
+        Returns:
+            :math:`(N, 3)` :class:`numpy.ndarray`:
+                Returns an array of positions.
+   
         """
-        Load pdb file to get position and types of beads
-        
-        Parameters
-        ----------
-
-        filename : .pdbs file.
-        
-        Return
-        -------
-        
-        3D-Arrays of positions
-        """        
-        aFile = open(filename,'r')
-        pos = aFile.read().splitlines()
-        Type_conversion = {'ALA':0, 'ARG':1, 'ASP':2, 'GLU':3,'GLY':4, 'LEU' :5, 'ASN' :6}
-        x = []
-        y = []
-        z = []
-        index = []
-
-        for t in range(len(pos)):
-            pos[t] = pos[t].split()
-            if pos[t][0] == 'ATOM':
-                x.append(float(pos[t][5]))
-                y.append(float(pos[t][6]))
-                z.append(float(pos[t][7]))
-                index.append(Type_conversion[pos[t][3]])
-
-
-        self.type_list = index
-        self.index = list(range(len(self.type_list)))
-        return np.vstack([x,y,z]).T
-
-                   
-    def create_springSpiral(self,N=3000, type_list=None, isRing=False):
-        """
-        Create a spring spiral polymer 
-        
-        Parameters
-        ----------
-
-        N : integer
-            size of polymer 
-        type_list : 1D array file
-            list of types for polymer chain
-            
-        Return
-        -------
-        
-        3D-Arrays of positions
-        """
+        type_list=ChromSeq
         x = []
         y = []
         z = []
         if not hasattr(self, "type_list"):
             self.type_list = []
         if type_list == None:
-            beads = N
+            beads = Nbeads
             self.type_list = self.random_type(beads)
         else:
-            #print('aqui', type_list)
             self._translate_type(type_list)
             beads = len(self.type_list)
         
@@ -1151,33 +1129,33 @@ class MiChroM:
         self.setChains(chain)
         return np.vstack([x,y,z]).T
     
-    def random_type(self, N):
-        """
-        Create a list of random types of beads
+    def random_ChromSeq(self, Nbeads):
         
-        Parameters
-        ----------
-        N : integer
-            size of polymer 
-                    
-        Return
-        -------
-        1D-Arrays of randomized types 
+        R"""
+        Creates a random sequence of chromatin types for the chromosome beads.
+        
+        Args:
+
+            Nbeads (int, required):
+                Number of beads of the chromosome polymer chain. (Default value = 1000).
+        Returns:
+            :math:`(N, 1)` :class:`numpy.ndarray`:
+                Returns an 1D array of a randomized chromatin type annotation sequence.
+   
         """
-        return random.choices(population=[0,1,2,3,4,5], k=N)
+
+        return random.choices(population=[0,1,2,3,4,5], k=Nbeads)
     
     def _translate_type(self, filename):
-        """
-        Transform letter format of types to number types
-        'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6
         
-        Parameters
-        ----------
-        filename : txt file
-            1-colunm file with types in letter format of types
+        R"""Internal function that converts the letters of the types numbers following the rule: 'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6.
+        
+         Args:
+
+            filename (file, required):
+                One-column file with types in letter format of types.
+
         """        
-        
-        
         
         Type_conversion = {'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6}
         my_list = []
@@ -1192,29 +1170,32 @@ class MiChroM:
                 my_list.append(t)
         self.type_list = my_list
 
-    def create_line(self,N, sig=1.0):
-        """
-        Create a straight line polymer 
+    def create_line(self,Nbeads, length_scale=1.0):
         
-        Parameters
-        ----------
+        R"""
+        Creates a straight line for the initial configuration of the chromosome polymer.
+        
+        Args:
 
-        N : integer
-            size of polymer 
-  
-        Return
-        -------
-        
-        3D-Arrays of positions
-        """        
+            Nbeads (int, required):
+                Number of beads of the chromosome polymer chain. (Default value = 1000).
+            length_scale (float, required):
+                Length scale used in the distances of the system in units of reduced length :math:`\sigma`. (Default value = 1.0).    
+                
+        Returns:
+            :math:`(N, 3)` :class:`numpy.ndarray`:
+                Returns an array of positions.
+   
+        """
+
         beads = N
         x = []
         y = []
         z = []
         for i in range(beads):
-            x.append(0.15*sig*beads+(i-1)*0.6)
-            y.append(0.15*sig*beads+(i-1)*0.6)
-            z.append(0.15*sig*beads+(i-1)*0.6)
+            x.append(0.15*length_scale*beads+(i-1)*0.6)
+            y.append(0.15*length_scale*beads+(i-1)*0.6)
+            z.append(0.15*length_scale*beads+(i-1)*0.6)
         
         chain = []
         chain.append((0,N-1,0))
@@ -1222,19 +1203,20 @@ class MiChroM:
 
         return np.vstack([x,y,z]).T
     
-##############################################################################################                    
-      ############################### FUNCTIONS FOR SAVE ###############################
-##############################################################################################
 
     def initStorage(self, filename, mode="w"):
-        """
-        filename : str
-            Filename of an h5dict storage file
+        
+        R"""
+        Initializes the *.cndb* files to store the chromosome structures. 
+        
+        Args:
 
-        mode :
-            'w'  - Create file, truncate if exists
-            'w-' - Create file, fail if exists         (default)
-            'r+' - Continue simulation, file must exist.
+            filename (str, required):
+                 Filename of the cndb/h5dict storage file.
+            mode (str, required):
+                - 'w' - Create file, truncate if exists. (Default value = w).
+                - 'w-' - Create file, fail if exists. 
+                - 'r+' - Continue saving the structures in the same file that must exist.   
         """
         
         self.storage = []
@@ -1248,7 +1230,6 @@ class MiChroM:
             fname = os.path.join(self.folder, filename + '_' +str(k) + '.cndb')
             self.storage.append(h5py.File(fname, mode))    
             self.storage[k]['types'] = self.type_list[chain[0]:chain[1]+1]
-        #self.storage['loops'] = self.loopPosition
 
         if mode == "r+":
             myKeys = []
@@ -1262,17 +1243,33 @@ class MiChroM:
             self.setPositions(self.storage[str(maxkey - 1)])
 
                     
-    def save(self, filename=None, mode="auto", h5dictKey="1", pdbGroups=None):
-        data = self.getPositions()
+    def saveStructure(self, filename=None, mode="auto", h5dictKey="1", pdbGroups=None):
+        R"""
+        Save the 3D position of each bead of the chromosome polymer over the chromatin dynamics simulations.
+        
+        Args:
 
+            filename (str, required):
+                 Filename of the storage file.
+            mode (str, required):
+                - 'ndb' - The Nucleome Data Bank file format to save 3D structures of chromosomes. Please see the `NDB - Nucleome Data Bank <https://ndb.rice.edu/ndb-format>`_. for details.
+                - 'cndb' - The compact ndb file format to save 3D structures of chromosomes. The binary format used the `hdf5 - Hierarchical Data Format <https://www.hdfgroup.org/solutions/hdf5/>`_ to store the data. Please see the NDB server for details. (Default value = cndb).
+                - 'pdb' - The Protein Data Bank file format. Here, the chromosome is considered to be a protein where the locus is set at the carbon alpha position. This trick helps to use the standard macromolecules visualization software.  
+                - 'gro' - The GROMACS file format. Initially, the MiChroM energy function was implemented in GROMACS. Details on how to run and use these files can be found at the `Nucleome Data Bank <https://ndb.rice.edu/GromacsInput-Documentation>`_.
+                - 'xyz' - A XYZ file format.
+                
+        """
+        
+        
+        data = self.getPositions()
         
         if filename is None:
             filename = self.name +"_block%d." % self.step + mode
 
         filename = os.path.join(self.folder, filename)
         
-        if not hasattr(self, "type_list"): #if any list exist, create a random one!
-             self.type_list = self.random_type(self.N)
+        if not hasattr(self, "type_list"):
+             self.type_list = self.random_ChromSeq(self.N)
         
         if mode == "auto":
             if hasattr(self, "storage"):
@@ -1285,7 +1282,7 @@ class MiChroM:
                 self.storage[k][str(self.step)] = data[chain[0]:chain[1]+2]
             return
         
-        elif mode == "txt":
+        elif mode == "xyz":
             lines = []
             lines.append(str(len(data)) + "\n")
 
@@ -1353,7 +1350,6 @@ class MiChroM:
                     retret += (ret + "\n")
                 with open(filename, 'w') as f:
                     f.write(retret)
-                    #f.flush() 
                     
                     
         elif mode == 'gro':
@@ -1393,7 +1389,7 @@ class MiChroM:
             seqchr_string  = "{0:6s} {1:3d} {2:2s} {3:5d}  {4:69s}" 
             ter_string     = "{0:6s} {1:8d} {2:2s}        {3:2s}" 
             loops_string   = "{0:6s}{1:6d} {2:6d}"
-            master_string  = "{0:6s} {1:8d} {2:6d} {3:6d} {4:10d}"   # MASTER BEADS TER LOOPS RES
+            master_string  = "{0:6s} {1:8d} {2:6d} {3:6d} {4:10d}" 
             Type_conversion = {0:'A1',1:'A2',2:'B1',3:'B2',4:'B3',5:'B4',6:'UN'}
             
             def chunks(l, n):
@@ -1415,7 +1411,6 @@ class MiChroM:
                 ndbf.append(expdata_string.format('EXPDTA','  ','Simulation - Open-MiChroM'))
                 ndbf.append(author_string.format('AUTHOR','  ','Antonio B. Oliveira Junior - 2020'))
 
-                #write SEQCHR
                 
                 Seqlist = [Type_conversion[x] for x in self.type_list]
                 Seqlista = chunks(Seqlist,23)
@@ -1442,9 +1437,11 @@ class MiChroM:
                 
                 np.savetxt(filename,ndbf,fmt="%s")
                 
-################################################################################
-    ######### MINIMIZATION AND RUN FEATURES ################################
-################################################################################
+                
+                
+            #### Vini Here #########    
+                
+            
 
     def localEnergyMinimization(self, tolerance=0.3, maxIterations=0, random_offset=0.02):
         """ 
@@ -1881,7 +1878,6 @@ class MiChroM:
         print("Potential Energy Ep = ", eP / self.N / units.kilojoule_per_mole)
         
     def printForces(self):
-        from pandas import DataFrame
 
         forceNames = []
         forceValues = []
