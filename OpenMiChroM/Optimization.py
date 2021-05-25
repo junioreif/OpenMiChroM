@@ -287,9 +287,6 @@ class CustomMiChroMTraining:
         self.dinit = dinit
         self.cutoff = cutoff
         
-##########################################################################################
-#### IDEAL CHROMOSOME OPTIMIZATION
-##########################################################################################
     
     def probCalculation(self, state, dmax=200):
         R"""
