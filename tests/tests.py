@@ -29,6 +29,28 @@ class testMichrom():
         a.saveStructure(mode = 'pdb')
         a.saveStructure(mode = 'gro')
         a.saveStructure(mode = 'xyz')
+
+    def testCustomMiChroM(self):
+        b = CustomMiChroMTraining(ChromSeq=sys.path[0] + '/training/seq_c18_10')
+        assert(len(b.Bij_type) == 6)
+        
+        import h5py
+        import numpy as np
+        filename = sys.path[0] + '/training/test_0.cndb'
+        mode = 'r'
+        myfile = h5py.File(filename, mode)
+        print("Calculating probabilities for 10 frames...")
+        for i in range(1,10):
+            tl = np.array(myfile[str(i)])
+            b.probCalculation(state=tl)
+            b.probCalculation_types(state=tl)
+        print('Get Lambdas values for Types and IC...')
+        ty = b.getLamb(exp_map=sys.path[0] + '/training/c18_10.dense')
+        ic = b.getLamb_types(exp_map=sys.path[0] + '/training/c18_10.dense')
+        print('Finished')
+
+
 run = testMichrom()
 
-run.runDefault()
+#run.runDefault()
+run.testCustomMiChroM()
