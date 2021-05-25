@@ -267,18 +267,16 @@ class CustomMiChroMTraining:
             The last neighbor in sequence separation (Genomic Distance) to be considered in the Ideal Chromosome potential for training. (Default value = 200).
     """
    
-    #def __init__(self, state, ChromSeq="chr_beads.txt", mu=3.22, rc=1.78, cutoff=0.0, dinit=3, dend=200): 
+    def __init__(self, ChromSeq="chr_beads.txt", mu=3.22, rc=1.78, cutoff=0.0, dinit=3, dend=200): 
  
-    def __init__(self, state, TypeList=None, name='distMatrix', nHood=3, cutoff=0.0, mu=5.33, rc=1.61,lamb_size=200): 
-        self.name = name
-
-        self.size = len(state)
+        self.ChromSeq = self.getChromSeq(ChromSeq)
+        self.size = len(self.ChromSeq)
         self.P=np.zeros((self.size,self.size))
         self.Pold=np.zeros((self.size,self.size))
         self.r_cut = rc 
         self.mu  = mu
         self.Bij = np.zeros((dend,dend))
-        self.diff_types = set(ChromSeq)
+        self.diff_types = set(self.ChromSeq)
         self.n_types = len(self.diff_types)
         self.n_inter = int(self.n_types*(self.n_types-1)/2 + self.n_types)
         self.polds_type = np.zeros((self.n_types, self.n_types))
@@ -286,6 +284,29 @@ class CustomMiChroMTraining:
         self.Nframes = 0 
         self.dinit = dinit
         self.cutoff = cutoff
+
+    def getChromSeq(self, filename):
+        """
+        Transform letter format of types to number types
+        'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6
+        
+        Parameters
+        ----------
+        filename : txt file
+            1-colunm file with types in letter format of types
+        """              
+        Type_conversion = {'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6}
+        my_list = []
+        af = open(filename,'r')
+        pos = af.read().splitlines()
+        for t in range(len(pos)):
+            pos[t] = pos[t].split()
+            
+            if pos[t][1] in Type_conversion:
+                my_list.append(Type_conversion[pos[t][1]])
+            else:
+                my_list.append(t)
+        return np.array(my_list)
         
     
     def probCalculation(self, state, dmax=200):
@@ -384,7 +405,7 @@ class CustomMiChroMTraining:
         return(np.dot(invRes,gij))
     
 
-    def probCalculation_types(self, state, typeList):
+    def probCalculation_types(self, state):
         R"""
         Calculates the contact probability matrix and the cross term of the Hessian for the type-to-type interactions optimization.
         """    
@@ -398,7 +419,7 @@ class CustomMiChroMTraining:
         ind = np.triu_indices(n)
         
         for tt in self.diff_types:
-            just[tt] = ([i for i, e in enumerate(typeList) if e == tt])
+            just[tt] = ([i for i, e in enumerate(self.ChromSeq) if e == tt])
         self.Pold += self.P       
         
         self.P = 0.5*(1.0 + np.tanh(self.mu*(self.r_cut - distance.cdist(state,state, 'euclidean'))))
@@ -423,7 +444,7 @@ class CustomMiChroMTraining:
         self.Nframes += 1
         
     
-    def calc_exp_phi_types(self, typeList):
+    def calc_exp_phi_types(self):
         R"""
         Calculates the average of the contact probability for each chromatin type (compartment annotation) from the experimental Hi-C for the Types optimization.
         """
@@ -433,7 +454,7 @@ class CustomMiChroMTraining:
         ind = np.triu_indices(n)
         
         for tt in self.diff_types:
-            just[tt] = ([i for i, e in enumerate(typeList) if e == tt])
+            just[tt] = ([i for i, e in enumerate(self.ChromSeq) if e == tt])
 
 
         for pcount,q in enumerate(itertools.combinations_with_replacement(just.keys(), r=2)):
@@ -493,13 +514,13 @@ class CustomMiChroMTraining:
 
         return(pearsonr(a1,a2)[0])
         
-    def getLamb_types(self,typeList, exp_map):
+    def getLamb_types(self, exp_map):
         R"""
         Calculates the Lagrange multipliers of each type-to-type interaction and returns the matrix containing the energy values for the optimization step.
         """
         self.getHiCexp(exp_map)
         
-        phi_exp = self.calc_exp_phi_types(typeList)
+        phi_exp = self.calc_exp_phi_types()
         
         phi_sim = self.calc_sim_phi_types()
         
