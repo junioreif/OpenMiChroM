@@ -559,7 +559,7 @@ class MiChroM:
         R"""
         Adds the type-to-type potential using custom values for interactions between the chromatin types. The parameters :math:`\mu` (mu) and rc are part of the probability of crosslink function :math:`f(r_{i,j}) = \frac{1}{2}\left( 1 + tanh\left[\mu(r_c - r_{i,j}\right] \right)`, where :math:`r_{i,j}` is the spatial distance between loci (beads) *i* and *j*.
         
-        The function receives a txt/TSV/CSV file containing the upper triangular matrix of the type-to-type interactions. A file example can be found `here <https://www.ndb.rice.edu>`_.
+        The function receives a txt/TSV/CSV file containing the upper triangular matrix of the type-to-type interactions. A file example can be found `here <https://www.ndb.rice.edu>`__.
         
         +---+------+-------+-------+
         |   |   A  |   B   |   C   |
@@ -921,7 +921,7 @@ class MiChroM:
     def loadNDB(self, NDBfiles=None):
         R"""
         Loads a single or multiple *.ndb* files and gets position and types of the chromosome beads.
-        Details about the NDB file format can be found at the `Nucleome Data Bank <https://ndb.rice.edu/ndb-format>`_.
+        Details about the NDB file format can be found at the `Nucleome Data Bank <https://ndb.rice.edu/ndb-format>`__.
         
             - Contessoto, V.G., Cheng, R.R., Hajitaheri, A., Dodero-Rojas, E., Mello, M.F., Lieberman-Aiden, E., Wolynes, P.G., Di Pierro, M. and Onuchic, J.N., 2021. The Nucleome Data Bank: web-based resources to simulate and analyze the three-dimensional genome. Nucleic Acids Research, 49(D1), pp.D172-D182.
         
@@ -976,7 +976,7 @@ class MiChroM:
     def loadGRO(self, GROfiles=None):
         R"""
         Loads a single or multiple *.gro* files and gets position and types of the chromosome beads.
-        Initially, the MiChroM energy function was implemented in GROMACS. Details on how to run and use these files can be found at the `Nucleome Data Bank <https://ndb.rice.edu/GromacsInput-Documentation>`_.
+        Initially, the MiChroM energy function was implemented in GROMACS. Details on how to run and use these files can be found at the `Nucleome Data Bank <https://ndb.rice.edu/GromacsInput-Documentation>`__.
         
             - Contessoto, V.G., Cheng, R.R., Hajitaheri, A., Dodero-Rojas, E., Mello, M.F., Lieberman-Aiden, E., Wolynes, P.G., Di Pierro, M. and Onuchic, J.N., 2021. The Nucleome Data Bank: web-based resources to simulate and analyze the three-dimensional genome. Nucleic Acids Research, 49(D1), pp.D172-D182.
         
@@ -1084,7 +1084,7 @@ class MiChroM:
             Nbeads (int, required):
                 Number of beads of the chromosome polymer chain. (Default value = 1000).
             ChromSeq (file, required):
-                Chromatin sequence of types file. The first column should contain the locus index. The second column should have the locus type annotation. A template of the chromatin sequence of types file can be found at the `Nucleome Data Bank (NDB) <https://ndb.rice.edu/static/text/chr10_beads.txt>`_.
+                Chromatin sequence of types file. The first column should contain the locus index. The second column should have the locus type annotation. A template of the chromatin sequence of types file can be found at the `Nucleome Data Bank (NDB) <https://ndb.rice.edu/static/text/chr10_beads.txt>`__.
             isRing (bool, optional):
                 Whether the chromosome chain is circular or not (Used to simulate bacteria genome, for example). f :code:`bool(isRing)` is :code:`True` , the first and last particles of the chain are linked, forming a ring. (Default value = :code:`False`).
                 
@@ -1252,10 +1252,10 @@ class MiChroM:
             filename (str, required):
                  Filename of the storage file.
             mode (str, required):
-                - 'ndb' - The Nucleome Data Bank file format to save 3D structures of chromosomes. Please see the `NDB - Nucleome Data Bank <https://ndb.rice.edu/ndb-format>`_. for details.
-                - 'cndb' - The compact ndb file format to save 3D structures of chromosomes. The binary format used the `hdf5 - Hierarchical Data Format <https://www.hdfgroup.org/solutions/hdf5/>`_ to store the data. Please see the NDB server for details. (Default value = cndb).
+                - 'ndb' - The Nucleome Data Bank file format to save 3D structures of chromosomes. Please see the `NDB - Nucleome Data Bank <https://ndb.rice.edu/ndb-format>`__. for details.
+                - 'cndb' - The compact ndb file format to save 3D structures of chromosomes. The binary format used the `hdf5 - Hierarchical Data Format <https://www.hdfgroup.org/solutions/hdf5/>`__ to store the data. Please see the NDB server for details. (Default value = cndb).
                 - 'pdb' - The Protein Data Bank file format. Here, the chromosome is considered to be a protein where the locus is set at the carbon alpha position. This trick helps to use the standard macromolecules visualization software.  
-                - 'gro' - The GROMACS file format. Initially, the MiChroM energy function was implemented in GROMACS. Details on how to run and use these files can be found at the `Nucleome Data Bank <https://ndb.rice.edu/GromacsInput-Documentation>`_.
+                - 'gro' - The GROMACS file format. Initially, the MiChroM energy function was implemented in GROMACS. Details on how to run and use these files can be found at the `Nucleome Data Bank <https://ndb.rice.edu/GromacsInput-Documentation>`__.
                 - 'xyz' - A XYZ file format.
                 
         """
@@ -1438,172 +1438,19 @@ class MiChroM:
                 np.savetxt(filename,ndbf,fmt="%s")
                 
                 
-                
-            #### Vini Here #########    
-                
-            
-
-    def localEnergyMinimization(self, tolerance=0.3, maxIterations=0, random_offset=0.02):
-        """ 
-        Function based on localEnergyMinimization
         
+    def doBlock(self, steps=None, increment=True, num=None):
+        R"""
+        Performs a block of simulation steps.
         
-        
-        A wrapper to the build-in OpenMM Local Energy Minimization
-        
-        See caveat below 
+        Args:
 
-        Parameters
-        ----------
-        
-        tolerance: float 
-            It is something like a value of force below which 
-            the minimizer is trying to minimize energy to.             
-            see openmm documentation for description 
-            
-            Value of 0.3 seems to be fine for most normal forces. 
-            
-        maxIterations: int
-            Maximum # of iterations for minimization to do.
-            default: 0 means there is no limit
-            
-            This is relevant especially if your simulation does not have a 
-            well-defined energy minimum (e.g. you want to simulate a collapse of a chain 
-            in some potential). In that case, if you don't limit energy minimization, 
-            it will attempt to do a whole simulation for you. In that case, setting 
-            a limit to the # of iterations will just stop energy minimization manually when 
-            it reaches this # of iterations. 
-            
-        random_offset: float 
-            A random offset to introduce after energy minimization. 
-            Should ideally make your forces have realistic values. 
-            
-            For example, if your stiffest force is polymer bond force
-            with "wiggle_dist" of 0.05, setting this to 0.02 will make
-            separation between monomers realistic, and therefore will 
-            make force values realistic. 
-            
-            See why do we need it in the caveat below. 
-            
-            
-        Caveat
-        ------
-        
-        If using variable langevin integrator after minimization, a big error may 
-        happen in the first timestep. The reason is that enregy minimization 
-        makes all the forces basically 0. Variable langevin integrator measures
-        the forces and assumes that they are all small - so it makes the timestep 
-        very large, and at the first timestep it overshoots completely and energy goes up a lot. 
-        
-        The workaround for now is to randomize positions after energy minimization 
-        
-        """
-
-        print("Performing local energy minimization")
-
-        self._applyForces()
-        oldName = self.name
-        self.name = "minim"
-
-        self.state = self.context.getState(getPositions=False,
-                                           getEnergy=True)
-        eK = (self.state.getKineticEnergy() / self.N / units.kilojoule_per_mole)
-        eP = self.state.getPotentialEnergy() / self.N/ units.kilojoule_per_mole
-        locTime = self.state.getTime()
-        print("before minimization eK={0}, eP={1} per monomers, time={2}".format(eK, eP, locTime))
-
-        self.mm.LocalEnergyMinimizer.minimize(
-            self.context, tolerance, maxIterations)
-
-        self.state = self.context.getState(getPositions=True,
-                                           getEnergy=True)
-        eK = (self.state.getKineticEnergy() / self.N / units.kilojoule_per_mole)
-        eP = self.state.getPotentialEnergy() / self.N / units.kilojoule_per_mole
-        coords = self.state.getPositions(asNumpy=True)
-        self.data = coords
-        self.setPositions(self.getPositions(), random_offset = random_offset)        
-        locTime = self.state.getTime()
-        print("after minimization eK={0}, eP={1}, time={2}".format(eK, eP, locTime))
-
-        self.name = oldName
-    
-    def energyMinimization(self, stepsPerIteration=100,
-                           maxIterations=1000,
-                           failNotConverged=True):
-        """Runs system at smaller timestep and higher collision
-        rate to resolve possible conflicts.
-
-        this is here for backwards compatibility.
-        """
-
-        print("Performing energy minimization")
-        self._applyForces()
-        oldName = self.name
-        self.name = "minim"
-        if (maxIterations is True) or (maxIterations is False):
-            raise ValueError(
-                "Please stop using the old notation and read the new energy minimization code")
-        if (failNotConverged is not True) and (failNotConverged is not False):
-            raise ValueError(
-                "Please stop using the old notation and read the new energy minimization code")
-
-        def_step = self.integrator.getStepSize()
-        def_fric = self.integrator.getFriction()
-
-        def minimizeDrop():
-            drop = 10.
-            for dummy in range(maxIterations):
-                if drop < 1:
-                    drop = 1.
-                if drop > 10000:
-                    raise RuntimeError("Timestep too low. Perhaps, "                                       "something is wrong!")
-
-                self.integrator.setStepSize(def_step / float(drop))
-                self.integrator.setFriction(def_fric * drop)
-                # self.reinitialize()
-                numAttempts = 5
-                for attempt in range(numAttempts):
-                    a = self.doBlock(stepsPerIteration, increment=False,
-                        reinitialize=False)
-                    # self.initVelocities()
-                    if a == False:
-                        drop *= 2
-                        print("Timestep decreased {0}".format(1. / drop))
-                        self.initVelocities()
-                        break
-                    if attempt == numAttempts - 1:
-                        if drop == 1.:
-                            return 0
-                        drop /= 2
-                        print("Timestep decreased by {0}".format(drop))
-                        self.initVelocities()
-            return -1
-
-        if failNotConverged and (minimizeDrop() == -1):
-            raise RuntimeError(
-                "Reached maximum number of iterations and still not converged\n"\
-                "increase maxIterations or set failNotConverged=False")
-        self.name = oldName
-        self.integrator.setFriction(def_fric)
-        self.integrator.setStepSize(def_step)
-        # self.reinitialize()
-        print("Finished energy minimization")
-        
-    def doBlock(self, steps=None, increment=True, num=None, reinitialize=True, maxIter=0, checkFunctions=[]):
-        """performs one block of simulations, doing steps timesteps,
-        or steps_per_block if not specified.
-
-        Parameters
-        ----------
-
-        steps : int or None
-            Number of timesteps to perform. If not specified, tries to
-            infer it from self.steps_per_block
-        increment : bool, optional
-            If true, will not increment self.steps counter
-        num : int or None, optional
-            If specified, will split the block in num subblocks.
-            Default value is 10.
+            steps (int, required):
+                 Number of steps to perform in the block.
+            increment (bool, optional):
+                 Whether to increment the steps counter. Typically it is set :code:`False` during the collapse or equilibration simulations. (Default value: :code:`True`).
+            num (int or None, required):
+                 The number of subblocks to split the steps of the primary block. (Default value: :code:`None`).                
         """
 
         if self.forcesApplied == False:
@@ -1637,7 +1484,6 @@ class MiChroM:
             if (steps % num) > 0:
                 self.integrator.step(steps % num)
 
-            # get state of a system: positions, energies
             self.state = self.context.getState(getPositions=True,
                                                getEnergy=True)
 
@@ -1645,32 +1491,22 @@ class MiChroM:
             coords = self.state.getPositions(asNumpy=True)
             newcoords = coords / self.nm
 
-            # calculate energies in KT/particle
             eK = (self.state.getKineticEnergy() / self.N / units.kilojoule_per_mole)
             eP = self.state.getPotentialEnergy() / self.N / units.kilojoule_per_mole
 
 
             if self.velocityReinitialize:
-                if eK > 2.4:
+                if eK > 5.0:
                     print("(i)", end=' ')
                     self.initVelocities()
             print("pos[1]=[%.1lf %.1lf %.1lf]" % tuple(newcoords[0]), end=' ')
 
 
-
-            checkFail = False
-            for checkFunction in checkFunctions:
-                if not checkFunction(newcoords):
-                    checkFail = True
-
             if ((np.isnan(newcoords).any()) or (eK > self.eKcritical) or
-                (np.isnan(eK)) or (np.isnan(eP))) or checkFail:
+                (np.isnan(eK)) or (np.isnan(eP))):
 
                 self.context.setPositions(self.data)
                 self.initVelocities()
-                if reinitialize == False:
-                    print("eK={0}, eP={1}".format(eK, eP))
-                    return False
                 print("eK={0}, eP={1}, trying one more time at step {2} ".format(eK, eP, self.step))
             else:
                 dif = np.sqrt(np.mean(np.sum((newcoords -
@@ -1685,7 +1521,6 @@ class MiChroM:
                 if (self.integrator_type.lower() == 'variablelangevin'
                     or self.integrator_type.lower() == 'variableverlet'):
                     dt = self.integrator.getStepSize()
-                    #print('dt=%.1lffs' % (dt / fs), end=' ')
                     mass = self.system.getParticleMass(1)
                     dx = (units.sqrt(2.0 * eK * self.kT / mass) * dt)
                     print('dx=%.2lfpm' % (dx / self.nm * 1000.0), end=' ')
@@ -1693,18 +1528,14 @@ class MiChroM:
                 print("")
                 break
 
-            if attempt in [3, 4]:
-                self.localEnergyMinimization(maxIterations=maxIter)
-            if attempt == 5:
-                self._exitProgram("exceeded number of attempts")
-
         return {"Ep":eP, "Ek":eK}
         
         
     def initPositions(self):
-        """Sends particle coordinates to OpenMM system.
-        If system has exploded, this is
-         used in the code to reset coordinates. """
+        
+        R"""
+        Internal function that sends the locus coordinates to OpenMM system. 
+        """
 
         print("Positions... ")
         try:
@@ -1715,7 +1546,7 @@ class MiChroM:
         self.context.setPositions(self.data)
         print(" loaded!")
         state = self.context.getState(getPositions=True, getEnergy=True)
-            # get state of a system: positions, energies
+        
         eP = state.getPotentialEnergy() / self.N / units.kilojoule_per_mole
         print("potential energy is %lf" % eP)
         
