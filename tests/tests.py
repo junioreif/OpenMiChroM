@@ -42,9 +42,9 @@ class testMichrom():
         print("Calculating probabilities for 10 frames...")
         for i in range(1,10):
             tl = np.array(myfile[str(i)])
-            b.probCalculation(state=tl)
+            b.probCalculation_IC(state=tl)
             b.probCalculation_types(state=tl)
-        print('Get Lambdas values for Types and IC...')
+        print('Getting parameters for Types and IC...')
         ty = b.getLamb(exp_map=sys.path[0] + '/training/c18_10.dense')
         ic = b.getLamb_types(exp_map=sys.path[0] + '/training/c18_10.dense')
         print('Finished')
@@ -52,5 +52,5 @@ class testMichrom():
 
 run = testMichrom()
 
-#run.runDefault()
+run.runDefault()
 run.testCustomMiChroM()

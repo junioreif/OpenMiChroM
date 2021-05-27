@@ -309,7 +309,7 @@ class CustomMiChroMTraining:
         return np.array(my_list)
         
     
-    def probCalculation(self, state, dmax=200):
+    def probCalculation_IC(self, state, dmax=200):
         R"""
         Calculates the contact probability matrix and the cross term of the Hessian for the Ideal Chromosome optimization.
         """
