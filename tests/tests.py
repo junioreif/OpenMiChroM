@@ -22,7 +22,7 @@ class testMichrom():
         a.addFlatBottomHarmonic(kr=5*10**-3, n_rad=10.0)
 
         for _ in range(10):
-            a.doBlock(2000, increment=False)
+            a.runSimBlock(2000, increment=False)
     
         a.printForces()
         a.saveStructure(mode = 'ndb')

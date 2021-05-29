@@ -157,12 +157,6 @@ class FullTraining:
         Pi = np.array(Pi)
     
 
-        #if (self.gpu):
-        #    linalg.init()
-        #    Pi_gpu = gpuarray.to_gpu(Pi)
-        #    PiPj_gpu = linalg.dot(Pi_gpu, Pi_gpu)
-        #    self.PiPj += PiPj_gpu
-        #else:
         PiPj = np.outer(Pi,Pi)
         self.PiPj += PiPj                                       
 
@@ -219,18 +213,8 @@ class FullTraining:
 
         Bij = PiPj_mean - Pi2_mean
         
-        #if (self.gpu):
-        #    Bij_gpu = gpuarray.to_gpu(Bij)
-        #    invBij_gpu = linalg.pinv(Bij_gpu)
-        #else:
         invBij = sp.linalg.pinvh(Bij)
 
-        #calculate lambdas
-        #if (self.gpu):
-        #    gij_gpu = gpuarray.to_gpu(gij)
-        #    lambdas_gpu = linalg.dot(invBij_gpu, gij_gpu)
-        #    lambdas = lambdas_gpu.get()
-        #else:
         lambdas = np.matmul(invBij, gij)
 
         
@@ -286,15 +270,19 @@ class CustomMiChroMTraining:
         self.cutoff = cutoff
 
     def getChromSeq(self, filename):
-        """
-        Transform letter format of types to number types
-        'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6
+        R"""Converts the letters of the types/compartments following the rule: 'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6.
         
-        Parameters
-        ----------
-        filename : txt file
-            1-colunm file with types in letter format of types
+        Args:
+
+            filename (file, required):
+                Chromatin sequence of types file. The first column should contain the locus index. The second column should have the locus type annotation. A template of the chromatin sequence of types file can be found at the `Nucleome Data Bank (NDB) <https://ndb.rice.edu/static/text/chr10_beads.txt>`_.
+                
+        Returns:
+            :math:`(N,1)` :class:`numpy.ndarray`:
+                Returns an array of the sequence of chromatin types.
+
         """              
+        
         Type_conversion = {'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6}
         my_list = []
         af = open(filename,'r')
