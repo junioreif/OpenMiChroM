@@ -1153,7 +1153,7 @@ class MiChroM:
          Args:
 
             filename (file, required):
-                One-column file with types in letter format of types.
+                Chromatin sequence of types file. The first column should contain the locus index. The second column should have the locus type annotation. A template of the chromatin sequence of types file can be found at the `Nucleome Data Bank (NDB) <https://ndb.rice.edu/static/text/chr10_beads.txt>`_.
 
         """        
         
@@ -1419,13 +1419,13 @@ class MiChroM:
                     ndbf.append(seqchr_string.format("SEQCHR", num+1, "C1", 
                                                      len(self.type_list)," ".join(line)))
                 ndbf.append("MODEL 1")
-                #write body
+                
                 for i, line in zip(list(range(len(data))), data_chain):
                     ndbf.append(ndb_string.format("CHROM", i+1, Seqlist[i]," ","C1",i+1,
                                         line[0], line[1], line[2],
                                         np.int((i) * 50000)+1, np.int(i * 50000+50000), 0))
                 ndbf.append("END")
-                #write loops
+                
                 if hasattr(self, "loopPosition"):
                     loops = self.loopPosition[cadeia[0]:cadeia[1]+1]
                     loops.sort()
@@ -1439,7 +1439,7 @@ class MiChroM:
                 
                 
         
-    def doBlock(self, steps=None, increment=True, num=None):
+    def runSimBlock(self, steps=None, increment=True, num=None):
         R"""
         Performs a block of simulation steps.
         
@@ -1515,7 +1515,7 @@ class MiChroM:
                 self.data = coords
                 print("t=%2.1lfps" % (self.state.getTime() / units.second * 1e-12), end=' ')
                 print("kin=%.2lf pot=%.2lf" % (eK,
-                    eP), "Rg=%.3lf" % self.RG(), end=' ')
+                    eP), "Rg=%.3lf" % self.chromRG(), end=' ')
                 print("SPS=%.0lf" % (steps / (float(b - a))), end=' ')
 
                 if (self.integrator_type.lower() == 'variablelangevin'
@@ -1550,13 +1550,14 @@ class MiChroM:
         eP = state.getPotentialEnergy() / self.N / units.kilojoule_per_mole
         print("potential energy is %lf" % eP)
         
-    def initVelocities(self, mult=1):
-        """Initializes particles velocities
+    def initVelocities(self, mult=1.0):
+        R"""
+        Internal function that set the locus velocity to OpenMM system. 
+        
+        Args:
 
-        Parameters
-        ----------
-        mult : float, optional
-            Multiply velosities by this. Is good for a cold/hot start.
+            mult (float, optional):
+                 Rescale initial velocities. (Default value = 1.0). 
         """
         try:
             self.context
@@ -1564,16 +1565,33 @@ class MiChroM:
             raise ValueError("No context, cannot set velocs."                             "Initialize context before that")
 
         sigma = units.sqrt(self.Epsilon*units.kilojoule_per_mole / self.system.getParticleMass(
-            1))  # calculating mean velocity
+            1)) 
         velocs = units.Quantity(mult * np.random.normal(
             size=(self.N, 3)), units.meter) * (sigma / units.meter)
-        # Guide to simtk.unit: 1. Always use units.quantity.
-        # 2. Avoid dimensionless shit.
-        # 3. If you have to, create fake units, as done here with meters
+
         self.context.setVelocities(velocs) 
         
-    def setfibposition(self, mypol, plot=False, dist=(1.0,3.0)):
+    def setFibPosition(self, myChrom, plot=False, dist=(1.0,3.0)):
+        R"""
+        Distributes the chromosomes inside a nucleus according to the Fibonacci Sphere algorithm.
+        
+        Args:
+
+            myChrom (file, required):
+                 The 3D structure of the chromosome chain to be distributed in the sphere surface.
+            plot (bool, optional):
+                Whether to build a 3D plot of the initial chromosome distribution. (Default value: :code:`False`).
+            dist (tuple, optional):
+                Values used as references to keep the center of the chromosome chain at a certain distance from the center of the nucleus and the nucleus wall. (Default value: (1.0,3.0)).
+                
+        Returns:
+                Returns the chromosome chain positions that are loaded into OpenMM using the function :class:`loadStructure`.
+        """
+        
         def fibonacci_sphere(samples=1, randomize=True):
+            R"""
+            Internal function for running the Fibonacci Sphere algorithm.
+            """
             rnd = 1.
             if randomize:
                 rnd = random.random() * samples
@@ -1591,7 +1609,10 @@ class MiChroM:
                 points.append([x,y,z])
             return points
     
-        def plotdistrivuition(points, filename='.'):
+        def plotDistribution(points, filename='.'):
+            R"""
+            Internal function for plotting the initial chromosome distribution.
+            """
             from mpl_toolkits.mplot3d import Axes3D
             r = 1
             pi = np.pi
@@ -1601,43 +1622,38 @@ class MiChroM:
             x = r*sin(phi)*cos(theta)
             y = r*sin(phi)*sin(theta)
             z = r*cos(phi)
-            #fig = plt.figure()
-            #ax = fig.add_subplot(111, projection='3d')
             xx=np.array(points)[:,0]
             yy=np.array(points)[:,1]
             zz=np.array(points)[:,2]
-            #ax.plot_surface(
-            #    x, y, z,  rstride=1, cstride=1, color='c', alpha=0.4, linewidth=0)
-
-            #ax.scatter(xx,yy,zz,color="red",s=80)
-            #plt.savefig(filename + '.png')
     
         points = fibonacci_sphere(len(self.chains))
         R_nucleus = ( (self.chains[-1][1]+1) * (1.0/2.)**3 / 0.1 )**(1./3)
         if (plot):
             filename = "chainsDistr_%d." % self.step
             filename = os.path.join(self.folder, filename)
-            plotdistrivuition(points=points, filename=filename)
+            plotDistribution(points=points, filename=filename)
         
         for i in range(len(self.chains)):
             points[i] = [ x * dist[0] * R_nucleus + dist[1] * R_nucleus for x in points[i]]
-            mypol[self.chains[i][0]:self.chains[i][1]+1] -= np.array(points[i])
+            myChrom[self.chains[i][0]:self.chains[i][1]+1] -= np.array(points[i])
             
-        return(mypol)
+        return(myChrom)
         
-    def RG(self):
-        """
-        Returns
-        -------
-
-        Gyration ratius in units of length (bondlength).
+    def chromRG(self):
+        R"""
+        Calculates the Radius of Gyration of a chromosome chain.
+        
+        Returns:
+                Returns the Radius of Gyration in units of :math:`\sigma`
         """
         data = self.getScaledData()
         data = data - np.mean(data, axis=0)[None,:]
         return np.sqrt(np.sum(np.var(np.array(data), 0)))
     
     def getScaledData(self):
-        """Returns data, scaled back to PBC box """
+        R"""
+        Internal function for keeping the system in the simulation box if PBC is employed.
+        """
         if self.PBC != True:
             return self.getPositions()
         alldata = self.getPositions()
@@ -1648,8 +1664,8 @@ class MiChroM:
         return toRet
         
     def printStats(self):
-        """Prints detailed statistics of a system.
-        Will be run every 50 steps
+        R"""
+        Prints some statistical information of a system.
         """
         state = self.context.getState(getPositions=True,
             getVelocities=True, getEnergy=True)
@@ -1680,7 +1696,7 @@ class MiChroM:
         print()
         print("Statistics for particle position")
         print("     mean position is: ", np.mean(
-            pos, axis=0), "  Rg = ", self.RG())
+            pos, axis=0), "  Rg = ", self.chromRG())
         print("     median bond size is ", np.median(bonds))
         print("     three shortest/longest (<10)/ bonds are ", sbonds[
             :3], "  ", sbonds[sbonds < 10][-3:])
@@ -1709,7 +1725,9 @@ class MiChroM:
         print("Potential Energy Ep = ", eP / self.N / units.kilojoule_per_mole)
         
     def printForces(self):
-
+        R"""
+        Prints the energy values for each force applied in the system.
+        """
         forceNames = []
         forceValues = []
         
@@ -1723,6 +1741,5 @@ class MiChroM:
         df = DataFrame(forceValues,forceNames)
         df.columns = ['Values']
         print(df)
-        #print('\t'.join([str(e) for e in forceNames]))
-        #print('\t'.join([str(e) for e in forceValues]))
+
 
