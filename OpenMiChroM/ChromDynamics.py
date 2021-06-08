@@ -595,6 +595,9 @@ class MiChroM:
         crossLP.addGlobalParameter('rc', rc)
         crossLP.addGlobalParameter('lim', 1.0)
         crossLP.setCutoffDistance(3.0)
+
+        lambdas_full = np.loadtxt(TypesTable, delimiter=',')
+        lambdas = np.triu(lambdas_full) + np.triu(lambdas_full, k=1).T
         
         diff_types = len(lambdas)
         print(len(lambdas))
