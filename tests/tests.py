@@ -4,6 +4,7 @@ sys.path.append('../OpenMiChroM')
 
 from ChromDynamics import MiChroM
 from Optimization import FullTraining, CustomMiChroMTraining
+from CndbTools import cndbTools
 
 
 
@@ -49,8 +50,23 @@ class testMichrom():
         ic = b.getLamb_types(exp_map=sys.path[0] + '/training/c18_10.dense')
         print('Finished')
 
+    def testCndbTools(self):
+        traj1 = cndbTools.load(filename=sys.path[0] + '/training/test_0.cndb')
+        print(traj1)
+        sampleA1 = cndbTools.xyz(frames=[1,100,1], beadSelection=traj1.dictChromSeq['A1'])
+        sampleB1 = cndbTools.xyz(frames=[1,100,1], beadSelection=traj1.dictChromSeq['B1'])
+
+        print("compute RG...")
+        rg1 = cndbTools.compute_RG(sampleA1)
+
+        print("compute RDF...")
+        xa1, rdf_a1 = cndbTools.compute_RDF(sampleA1, radius=20, bins=200)
+        xb1, rdf_b1 = cndbTools.compute_RDF(sampleB1, radius=20, bins=200)
+
+
 
 run = testMichrom()
 
 run.runDefault()
 run.testCustomMiChroM()
+run.testCndbTools()
