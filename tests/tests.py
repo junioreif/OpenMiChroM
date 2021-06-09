@@ -9,6 +9,7 @@ from CndbTools import cndbTools
 
 
 class testMichrom():
+   
     def runDefault(self):
         a = MiChroM(name="test", temperature=1.0, time_step=0.01)
         a.setup(platform="cuda", integrator="Langevin", precision='single')
@@ -51,21 +52,23 @@ class testMichrom():
         print('Finished')
 
     def testCndbTools(self):
-        traj1 = cndbTools.load(filename=sys.path[0] + '/training/test_0.cndb')
-        print(traj1)
-        sampleA1 = cndbTools.xyz(frames=[1,100,1], beadSelection=traj1.dictChromSeq['A1'])
-        sampleB1 = cndbTools.xyz(frames=[1,100,1], beadSelection=traj1.dictChromSeq['B1'])
+        cndbt = cndbTools()
+        traj = cndbt.load(filename=sys.path[0] + '/training/test_0.cndb')
+        print(traj)
+        print(traj.uniqueChromSeq)
+        sampleA1 = cndbt.xyz(frames=[1,100,1], beadSelection=traj.dictChromSeq['A1'])
+        sampleB1 = cndbt.xyz(frames=[1,100,1], beadSelection=traj.dictChromSeq['B1'])
 
-        print("compute RG...")
-        rg1 = cndbTools.compute_RG(sampleA1)
+        print("Computing RG...")
+        rg = cndbt.compute_RG(sampleA1)
 
-        print("compute RDF...")
-        xa1, rdf_a1 = cndbTools.compute_RDF(sampleA1, radius=20, bins=200)
-        xb1, rdf_b1 = cndbTools.compute_RDF(sampleB1, radius=20, bins=200)
+        print("Computing RDP...")
+        xa1, rdp_a1 = cndbt.compute_RDP(sampleA1, radius=20.0, bins=200)
+        xb1, rdp_b1 = cndbt.compute_RDP(sampleB1, radius=20.0, bins=200)
 
-        print("create a contact probability matrix...")
-        alldata = cndbTools.xyz()
-        dense = cndbTools.traj2HiC(alldata)
+        print("Generating the contact probability matrix...")
+        alldata = cndbt.xyz()
+        dense = cndbt.traj2HiC(alldata)
         print('Finished')
 
 
