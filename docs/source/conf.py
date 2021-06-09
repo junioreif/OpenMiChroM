@@ -43,9 +43,11 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.autosummary",
     "sphinx.ext.autosectionlabel",
-    "jupyter_sphinx",
+    "sphinxcontrib.jupyter",
     "sphinxcontrib.bibtex",
 ]
+
+
 
 bibtex_bibfiles = ["Reference/OpenMiChroM.bib"]
 
