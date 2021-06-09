@@ -12,26 +12,76 @@ Quickstart Guide
 
     from ChromDynamics import MiChroM
     from Optimization import FullTraining, CustomMiChroMTraining
+    from CndbTools import cndbTools
 
 
 
     class testMichrom():
+
         def runDefault(self):
-            a = MiChroM(name="test", temperature=120, timestep=0.01)
+            a = MiChroM(name="test", temperature=1.0, time_step=0.01)
             a.setup(platform="cuda", integrator="Langevin", precision='single')
             a.saveFolder('output')
-            mypol = a.create_springSpiral(type_list=sys.path[0]+'/chr10/chr10_beads.txt')
-            a.load(mypol, center=True)
-            a.addFENEBonds(k=30.0) 
-            a.addAngles(k=2.0)
+            myChrom = a.create_springSpiral(ChromSeq=sys.path[0]+'/chr10/chr10_beads.txt')
+            a.loadStructure(myChrom, center=True)
+            a.addFENEBonds(kfb=30.0) 
+            a.addAngles(ka=2.0)
             a.addRepulsiveSoftCore(Ecut=4.0)
-            a.addTypetoType(mi=3.22, rc=1.78)
-            a.addIdealChromosome(mi=3.22, rc=1.78)
-            a.addSphericalConfinement(density=0.1, k=10)
+            a.addTypetoType(mu=3.22, rc=1.78)
+            a.addIdealChromosome(mu=3.22, rc=1.78)
+            a.addFlatBottomHarmonic(kr=5*10**-3, n_rad=10.0)
 
             for _ in range(10):
-                a.doBlock(100, increment=False)
+                a.runSimBlock(2000, increment=False)
+
+            a.printForces()
+            a.saveStructure(mode = 'ndb')
+            a.saveStructure(mode = 'pdb')
+            a.saveStructure(mode = 'gro')
+            a.saveStructure(mode = 'xyz')
+
+        def testCustomMiChroM(self):
+            b = CustomMiChroMTraining(ChromSeq=sys.path[0] + '/training/seq_c18_10')
+            assert(len(b.Bij_type) == 6)
+
+            import h5py
+            import numpy as np
+            filename = sys.path[0] + '/training/test_0.cndb'
+            mode = 'r'
+            myfile = h5py.File(filename, mode)
+            print("Calculating probabilities for 10 frames...")
+            for i in range(1,10):
+                tl = np.array(myfile[str(i)])
+                b.probCalculation_IC(state=tl)
+                b.probCalculation_types(state=tl)
+            print('Getting parameters for Types and IC...')
+            ty = b.getLamb(exp_map=sys.path[0] + '/training/c18_10.dense')
+            ic = b.getLamb_types(exp_map=sys.path[0] + '/training/c18_10.dense')
+            print('Finished')
+
+        def testCndbTools(self):
+            cndbt = cndbTools()
+            traj = cndbt.load(filename=sys.path[0] + '/training/test_0.cndb')
+            print(traj)
+            print(traj.uniqueChromSeq)
+            sampleA1 = cndbt.xyz(frames=[1,100,1], beadSelection=traj.dictChromSeq['A1'])
+            sampleB1 = cndbt.xyz(frames=[1,100,1], beadSelection=traj.dictChromSeq['B1'])
+
+            print("Computing RG...")
+            rg = cndbt.compute_RG(sampleA1)
+
+            print("Computing RDP...")
+            xa1, rdp_a1 = cndbt.compute_RDP(sampleA1, radius=20.0, bins=200)
+            xb1, rdp_b1 = cndbt.compute_RDP(sampleB1, radius=20.0, bins=200)
+
+            print("Generating the contact probability matrix...")
+            alldata = cndbt.xyz()
+            dense = cndbt.traj2HiC(alldata)
+            print('Finished')
+
 
     run = testMichrom()
 
     run.runDefault()
+    run.testCustomMiChroM()
+    run.testCndbTools()

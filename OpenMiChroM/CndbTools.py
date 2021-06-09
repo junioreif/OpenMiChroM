@@ -1,27 +1,29 @@
 # Copyright (c) 2020-2021 The Center for Theoretical Biological Physics (CTBP) - Rice University
 # This file is from the Open-MiChroM project, released under the MIT License.
 
+R"""
+The :class:`~.cndbTools` class perform analysis from **cndb** or **ndb** - (Nucleome Data Bank) file format for storing an ensemble of chromosomal 3D structures.
+Details about the NDB/CNDB file format can be found at the `Nucleome Data Bank <https://ndb.rice.edu/ndb-format>`__.
+"""
+
 import h5py
 import numpy as np
 import os
 from scipy.spatial import distance
 
-
 class cndbTools:
-    R"""
-    The :class:`~.cndbTools` class perform analysis from .cndb or .ndb files. 
-    """
+
     def __init__(self):
         self.Type_conversion = {'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6}
         self.Type_conversionInv = {y:x for x,y in self.Type_conversion.items()}
     
     def load(self, filename):
         R"""
-        Receives the path to cndb or ndb file to perform analysis.
+        Receives the path to **cndb** or **ndb** file to perform analysis.
         
         Args:
             filename (file, required):
-                Path to cndb or ndb file. If a ndb file is passed. it is converted to cndb file and saved in the same directory. 
+                Path to cndb or ndb file. If an ndb file is given, it is converted to a cndb file and saved in the same directory.
         """
         f_name, file_extension = os.path.splitext(filename)
         
@@ -47,19 +49,19 @@ class cndbTools:
     
     def xyz(self, frames=[1,None,1], beadSelection='all', XYZ=[0,1,2]):
         R"""
-        Get the positions from loaded cndb or ndb file. The positions are defined by the bead selection and XYZ positions.
+        Get the selected beads' 3D position from a **cndb** or **ndb** for multiple frames.
         
         Args:
             frames (list, required):
-                Define the range of frames will get extracted. The range list is defined by :code:`frames=[initial, final, step]`. (Default value = :code: `[1,None,1]`, all frames)
+                Define the range of frames that the position of the bead will get extracted. The range list is defined by :code:`frames=[initial, final, step]`. (Default value = :code: `[1,None,1]`, all frames)
             beadSelection (list of ints, required):
-                List of beads will get extracted for each frame. The list is defined by :code: `beadSelection=[1,2,3...N]`. (Default value = :code: `'all'`, all beads) 
+                List of beads to extract the 3D position for each frame. The list is defined by :code: `beadSelection=[1,2,3...N]`. (Default value = :code: `'all'`, all beads) 
             XYZ (list, required):
-                List of axis will get extracted for each frame. The list is defined by :code: `XYZ=[0,1,2]`. where 0, 1 and 2 are the axis X, Y and Z, respectively. (Default value = :code: `XYZ=[0,1,2]`) 
+                List of the axis in the Cartesian coordinate system that the position of the bead will get extracted for each frame. The list is defined by :code: `XYZ=[0,1,2]`. where 0, 1 and 2 are the axis X, Y and Z, respectively. (Default value = :code: `XYZ=[0,1,2]`) 
     
         Returns:
             :math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray`:
-                Return a array of frames, using the selections defined above.
+                Returns an array of the 3D position of the selected beads for different frames.
         """
         frame_list = []
         
@@ -75,13 +77,13 @@ class cndbTools:
             frame_list.append(np.take(np.take(np.array(self.cndb[str(i)]), selection, axis=0), XYZ, axis=1))
         return(np.array(frame_list))
     
-    def ndb2cndb(self, f_name):
+    def ndb2cndb(self, filename):
         R"""
-        Ndb to cndb file converter. If a ndb file is passed. it is converted to cndb file and saved in the same directory.
+        Converts an **ndb** file format to **cndb**.
         
         Args:
-            f_name (path, required):
-                 Path to ndb file to be converted to cndb. 
+            filename (path, required):
+                 Path to the ndb file to be converted to cndb.
         """
         Main_chrom      = ['ChrA','ChrB','ChrU'] # Type A B and Unknow
         Chrom_types     = ['ZA','OA','FB','SB','TB','LB','UN']
@@ -93,8 +95,8 @@ class cndbTools:
         atom           = "ATOM  {0:5d} {1:^4s}{2:1s}{3:3s} {4:1s}{5:4d}{6:1s}   {7:8.3f}{8:8.3f}{9:8.3f}{10:6.2f}{11:6.2f}          {12:>2s}{13:2s}"
         ter            = "TER   {0:5d}      {1:3s} {2:1s}{3:4d}{4:1s}"
 
-        file_ndb = f_name + str(".ndb")
-        name     = f_name + str(".cndb")
+        file_ndb = filename + str(".ndb")
+        name     = filename + str(".cndb")
 
         cndbf = h5py.File(name, 'w')
         
@@ -116,9 +118,6 @@ class cndbTools:
 
             info = line.split()
 
-            # [ Primary Structure Section ]
-
-            # [ Coodinate Section ]
 
             if 'MODEL' in entry:
                 frame += 1
@@ -128,7 +127,6 @@ class cndbTools:
             elif 'CHROM' in entry:
 
                 subtype = line[16:18]
-                #print(subtype, line)
 
                 types.append(subtype)
                 x.append(float(line[40:48]))
@@ -147,8 +145,6 @@ class cndbTools:
                 y = []
                 z = []
 
-            # [ Loops file ]
-
             elif 'LOOPS' in entry:
                 loop_list.append([int(info[1]), int(info[2])])
                 loop += 1
@@ -164,17 +160,17 @@ class cndbTools:
 #### Analisys start here!
 #########################################################################################
 
-    def compute_RG(self,xyz): #np.array
+    def compute_RG(self,xyz): 
         R"""
-        Calculates the Radius of Gyration of a trajectoty.
+        Calculates the Radius of Gyration. 
         
         Args:
             xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray`, required):
-                array of frames extracted by using the :code: `xyz()` function.  
+                Array of the 3D position of the selected beads for different frames extracted by using the :code: `xyz()` function.  
                        
         Returns:
             :class:`numpy.ndarray`:
-                Returns the Radius of Gyration in units of :math:`\sigma`
+                Returns the Radius of Gyration in units of :math:`\sigma`.
         """
         rg = []
         for frame in range(len(xyz)):
@@ -183,33 +179,42 @@ class cndbTools:
             rg.append(np.sqrt(np.sum(np.var(np.array(data), 0))))
         return np.array(rg) 
         
-    def compute_RDF(self, xyz, radius=20, bins=200):
+    def compute_RDP(self, xyz, radius=20.0, bins=200):
         R"""
-        Calculates the Radial distribution probability over a trajectory.
+        Calculates the RDP - Radial Distribution Probability. Details can be found in the following publications: 
+        
+            - Oliveira Jr., A.B., Contessoto, V.G., Mello, M.F. and Onuchic, J.N., 2021. A scalable computational approach for simulating complexes of multiple chromosomes. Journal of Molecular Biology, 433(6), p.166700.
+            - Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173.
         
         Args:
             xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray`, required):
-                array of frames extracted by using the :code: `xyz()` function.
+                Array of the 3D position of the selected beads for different frames extracted by using the :code: `xyz()` function. 
             radius (float, required):
-                Set the radius of the sphere with origin in the centroid of a given frame. 
+                Radius of the sphere in units of :math:`\sigma` to be considered in the calculations. The radius value should be modified depending on your simulated chromosome length. (Default value = 20.0).
             bins (int, required):
-                Number of slices to get the spherical shells.   
+                Number of slices to be considered as spherical shells. (Default value = 200).
                        
         Returns:
             :math:`(N, 1)` :class:`numpy.ndarray`:
-                Returns the radius of each spherical shell.
+                Returns the radius of each spherical shell in units of :math:`\sigma`.
             :math:`(N, 1)` :class:`numpy.ndarray`:
-                Returns the radial distribution probability for each spherical shell.
+                Returns the RDP - Radial Distribution Probability for each spherical shell.
         """
         
-        def _calcDist(a,b):
+        def calcDist(a,b):
+            R"""
+            Internal function that calculates the distance between two beads. 
+            """
             return np.sqrt( (a[0] - b[0])**2 + (a[1] - b[1])**2 + (a[2] - b[2])**2  )
         
-        def _calc_gr(ref, pos, R, dr):
+        def calc_gr(ref, pos, R, dr):
+            R"""
+            Internal function that calculates the distance RDP - Radial Distribution Probability. 
+            """
             g_r =  np.zeros(int(R/dr))
             dd = []
             for i in range(len(pos)):
-                dd.append(_calcDist(pos[i],ref))
+                dd.append(calcDist(pos[i],ref))
             raddi =dr
             k = 0
             while (raddi <= R):
@@ -232,7 +237,7 @@ class cndbTools:
             frame = xyz[i]
             centroide = np.mean(frame, axis=0)[None,:][0]
             n_frames += 1
-            g_rdf += _calc_gr(centroide, frame, R_nucleus, deltaR)
+            g_rdf += calc_gr(centroide, frame, R_nucleus, deltaR)
         
         Rx = []   
         for i in np.arange(0, int(R_nucleus+deltaR), deltaR):
@@ -241,7 +246,7 @@ class cndbTools:
 
     def traj2HiC(self, xyz, mu=3.22, rc = 1.78):
         R"""
-        Calculates the contact probability matrix using a sequence of frames.   
+        Calculates the *in silico* Hi-C maps (contact probability matrix) using a chromatin dyamics trajectory.   
         
         The parameters :math:`\mu` (mu) and rc are part of the probability of crosslink function :math:`f(r_{i,j}) = \frac{1}{2}\left( 1 + tanh\left[\mu(r_c - r_{i,j}\right] \right)`, where :math:`r_{i,j}` is the spatial distance between loci (beads) *i* and *j*.
         
@@ -254,7 +259,7 @@ class cndbTools:
         
          Returns:
             :math:`(N, N)` :class:`numpy.ndarray`:
-                Returns a symmetric contact probability matrix.
+                Returns the *in silico* Hi-C maps (contact probability matrix).
         """
         def calc_prob(data, mu, rc):
             return 0.5 * (1.0 + np.tanh(mu * (rc - distance.cdist(data, data, 'euclidean'))))
@@ -276,5 +281,3 @@ class cndbTools:
     def __repr__(self):
         return '<{0}.{1} object at {2}>\nCndb file has {3} frames, with {4} beads and {5} types '.format(
       self.__module__, type(self).__name__, hex(id(self)), self.Nframes, self.Nbeads, self.uniqueChromSeq)
-    
-cndbTools = cndbTools()  

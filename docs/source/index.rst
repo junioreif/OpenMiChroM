@@ -21,9 +21,6 @@ Table of Contents
 
    Tutorials/single_chain
    Tutorials/multi_chains
-   Tutorials/training_types
-   Tutorials/training_IC
-   Tutorials/full_invertion
    
 .. toctree::
    :maxdepth: 2
