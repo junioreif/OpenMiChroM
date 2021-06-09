@@ -4,6 +4,8 @@
 import h5py
 import numpy as np
 import os
+from scipy.spatial import distance
+
 
 class cndbTools:
     R"""
@@ -236,6 +238,39 @@ class cndbTools:
         for i in np.arange(0, int(R_nucleus+deltaR), deltaR):
             Rx.append(i)
         return(Rx, g_rdf/n_frames) 
+
+    def traj2HiC(self, xyz, mu=3.22, rc = 1.78):
+        R"""
+        Calculates the contact probability matrix using a sequence of frames.   
+        
+        The parameters :math:`\mu` (mu) and rc are part of the probability of crosslink function :math:`f(r_{i,j}) = \frac{1}{2}\left( 1 + tanh\left[\mu(r_c - r_{i,j}\right] \right)`, where :math:`r_{i,j}` is the spatial distance between loci (beads) *i* and *j*.
+        
+        Args:
+
+            mu (float, required):
+                Parameter in the probability of crosslink function. (Default value = 3.22).
+            rc (float, required):
+                Parameter in the probability of crosslink function, :math:`f(rc) = 0.5`. (Default value = 1.78).
+        
+         Returns:
+            :math:`(N, N)` :class:`numpy.ndarray`:
+                Returns a symmetric contact probability matrix.
+        """
+        def calc_prob(data, mu, rc):
+            return 0.5 * (1.0 + np.tanh(mu * (rc - distance.cdist(data, data, 'euclidean'))))
+        
+        size = len(xyz[0])
+        P = np.zeros((size, size))
+        Ntotal = 0
+        
+        for i in range(len(xyz)):
+            data = xyz[i]
+            P += calc_prob(data, mu, rc)
+            Ntotal += 1
+            if i % 500 == 0:
+                print("Reading frame {:} of {:}".format(i, len(xyz)))
+        
+        return(np.divide(P , Ntotal))    
             
         
     def __repr__(self):

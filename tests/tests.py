@@ -63,6 +63,10 @@ class testMichrom():
         xa1, rdf_a1 = cndbTools.compute_RDF(sampleA1, radius=20, bins=200)
         xb1, rdf_b1 = cndbTools.compute_RDF(sampleB1, radius=20, bins=200)
 
+        print("create a contact probability matrix...")
+        alldata = cndbTools.xyz()
+        dense = cndbTools.traj2HiC(alldata)
+        print('Finished')
 
 
 run = testMichrom()
