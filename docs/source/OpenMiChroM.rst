@@ -1,6 +1,7 @@
 OpenMiChroM
 ===================
 
+
 OpenMiChroM.Optimization
 -------------------------------
 
@@ -18,10 +19,10 @@ OpenMiChroM.CndbTools
    :show-inheritance:
    
    
-OpenMiChroM.ChromDynamics
---------------------------------
+OpenMiChroM.Optimization
+-------------------------------
 
-.. automodule:: OpenMiChroM.ChromDynamics
+.. automodule:: OpenMiChroM.Optimization
    :members:
    :undoc-members:
    :show-inheritance:
