@@ -1,6 +1,5 @@
 OpenMiChroM
 ===================
-.. currentmodule:: OpenMiChroM
 
 OpenMiChroM.ChromDynamics
 --------------------------------
