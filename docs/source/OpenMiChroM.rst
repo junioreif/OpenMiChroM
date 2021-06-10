@@ -1,9 +1,10 @@
 OpenMiChroM
 ===================
+.. currentmodule:: OpenMiChroM
 
 OpenMiChroM.ChromDynamics
 --------------------------------
-.. currentmodule:: OpenMiChroM.ChromDynamics
+
 .. automodule:: OpenMiChroM.ChromDynamics
    :members:
    :undoc-members:
