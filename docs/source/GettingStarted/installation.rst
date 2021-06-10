@@ -16,7 +16,7 @@ The code below will install **Open-MiChroM** from `conda-forge <https://anaconda
 
 .. code-block:: bash
 
-    conda install -c conda-forge Open-MiChroM
+    conda install -c conda-forge OpenMiChroM
 
 Install via pip
 -----------------
@@ -25,7 +25,7 @@ The code below will install **Open-MiChroM** from `PyPI <https://pypi.org/projec
 
 .. code-block:: bash
 
-    pip install Open-MiChroM
+    pip install OpenMiChroM
 
 .. note::
 
