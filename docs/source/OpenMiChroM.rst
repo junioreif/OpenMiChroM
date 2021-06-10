@@ -3,8 +3,8 @@ OpenMiChroM
 
 OpenMiChroM.ChromDynamics
 --------------------------------
-
-.. automodule:: OpenMiChroM.ChromDynamics
+.. currentmodule:: OpenMiChroM.ChromDynamics
+.. autoclass:: OpenMiChroM.ChromDynamics
    :members:
    :undoc-members:
    :show-inheritance:
