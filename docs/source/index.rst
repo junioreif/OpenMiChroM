@@ -7,7 +7,6 @@ Table of Contents
 
    GettingStarted/installation
    GettingStarted/introduction
-   GettingStarted/quickstart
    
 .. toctree::
    :maxdepth: 2
