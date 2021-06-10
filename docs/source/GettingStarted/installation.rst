@@ -44,6 +44,5 @@ The following are libraries **required** for installing **Open-MiChroM**:
 - `SciPy <https://www.scipy.org/>`__ (>=1.5.0)
 - `six <https://pypi.org/project/six/>`__ (>=1.14.0)
 - `h5py <https://www.h5py.org/>`__ (>=2.0.0)
-- `pandas <https://pandas.pydata.org//>`__ (>=1.0.0)
-
-
+- `pandas <https://pandas.pydata.org/>`__ (>=1.0.0)
+- `scikit-learn < https://scikit-learn.org/>`__ (>=0.20.0)
