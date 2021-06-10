@@ -1,6 +1,8 @@
 OpenMiChroM
 ===================
 
+.. automodule:: OpenMiChroM
+
 OpenMiChroM.ChromDynamics
 --------------------------------
 
