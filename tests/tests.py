@@ -2,6 +2,7 @@ import sys
 
 sys.path.append('../OpenMiChroM')
 
+
 from ChromDynamics import MiChroM
 from Optimization import FullTraining, CustomMiChroMTraining
 from CndbTools import cndbTools
@@ -12,7 +13,7 @@ class testMichrom():
    
     def runDefault(self):
         a = MiChroM(name="test", temperature=1.0, time_step=0.01)
-        a.setup(platform="cuda", integrator="Langevin", precision='single')
+        a.setup(platform="opencl", integrator="Langevin", precision='single')
         a.saveFolder('output')
         myChrom = a.create_springSpiral(ChromSeq=sys.path[0]+'/chr10/chr10_beads.txt')
         a.loadStructure(myChrom, center=True)
