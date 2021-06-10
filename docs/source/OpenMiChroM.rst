@@ -17,7 +17,8 @@ OpenMiChroM.CndbTools
    :undoc-members: 
    :show-inheritance:
    
-   OpenMiChroM.ChromDynamics
+   
+OpenMiChroM.ChromDynamics
 --------------------------------
 
 .. automodule:: OpenMiChroM.ChromDynamics
