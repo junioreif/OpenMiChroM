@@ -89,8 +89,3 @@ html_favicon = "images/Open-MichroM_chr1_A549_icon.png"
 html_static_path = []
 
 html_show_sourcelink = True
-
-autodoc_default_options = {
-    "inherited-members": True,
-    "show-inheritance": True,
-}
