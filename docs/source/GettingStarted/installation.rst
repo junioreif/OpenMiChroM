@@ -12,7 +12,7 @@ The **Open-MiChroM** library can be installed via `conda <https://conda.io/proje
 Install via conda
 -----------------
 
-The code below will install **Open-MiChroM** from `conda-forge <https://anaconda.org/conda-forge/Open-MiChroM>`_.
+The code below will install **Open-MiChroM** from `conda-forge <https://anaconda.org/conda-forge/OpenMiChroM>`_.
 
 .. code-block:: bash
 
@@ -21,7 +21,7 @@ The code below will install **Open-MiChroM** from `conda-forge <https://anaconda
 Install via pip
 -----------------
 
-The code below will install **Open-MiChroM** from `PyPI <https://pypi.org/project/Open-MiChroM/>`_.
+The code below will install **Open-MiChroM** from `PyPI <https://pypi.org/project/OpenMiChroM/>`_.
 
 .. code-block:: bash
 
