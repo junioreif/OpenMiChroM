@@ -26,8 +26,8 @@ copyright = '2020-2021 The Center for Theoretical Biological Physics (CTBP) - Ri
 author = 'Antonio B. Oliveira Jr. & Vinícius G. Contessoto'
 
 # The full version, including alpha/beta/rc tags
-version = '0.0.1'
-release = '0.0.1'
+version = '0.0.2'
+release = '0.0.2'
 
 
 # -- General configuration ---------------------------------------------------
