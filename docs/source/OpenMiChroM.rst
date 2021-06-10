@@ -4,7 +4,7 @@ OpenMiChroM
 OpenMiChroM.ChromDynamics
 --------------------------------
 
-.. automodule:: OpenMiChroM.ChromDynamics
+.. autoclass:: OpenMiChroM.ChromDynamics
    :members:
    :undoc-members:
    :show-inheritance:
