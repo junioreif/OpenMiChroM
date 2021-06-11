@@ -316,7 +316,7 @@ class MiChroM:
                 A two-column text file containing the index *i* and *j* of a loci pair that form loop interactions.
         """
         self.loopPosition = []
-        for file, chain in zip(filenames,self.chains):
+        for file, chain in zip(looplists,self.chains):
             aFile = open(file,'r')
             pos = aFile.read().splitlines()
             m = int(chain[0])
@@ -659,7 +659,7 @@ class MiChroM:
         Loop.addGlobalParameter('rc', rc) 
         Loop.addGlobalParameter('qsi', X) 
         
-        self.getLoops(filename)
+        self.getLoops(looplists)
         
         for p in self.loopPosition:
             Loop.addBond(p[0]-1,p[1]-1)
@@ -693,7 +693,7 @@ class MiChroM:
         IC = self.mm.CustomNonbondedForce(energyIC)
 
         
-        IClist = np.append(np.zeros(dcutl),IClist)[:-dcutl]
+        IClist = np.append(np.zeros(dend),IClist)[:-dend]
         
         tabIClist = self.mm.Discrete1DFunction(IClist)
         IC.addTabulatedFunction('IClist', tabIClist) 
@@ -819,7 +819,7 @@ class MiChroM:
         
         IC.setCutoffDistance(3)
         
-        groupList = list(range(ChromChain[0],ChromChain[1]+1))
+        groupList = list(range(chains[0],chains[1]+1))
         
         IC.addInteractionGroup(groupList,groupList)
         
@@ -828,7 +828,7 @@ class MiChroM:
         for i in range(self.N):
                 IC.addParticle([i])
         
-        self.forceDict["IdealChromosome_chain_"+str(ChromChain[0])] = IC
+        self.forceDict["IdealChromosome_chain_"+str(chains[0])] = IC
         
 
     def _loadParticles(self):
@@ -948,7 +948,7 @@ class MiChroM:
         sizeChain = 0
 
 
-        for ndb in filename:
+        for ndb in NDBfiles:
             aFile = open(ndb,'r')
 
             lines = aFile.read().splitlines()
@@ -1003,7 +1003,7 @@ class MiChroM:
         chains = []
         sizeChain = 0
         
-        for gro in filename:
+        for gro in GROfiles:
             aFile = open(gro,'r')
             pos = aFile.read().splitlines()
             size = int(pos[1])
@@ -1052,7 +1052,7 @@ class MiChroM:
         chains = []
         sizeChain = 0
         
-        for pdb in filename:
+        for pdb in PDBfiles:
             aFile = open(pdb,'r')
             pos = aFile.read().splitlines()
 
@@ -1191,7 +1191,7 @@ class MiChroM:
    
         """
 
-        beads = N
+        beads = Nbeads
         x = []
         y = []
         z = []
@@ -1201,7 +1201,7 @@ class MiChroM:
             z.append(0.15*length_scale*beads+(i-1)*0.6)
         
         chain = []
-        chain.append((0,N-1,0))
+        chain.append((0,Nbeads-1,0))
         self.setChains(chain)
 
         return np.vstack([x,y,z]).T
