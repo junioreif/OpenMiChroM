@@ -49,7 +49,7 @@ Resources
 - `Installation Guide <https://open-michrom.readthedocs.io/en/latest/GettingStarted/installation.html>`__: Instructions for installing **Open-MiChroM**.
 - `Open-MiChroM Google Group <https://groups.google.com/g/open-michrom>`__: Ask questions to the **Open-MiChroM** user community.
 - `GitHub repository <https://github.com/junioreif/OpenMiChroM/>`__: Download the **Open-MiChroM** source code.
-- `Issue tracker <https://github.com/gjunioreif/OpenMiChroM//issues>`__: Report issues/bugs or request features.
+- `Issue tracker <https://github.com/gjunioreif/OpenMiChroM/issues>`__: Report issues/bugs or request features.
 
 
 Citation
