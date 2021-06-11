@@ -4,9 +4,6 @@
 Installation
 ============
 
-Installing Open-MiChroM
-================
-
 The **Open-MiChroM** library can be installed via `conda <https://conda.io/projects/conda/>`_ or pip, or compiled from source.
 
 Install via conda
