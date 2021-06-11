@@ -1,35 +1,54 @@
 {% set name = "OpenMiChroM" %}
-{% set version = "0.0.1" %}
+{% set version = "0.0.3" %}
+
 
 package:
-  name: "{{ name|lower }}"
-  version: "{{ version }}"
+  name: {{ name|lower }}
+  version: {{ version }}
 
 source:
-  git_url: GIT_URL
+  url: https://pypi.io/packages/source/{{ name[0] }}/{{ name }}/OpenMiChroM-{{ version }}.tar.gz
+  sha256: 835ed034621994bde1522760f4601b82721f9f7ad065c3caf1a9a165d15af2b8
 
 build:
   number: 0
-  script: "$PYTHON -m pip install . --no-deps --ignore-installed -vv "
+  noarch: python
+  entry_points:
+    - CLINAME=OpenMiChroM._cli:main
+  script: {{ PYTHON }} -m pip install . -vv
 
 requirements:
   host:
-    - python
     - pip
+    - python >=3.6
   run:
-    - python
+    - h5py
+    - numpy
+    - pandas
+    - python >=3.6
+    - scikit-learn
+    - scipy
+    - six
+    - openmm
 
 test:
   imports:
     - OpenMiChroM
+    - tests
+  commands:
+    - pip check
+  requires:
+    - pip
 
 about:
   home: https://ndb.rice.edu/Open-MiChroM
+  summary: Open-Michrom lib for chromosome simulations
   license: MIT
-  license_family: MIT
   license_file: LICENSE
-  summary: SUMMARY
+  license_family: MIT
+  doc_url: https://open-michrom.readthedocs.io
+  dev_url: https://github.com/junioreif/OpenMiChroM
 
 extra:
   recipe-maintainers:
-    - USERNAME
+    - junioreif
