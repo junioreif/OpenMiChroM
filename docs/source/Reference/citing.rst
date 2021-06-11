@@ -13,6 +13,7 @@ The paper is available online from `Journal of Molecular Biology (JMB) <https://
 To cite this reference, you can use the following BibTeX entry:
 
 .. code-block:: bibtex
+
     @article{OpenMiChroM2020,
       title={A scalable computational approach for simulating complexes of multiple chromosomes},
       author={Oliveira Jr, Antonio B  and 
