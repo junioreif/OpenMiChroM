@@ -17,7 +17,7 @@ Open-MiChroM
    :target: https://anaconda.org/conda-forge/OpenMiChroM
 .. |ReadTheDocs| image:: https://readthedocs.org/projects/open-michrom/badge/?version=latest
    :target: https://open-michrom.readthedocs.io/en/latest/
-.. |NDB| image:: https://img.shields.io/badge/NDB-Nucleome%20Data%20Bank-brightgreen
+.. |NDB| image:: https://img.shields.io/badge/NDB-Nucleome%20Data%20Bank-informational
    :target: https://ndb.rice.edu/
 .. |GitHub-Stars| image:: https://img.shields.io/github/stars/junioreif/OpenMiChroM.svg?style=social
    :target: https://github.com/junioreif/OpenMiChroM
