@@ -18,8 +18,8 @@ Table of Contents
    :maxdepth: 2
    :caption: Tutorials
 
-   Tutorials/single_chain
-   Tutorials/multi_chains
+   Tutorials/Tutorial_Single_Chromosome
+   Tutorials/Tutorial_Multiple_Chromosomes
    
 .. toctree::
    :maxdepth: 2
