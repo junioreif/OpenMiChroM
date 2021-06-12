@@ -1,6 +1,6 @@
-=====================
+===========================
 How to cite **OpenMiChroM**
-=====================
+===========================
 
 Please acknowledge the use of this software within the body of your publication for example by copying or adapting the following formulation:
 
@@ -28,4 +28,3 @@ To cite this reference, you can use the following BibTeX entry:
       publisher={Elsevier}
       doi = {https://doi.org/10.1016/j.jmb.2020.10.034},
     }
-    

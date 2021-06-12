@@ -89,3 +89,5 @@ html_favicon = "images/Open-MichroM_chr1_A549_icon.png"
 html_static_path = []
 
 html_show_sourcelink = True
+
+nbsphinx_execute = 'never'
