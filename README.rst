@@ -22,6 +22,12 @@ OpenMiChroM
 .. |GitHub-Stars| image:: https://img.shields.io/github/stars/junioreif/OpenMiChroM.svg?style=social
    :target: https://github.com/junioreif/OpenMiChroM
 
+
+`Documentation <https://open-michrom.readthedocs.io/>`__
+| `Install <https://open-michrom.readthedocs.io/en/latest/GettingStarted/installation.html>`__
+| `Tutorials <https://open-michrom.readthedocs.io/en/latest/Tutorials/Tutorial_Single_Chromosome.html>`__
+| `Forum <https://groups.google.com/g/open-michrom>`__
+
 Overview
 ========
 
@@ -45,7 +51,7 @@ Open-MiChroM package receives the chromatin sequence of compartments and subcomp
 Resources
 =========
 
-- `Reference Documentation <https://open-michrom.readthedocs.io//>`__: Examples, tutorials, and class details.
+- `Reference Documentation <https://open-michrom.readthedocs.io/>`__: Examples, tutorials, and class details.
 - `Installation Guide <https://open-michrom.readthedocs.io/en/latest/GettingStarted/installation.html>`__: Instructions for installing **OpenMiChroM**.
 - `Open-MiChroM Google Group <https://groups.google.com/g/open-michrom>`__: Ask questions to the **OpenMiChroM** user community.
 - `GitHub repository <https://github.com/junioreif/OpenMiChroM/>`__: Download the **OpenMiChroM** source code.
