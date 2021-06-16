@@ -15,7 +15,7 @@ The code below will install **OpenMiChroM** from `conda-forge <https://anaconda.
 
     conda install -c conda-forge OpenMiChroM
     
-.. hint:: Often, the installation via conda happens to be stuck. If this is the case, it is recommended to update conda/anaconda using the command line below and try **OpenMiChroM** again.
+.. hint:: Often, the installation via conda happens to be stuck. If this is the case, it is recommended to update conda/anaconda using the command line below and try to install **OpenMiChroM** again.
 
 .. code-block:: bash
 
