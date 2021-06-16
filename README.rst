@@ -1,15 +1,15 @@
 ============
-Open-MiChroM
+OpenMiChroM
 ============
 
-|Citing Open-MiChroM|
+|Citing OpenMiChroM|
 |PyPI|
 |conda-forge|
 |ReadTheDocs|
 |NDB|
 |GitHub-Stars|
 
-.. |Citing Open-MiChroM| image:: https://img.shields.io/badge/cite-OpenMiChroM-informational
+.. |Citing OpenMiChroM| image:: https://img.shields.io/badge/cite-OpenMiChroM-informational
    :target: https://open-michrom.readthedocs.io/en/latest/Reference/citing.html
 .. |PyPI| image:: https://img.shields.io/pypi/v/OpenMiChroM.svg
    :target: https://pypi.org/project/OpenMiChroM/
@@ -25,7 +25,7 @@ Open-MiChroM
 Overview
 ========
 
-`Open-MiChroM <https://www.sciencedirect.com/science/article/pii/S0022283620306185>`_ is a Python library for performing chromatin dynamics simulations and analyses. Open-MiChroM uses the  `OpenMM <http://openmm.org/>`_ Python API employing the `MiChroM (Minimal Chromatin Model) <https://www.pnas.org/content/113/43/12168>`_ energy function. The chromatin dynamics simulations generate an ensemble of 3D chromosomal structures that are consistent with experimental Hi-C maps. Open-MiChroM also allows simulations of a single or multiple chromosome chain using High-Performance Computing in different platforms (GPUs and CPUs).
+`OpenMiChroM <https://www.sciencedirect.com/science/article/pii/S0022283620306185>`_ is a Python library for performing chromatin dynamics simulations and analyses. Open-MiChroM uses the  `OpenMM <http://openmm.org/>`_ Python API employing the `MiChroM (Minimal Chromatin Model) <https://www.pnas.org/content/113/43/12168>`_ energy function. The chromatin dynamics simulations generate an ensemble of 3D chromosomal structures that are consistent with experimental Hi-C maps. OpenMiChroM also allows simulations of a single or multiple chromosome chain using High-Performance Computing in different platforms (GPUs and CPUs).
 
 .. raw:: html
 
@@ -46,23 +46,23 @@ Resources
 =========
 
 - `Reference Documentation <https://open-michrom.readthedocs.io//>`__: Examples, tutorials, and class details.
-- `Installation Guide <https://open-michrom.readthedocs.io/en/latest/GettingStarted/installation.html>`__: Instructions for installing **Open-MiChroM**.
-- `Open-MiChroM Google Group <https://groups.google.com/g/open-michrom>`__: Ask questions to the **Open-MiChroM** user community.
-- `GitHub repository <https://github.com/junioreif/OpenMiChroM/>`__: Download the **Open-MiChroM** source code.
+- `Installation Guide <https://open-michrom.readthedocs.io/en/latest/GettingStarted/installation.html>`__: Instructions for installing **OpenMiChroM**.
+- `Open-MiChroM Google Group <https://groups.google.com/g/open-michrom>`__: Ask questions to the **OpenMiChroM** user community.
+- `GitHub repository <https://github.com/junioreif/OpenMiChroM/>`__: Download the **OpenMiChroM** source code.
 - `Issue tracker <https://github.com/junioreif/OpenMiChroM/issues>`__: Report issues/bugs or request features.
 
 
 Citation
 ========
 
-When using **Open-MiChroM** to perform chromatin dynamics simulations or analyses, please `use this citation
+When using **OpenMiChroM** to perform chromatin dynamics simulations or analyses, please `use this citation
 <https://open-michrom.readthedocs.io/en/latest/Reference/citing.html>`__.
 
 
 Installation
 ============
 
-The **Open-MiChroM** library can be installed via `conda <https://conda.io/projects/conda/>`_ or pip, or compiled from source.
+The **OpenMiChroM** library can be installed via `conda <https://conda.io/projects/conda/>`_ or pip, or compiled from source.
 
 Install via conda
 -----------------
@@ -76,7 +76,7 @@ The code below will install **Open-MiChroM** from `conda-forge <https://anaconda
 Install via pip
 -----------------
 
-The code below will install **Open-MiChroM** from `PyPI <https://pypi.org/project/OpenMiChroM/>`_.
+The code below will install **OpenMiChroM** from `PyPI <https://pypi.org/project/OpenMiChroM/>`_.
 
 .. code-block:: bash
 
@@ -84,7 +84,7 @@ The code below will install **Open-MiChroM** from `PyPI <https://pypi.org/projec
 
 .. note::
 
-The **Open-MiChroM** library uses `OpenMM <http://openmm.org/>`_ API to run the chromatin dynamics simulations.
+The **OpenMiChroM** library uses `OpenMM <http://openmm.org/>`_ API to run the chromatin dynamics simulations.
 These requirements can be met by installing the OpenMM package from the `conda-forge channel <https://conda-forge.org/>`__:
 
 .. code-block:: bash
@@ -92,7 +92,7 @@ These requirements can be met by installing the OpenMM package from the `conda-f
     conda install -c conda-forge openmm
     
     
-The following are libraries **required** for installing **Open-MiChroM**:
+The following are libraries **required** for installing **OpenMiChroM**:
 
 - `Python <https://www.python.org/>`__ (>=3.6)
 - `NumPy <https://www.numpy.org/>`__ (>=1.14)
