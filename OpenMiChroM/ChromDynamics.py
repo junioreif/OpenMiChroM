@@ -82,14 +82,14 @@ class MiChroM:
             
 
     def setup(self, platform="CUDA", PBC=False, PBCbox=None, GPU="default",
-              integrator="langevin", errorTol=None, precision="mixed"):
+              integrator="langevin", errorTol=None, precision="mixed",deviceIndex="0"):
         
         R"""Sets up the parameters of the simulation OpenMM platform.
 
         Args:
 
             platform (str, optional):
-                Platform to use in the simulations. Opitions are *CUDA*, *OpenCL*, *CPU*, *Reference*. (Default value: *CUDA*). 
+                Platform to use in the simulations. Opitions are *CUDA*, *OpenCL*, *HIP*, *CPU*, *Reference*. (Default value: *CUDA*). 
 
             PBC (bool, optional)
                 Whether to use periodic boundary conditions. (Default value: :code:`False`). 
@@ -104,6 +104,8 @@ class MiChroM:
                 Integrator to use in the simulations. Options are *langevin*,  *variableLangevin*, *verlet*, *variableVerlet* and, *brownian*. (Default value: *langevin*).
             verbose (bool, optional):
                 Whether to output the information in the screen during the simulation. (Default value: :code:`False`).
+            deviceIndex (str, optional):
+                Set of Platform device index IDs. Ex: 0,1,2 for the system to use the devices 0, 1 and 2. (Use only when GPU != default)
 
             errorTol (float, required if **integrator** = *variableLangevin*):
                 Error tolerance parameter for *variableLangevin* integrator.
@@ -147,7 +149,7 @@ class MiChroM:
         self.GPU = str(GPU)
         properties = {}
         if self.GPU.lower() != "default":
-            properties["DeviceIndex"] = str(GPU)
+            properties["DeviceIndex"] = deviceIndex
             properties["Precision"] = precision
         self.properties = properties
 
