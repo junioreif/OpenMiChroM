@@ -163,6 +163,8 @@ class MiChroM:
         elif platform.lower() == "cpu":
             platformObject = self.mm.Platform.getPlatformByName('CPU')
 
+        elif platform.lower() == "hip":
+            platformObject = self.mm.Platform.getPlatformByName('HIP')
 
         else:
             self.exit("\n!!!! Unknown platform !!!!\n")
@@ -889,7 +891,13 @@ class MiChroM:
         self.initPositions()
         self.initVelocities()
         self.forcesApplied = True
-      
+     
+        with open(self.folder+'/platform_info.dat', 'w') as f:
+                print('Name: ', self.platform.getName(), file=f)
+                print('Speed: ',self.platform.getSpeed(), file=f)
+                print('Property names: ',self.platform.getPropertyNames(), file=f)
+                for name in self.platform.getPropertyNames():
+                     print(name,' value: ',self.platform.getPropertyValue(self.context, name), file=f) 
 
     def createRandomWalk(self, step_size=1.0, Nbeads=1000, segment_length=1):    
         R"""
