@@ -160,7 +160,7 @@ class cndbTools:
 #### Analisys start here!
 #########################################################################################
 
-    def compute_Chirality(self,xyz,neig_beads):
+    def compute_Chirality(self,xyz,neig_beads=4):
         R"""
         Calculates the Chirality parameter :math:`\Psi`. Details are decribed in "Zhang, B. and Wolynes, P.G., 2016. Shape transitions and chiral symmetry breaking in the energy landscape of the mitotic chromosome. Physical review letters, 116(24), p.248101."
         
