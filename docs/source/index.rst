@@ -5,8 +5,8 @@ Table of Contents
    :maxdepth: 2
    :caption: Getting Started
 
-   GettingStarted/installation
-   GettingStarted/introduction
+   GettingStarted/install
+   GettingStarted/intro
    
 .. toctree::
    :maxdepth: 2
