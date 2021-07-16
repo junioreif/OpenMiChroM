@@ -1,0 +1,10 @@
+Name:  OpenCL
+Speed:  50.0
+Property names:  ('DeviceIndex', 'DeviceName', 'OpenCLPlatformIndex', 'OpenCLPlatformName', 'Precision', 'UseCpuPme', 'DisablePmeStream')
+DeviceIndex  value:  0
+DeviceName  value:  NVIDIA GeForce RTX 2060
+OpenCLPlatformIndex  value:  0
+OpenCLPlatformName  value:  NVIDIA CUDA
+Precision  value:  single
+UseCpuPme  value:  false
+DisablePmeStream  value:  false
