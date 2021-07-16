@@ -67,9 +67,13 @@ class testMichrom():
         xa1, rdp_a1 = cndbt.compute_RDP(sampleA1, radius=20.0, bins=200)
         xb1, rdp_b1 = cndbt.compute_RDP(sampleB1, radius=20.0, bins=200)
 
+        print("Computing Chirality...")
+        psi = cndbt.compute_Chirality(cndbt.xyz(frames=[1,100,1]),4)
+
         print("Generating the contact probability matrix...")
         alldata = cndbt.xyz()
         dense = cndbt.traj2HiC(alldata)
+        
         print('Finished')
 
 

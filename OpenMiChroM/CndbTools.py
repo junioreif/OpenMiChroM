@@ -160,6 +160,39 @@ class cndbTools:
 #### Analisys start here!
 #########################################################################################
 
+    def compute_Chirality(self,xyz,neig_beads):
+        R"""
+        Calculates the Chirality parameter :math:`\Psi`. Details are decribed in "Zhang, B. and Wolynes, P.G., 2016. Shape transitions and chiral symmetry breaking in the energy landscape of the mitotic chromosome. Physical review letters, 116(24), p.248101."
+        
+        Args:
+            xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray`, required):
+                Array of the 3D position of the selected beads for different frames extracted by using the :code: `xyz()` function.  
+                       
+        Returns:
+            :class:`numpy.ndarray`:
+                Returns the Chirality parameter :math:`\Psi` for each bead.
+        """
+        Psi=[]
+        for frame in range(len(xyz)):
+            XYZ = xyz[frame]
+            Psi_per_bead=[]
+            for i in range(0,np.shape(xyz)[0] - np.ceil(1.25*neig_beads).astype('int')):
+                a=i
+                b=np.int(np.round(i+0.5*neig_beads))
+                c=np.int(np.round(i+0.75*neig_beads))
+                d=np.int(np.round(i+1.25*neig_beads))
+
+                AB = XYZ[b]-XYZ[a]
+                CD = XYZ[d]-XYZ[c]
+                E = (XYZ[b]-XYZ[a])/2.0 + XYZ[a]
+                F = (XYZ[d]-XYZ[c])/2.0 + XYZ[c]
+                Psi_per_bead.append(np.dot((F-E),np.cross(CD,AB))/(np.linalg.norm(F-E)*np.linalg.norm(AB)*np.linalg.norm(CD)))
+            Psi.append(Psi_per_bead)
+            
+        return np.asarray(Psi)
+
+
+
     def compute_RG(self,xyz): 
         R"""
         Calculates the Radius of Gyration. 
