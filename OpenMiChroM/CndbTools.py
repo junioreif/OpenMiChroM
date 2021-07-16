@@ -166,7 +166,9 @@ class cndbTools:
         
         Args:
             xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray`, required):
-                Array of the 3D position of the selected beads for different frames extracted by using the :code: `xyz()` function.  
+                Array of the 3D position of the selected beads for different frames extracted by using the :code: `xyz()` function.
+             neig_beads (int, required):
+                Number of neighbor beads to consider in the calculation (Default value = 4).  
                        
         Returns:
             :class:`numpy.ndarray`:
