@@ -15,9 +15,6 @@ import os
 import time
 import random
 import h5py
-from scipy.spatial import distance
-import scipy as sp
-import itertools
 import pandas as pd
 
 
@@ -849,6 +846,19 @@ class MiChroM:
                 IC.addParticle([i])
         
         self.forceDict["IdealChromosome_chain_"+str(chains[0])] = IC
+
+    def removeFlatBottomharmonic(self, forcename="FlatBottomHarmonic"):
+        if (forcename in self.forceDict):
+            self.system.removeForce(self.forceDict[forcename].getForceGroup())
+            del self.forceDict[forcename]
+            positions = self.context.getState(getPositions=True).getPositions() 
+            velocities = self.context.getState(getVelocities=True).getVelocities()
+            self.context.reinitialize() 
+            self.context.setPositions(positions) 
+            self.context.setVelocities(velocities)
+        else:
+            print("The system does not have {} force.\nThe forces applied in the system are: {}\n".format(forcename, self.forceDict.keys() ))
+
         
 
     def _loadParticles(self):
