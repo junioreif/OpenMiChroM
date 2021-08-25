@@ -18,7 +18,8 @@ import h5py
 from scipy.spatial import distance
 import scipy as sp
 import itertools
-from pandas import DataFrame
+import pandas as pd
+
 
 
 class MiChroM:
@@ -79,6 +80,7 @@ class MiChroM:
                                      -0.266760,-0.301320,-0.336630,-0.329350,-0.341230,-0.341230,-0.349490, #B3
                                      -0.266760,-0.301320,-0.336630,-0.329350,-0.341230,-0.341230,-0.349490, #B4
                                      -0.225646,-0.245080,-0.209919,-0.282536,-0.349490,-0.349490,-0.255994] #NA
+            self.printHeader()
             
 
     def setup(self, platform="CUDA", PBC=False, PBCbox=None, GPU="default",
@@ -117,7 +119,7 @@ class MiChroM:
 
         precision = precision.lower()
         if precision not in ["mixed", "single", "double"]:
-            raise ValueError("Presision must be mixed, single or double")
+            raise ValueError("Precision must be mixed, single or double")
 
         self.kB = units.BOLTZMANN_CONSTANT_kB * units.AVOGADRO_CONSTANT_NA  
         self.kT = self.kB * self.temperature  
@@ -536,30 +538,37 @@ class MiChroM:
         """
 
         self.metadata["TypetoType"] = repr({"mu": mu})
-        if not hasattr(self, "type_list"): 
-             self.type_list = self.random_ChromSeq(self.N)
 
-        energy = "mapType(t1,t2)*0.5*(1. + tanh(mu*(rc - r)))*step(r-1.0)"
+        path = "share/MiChroM.ff"
+        pt = os.path.dirname(os.path.realpath(__file__))
+        filepath = os.path.join(pt,path)
+
+        self.addCustomTypes(name="TypetoType", mu=mu, rc=rc, TypesTable=filepath)
         
-        crossLP = self.mm.CustomNonbondedForce(energy)
+        #if not hasattr(self, "type_list"): 
+        #     self.type_list = self.random_ChromSeq(self.N)
+
+        #energy = "mapType(t1,t2)*0.5*(1. + tanh(mu*(rc - r)))*step(r-1.0)"
+        
+        #crossLP = self.mm.CustomNonbondedForce(energy)
     
-        crossLP.addGlobalParameter('mu', mu)
-        crossLP.addGlobalParameter('rc', rc)
-        crossLP.setCutoffDistance(3.0)
+        #crossLP.addGlobalParameter('mu', mu)
+        #crossLP.addGlobalParameter('rc', rc)
+        #crossLP.setCutoffDistance(3.0)
         
-        fTypes = self.mm.Discrete2DFunction(7,7,self.inter_Chrom_types)
-        crossLP.addTabulatedFunction('mapType', fTypes) 
+        #fTypes = self.mm.Discrete2DFunction(7,7,self.inter_Chrom_types)
+        #crossLP.addTabulatedFunction('mapType', fTypes) 
         
         
-        crossLP.addPerParticleParameter("t")
+        #crossLP.addPerParticleParameter("t")
 
-        for i in range(self.N):
-                value = [float(self.type_list[i])]
-                crossLP.addParticle(value)
+        #for i in range(self.N):
+        #        value = [float(self.type_list[i])]
+        #        crossLP.addParticle(value)
                 
-        self.forceDict["TypetoType"] = crossLP
+        #self.forceDict["TypetoType"] = crossLP
 
-    def addCustomTypes(self, mu=3.22, rc = 1.78, TypesTable=None):
+    def addCustomTypes(self, name="CustomTypes", mu=3.22, rc = 1.78, TypesTable=None,):
         R"""
         Adds the type-to-type potential using custom values for interactions between the chromatin types. The parameters :math:`\mu` (mu) and rc are part of the probability of crosslink function :math:`f(r_{i,j}) = \frac{1}{2}\left( 1 + tanh\left[\mu(r_c - r_{i,j}\right] \right)`, where :math:`r_{i,j}` is the spatial distance between loci (beads) *i* and *j*.
         
@@ -576,7 +585,9 @@ class MiChroM:
         +---+------+-------+-------+
         
         Args:
-        
+
+            name (string, required):
+                Name to customType Potential. (Default value = "CustomTypes") 
             mu (float, required):
                 Parameter in the probability of crosslink function. (Default value = 3.22).
             rc (float, required):
@@ -600,40 +611,45 @@ class MiChroM:
         crossLP.addGlobalParameter('lim', 1.0)
         crossLP.setCutoffDistance(3.0)
 
-        lambdas_full = np.loadtxt(TypesTable, delimiter=',')
-        lambdas = np.triu(lambdas_full) + np.triu(lambdas_full, k=1).T
-        
-        diff_types = len(lambdas)
-        print(len(lambdas))
+        tab = pd.read_csv(TypesTable, sep=None, engine='python')
+
+        header_types = list(tab.columns.values)
+
+        if not set(self.diff_types).issubset(set(header_types)):
+            errorlist = []
+            for i in self.diff_types:
+                if not (i in set(header_types)):
+                    errorlist.append(i)
+            raise ValueError("Types: {} are not present in TypesTables: {}\n".format(errorlist, header_types))
+
+        diff_types_size = len(header_types)
+        lambdas = np.triu(tab.values) + np.triu(tab.values, k=1).T
         lambdas = list(np.ravel(lambdas))
-        
-      
-        
-        fTypes = self.mm.Discrete2DFunction(diff_types,diff_types,lambdas)
+          
+        fTypes = self.mm.Discrete2DFunction(diff_types_size,diff_types_size,lambdas)
         crossLP.addTabulatedFunction('mapType', fTypes) 
-        
-     
-        AB_types = self.changeType_list()
+            
+        self._types_Letter2number(header_types)
         crossLP.addPerParticleParameter("t")
 
         for i in range(self.N):
-                value = [float(AB_types[i])]
+                value = [float(self.type_list[i])]
                 crossLP.addParticle(value)
                 
                 
-        self.forceDict["CustomTypes"] = crossLP
+        self.forceDict[name] = crossLP
     
-    def changeType_list(self):
+    def _types_Letter2number(self, header_types):
         R"""
         Internal function for indexing unique chromatin types.
         """
-        n = set(self.type_list)
-        lista = np.array(self.type_list)
-        k=0
-        for t in n:
-            lista[lista==t] = k
-            k += 1
-        return(list(lista))
+        type2number = {}
+        for i,t in enumerate(header_types):
+            type2number[t] = i
+        
+        for bead in self.type_list_letter:
+            self.type_list.append(type2number[bead])
+        
         
     def addLoops(self, mu=3.22, rc = 1.78, X=-1.612990, looplists=None):
         R"""
@@ -948,7 +964,7 @@ class MiChroM:
    
         """
 
-        Type_conversion = {'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'UN' :6}
+        Type_conversion = {'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6}
         x = []
         y = []
         z = []
@@ -970,7 +986,7 @@ class MiChroM:
                     x.append(float(line[5]))
                     y.append(float(line[6]))
                     z.append(float(line[7]))
-                    index.append(Type_conversion[line[2]])
+                    index.append(line[2])
                     sizeChain += 1
                 elif line[0] == "TER" or line[0] == "END":
                     break
@@ -979,10 +995,13 @@ class MiChroM:
             chains.append((start, sizeChain-1, 0))
             start = sizeChain 
 
-        print("Chains: ", chains)    
-        self.type_list = index
-        self.index = list(range(len(self.type_list)))
+        print("Chains: ", chains)
+
+        self.diff_types = set(index)
+        self.type_list_letter = index
+        self.index = list(range(len(self.type_list_letter)))
         self.setChains(chains)
+
         return np.vstack([x,y,z]).T
     
     
@@ -1004,7 +1023,7 @@ class MiChroM:
    
         """
         
-        Type_conversion = {'ZA':0, 'OA':1, 'FB':2, 'SB':3,'TB':4, 'LB' :5, 'UN' :6}
+        Type_conversion = {'ASP':"A1", 'GLU':"A2", 'HIS':"B1", 'LYS':"B2", 'ARG':"B3", 'ARG':"B3", 'ASN':"NA"}
         x = []
         y = []
         z = []
@@ -1017,23 +1036,25 @@ class MiChroM:
             aFile = open(gro,'r')
             pos = aFile.read().splitlines()
             size = int(pos[1])
-            #print(size)
+            
             for t in range(2, len(pos)-1):
                 pos[t] = pos[t].split()
                 x.append(float(pos[t][3]))
                 y.append(float(pos[t][4]))
                 z.append(float(pos[t][5]))
-                index.append(Type_conversion[pos[t][1]])
+                index.append(Type_conversion[pos[t][0][-3:]])
                 sizeChain += 1
 
 
             chains.append((start, sizeChain-1, 0))
             start = sizeChain 
             
-        print("Chains: ", chains)    
-        self.type_list = index
-        self.index = list(range(len(self.type_list)))
+        print("Chains: ", chains)
+        self.diff_types = set(index)
+        self.type_list_letter = index
+        self.index = list(range(len(self.type_list_letter)))
         self.setChains(chains)
+
         return np.vstack([x,y,z]).T
                     
     def loadPDB(self, PDBfiles=None):
@@ -1053,7 +1074,7 @@ class MiChroM:
    
         """
         
-        Type_conversion = {'ALA':0, 'ARG':1, 'ASP':2, 'GLU':3,'GLY':4, 'LEU' :5, 'ASN' :6}
+        Type_conversion = {'ASP':"A1", 'GLU':"A2", 'HIS':"B1", 'LYS':"B2", 'ARG':"B3", 'ARG':"B3", 'ASN':"NA"}
         x = []
         y = []
         z = []
@@ -1076,12 +1097,14 @@ class MiChroM:
                     sizeChain += 1
 
 
-            chains.append((start, sizeChain, 0))
+            chains.append((start, sizeChain-1, 0))
             start = sizeChain 
             
-        print("chain: ", chains)    
-        self.type_list = index
-        self.index = list(range(len(self.type_list)))
+        print("Chains: ", chains)
+
+        self.diff_types = set(index)
+        self.type_list_letter = index
+        self.index = list(range(len(self.type_list_letter)))
         self.setChains(chains)
         return np.vstack([x,y,z]).T
 
@@ -1117,7 +1140,7 @@ class MiChroM:
             self.type_list = self.random_type(beads)
         else:
             self._translate_type(type_list)
-            beads = len(self.type_list)
+            beads = len(self.type_list_letter)
         
         self.index = list(range(beads))    
         for i in range(beads):
@@ -1170,18 +1193,20 @@ class MiChroM:
 
         """        
         
-        Type_conversion = {'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6}
-        my_list = []
+        self.diff_types = []
+        self.type_list_letter = []
+
         af = open(filename,'r')
         pos = af.read().splitlines()
+        
+        diff_opt = 0
         for t in range(len(pos)):
             pos[t] = pos[t].split()
-            
-            if pos[t][1] in Type_conversion:
-                my_list.append(Type_conversion[pos[t][1]])
+            if pos[t][1] in self.diff_types:
+                self.type_list_letter.append(pos[t][1])
             else:
-                my_list.append(t)
-        self.type_list = my_list
+                self.diff_types.append(pos[t][1]) 
+                self.type_list_letter.append(pos[t][1])
 
     def create_line(self,Nbeads, length_scale=1.0):
         
@@ -1310,67 +1335,35 @@ class MiChroM:
                 return lines
 
         elif mode == 'pdb':
-            
-            def add(st, n):
-                if len(st) > n:
-                    return st[:n]
-                else:
-                    return st + " " * (n - len(st) )
+            atom = "ATOM  {0:5d} {1:^4s}{2:1s}{3:3s} {4:1s}{5:4d}{6:1s}   {7:8.3f}{8:8.3f}{9:8.3f}{10:6.2f}{11:6.2f}          {12:>2s}{13:2s}"
+            ter = "TER   {0:5d}      {1:3s} {2:1s}{3:4d}{4:1s}" 
+            Res_conversion = {0:'ASP', 1:'GLU',2:'HIS',3:'LYS',4:'ARG',5:'ARG',6:'ASN'}
+            Type_conversion = {0:'CA',1:'CA',2:'CA',3:'CA',4:'CA',5:'CA',6:'CA'}
             
             for ncadeia, cadeia in zip(range(len(self.chains)),self.chains):
+                pdb_string = []
                 filename = self.name +"_" + str(ncadeia) + "_block%d." % self.step + mode
 
                 filename = os.path.join(self.folder, filename)
                 data_chain = data[cadeia[0]:cadeia[1]+1] 
 
-                retret = ""
-                          
-                pdbGroups = ["A" for i in range(len(data_chain))]
-                                                    
-                for i, line, group in zip(list(range(len(data))), data_chain, pdbGroups):
-                    atomNum = (i + 1) % 9000
-                    segmentNum = (i + 1) // 9000 + 1
-                    line = [float(j) for j in line]
-                    ret = add("ATOM", 6)
-                    ret = add(ret + "{:5d}".format(atomNum), 11)
-                    ret = ret + " "
-                    ret = add(ret + "CA", 17)
-                    if (self.type_list[atomNum-1] == 0):
-                        ret = add(ret + "ASP", 21)
-                    elif (self.type_list[atomNum-1] == 1):
-                        ret = add(ret + "GLU", 21)
-                    elif (self.type_list[atomNum-1] == 2):
-                        ret = add(ret + "HIS", 21)
-                    elif (self.type_list[atomNum-1] == 3):
-                        ret = add(ret + "LYS", 21)
-                    elif (self.type_list[atomNum-1] == 4):
-                        ret = add(ret + "ARG", 21)
-                    elif (self.type_list[atomNum-1] == 5):
-                        ret = add(ret + "ARG", 21)
-                    elif (self.type_list[atomNum-1] == 6):
-                        ret = add(ret + "ASN", 21)
-                    ret = add(ret + group[0] + " ", 22)
-                    ret = add(ret + str(atomNum), 26)
-                    ret = add(ret + "        ", 30)
-                    #ret = add(ret + "%i" % (atomNum), 30)
-                    ret = add(ret + ("%8.3f" % line[0]), 38)
-                    ret = add(ret + ("%8.3f" % line[1]), 46)
-                    ret = add(ret + ("%8.3f" % line[2]), 54)
-                    ret = add(ret + (" 1.00"), 61)
-                    ret = add(ret + str(float(i % 8 > 4)), 67)
-                    ret = add(ret, 73)
-                    ret = add(ret + str(segmentNum), 77)
-                    retret += (ret + "\n")
-                with open(filename, 'w') as f:
-                    f.write(retret)
+                pdb_string.append("MODEL:\t{}".format(self.name +"_" + str(ncadeia)))
+
+                for i, line in zip(list(range(len(data))), data_chain):
+                    pdb_string.append(atom.format((i+1),"CA","",Res_conversion[self.type_list[i]],"",(i+1), "",line[0], line[1], line[2], 1.00, 0.00, 'C', ''))
+                pdb_string.append("ENDMDL")
+                np.savetxt(filename,pdb_string,fmt="%s")
+
                     
                     
         elif mode == 'gro':
             
             gro_style = "{0:5d}{1:5s}{2:5s}{3:5d}{4:8.3f}{5:8.3f}{6:8.3f}"
             gro_box_string = "{0:10.5f}{1:10.5f}{2:10.5f}"
-            Res_conversion = {0:'ChrA', 1:'ChrA',2:'ChrB',3:'ChrB',4:'ChrB',5:'ChrB',6:'ChrU'}
-            Type_conversion = {0:'ZA',1:'OA',2:'FB',3:'SB',4:'TB',5:'LB',6:'UN'}
+
+
+            Res_conversion = {0:'ASP', 1:'GLU',2:'HIS',3:'LYS',4:'ARG',5:'ARG',6:'ASN'}
+            Type_conversion = {0:'CA',1:'CA',2:'CA',3:'CA',4:'CA',5:'CA',6:'CA'}
             
             for ncadeia, cadeia in zip(range(len(self.chains)),self.chains):
                 filename = self.name +"_" + str(ncadeia) + "_block%d." % self.step + mode
@@ -1393,7 +1386,6 @@ class MiChroM:
         
         elif mode == 'ndb':
             ndb_string     = "{0:6s} {1:8d} {2:2s} {3:6s} {4:4s} {5:8d} {6:8.3f} {7:8.3f} {8:8.3f} {9:10d} {10:10d} {11:8.3f}"
-            pdb_string     = "{:6s}{:5d} {:^4s}{:1s}{:3s} {:1s}{:4d}{:1s}   {:8.3f}{:8.3f}{:8.3f}{:6.2f}{:6.2f}          {:>2s}{:2s}"
             header_string  = "{0:6s}    {1:40s}{2:9s}   {3:4s}"
             title_string   = "{0:6s}  {1:2s}{2:80s}"
             author_string  = "{0:6s}  {1:2s}{2:79s}"
@@ -1403,7 +1395,7 @@ class MiChroM:
             ter_string     = "{0:6s} {1:8d} {2:2s}        {3:2s}" 
             loops_string   = "{0:6s}{1:6d} {2:6d}"
             master_string  = "{0:6s} {1:8d} {2:6d} {3:6d} {4:10d}" 
-            Type_conversion = {0:'A1',1:'A2',2:'B1',3:'B2',4:'B3',5:'B4',6:'UN'}
+            Type_conversion = {0:'A1',1:'A2',2:'B1',3:'B2',4:'B3',5:'B4',6:'NA'}
             
             def chunks(l, n):
                 n = max(1, n)
@@ -1751,8 +1743,32 @@ class MiChroM:
         forceValues.append(self.context.getState(getEnergy=True).getPotentialEnergy().value_in_unit(units.kilojoules_per_mole))
         forceNames.append('Potential Energy (per loci)')
         forceValues.append(self.context.getState(getEnergy=True).getPotentialEnergy().value_in_unit(units.kilojoules_per_mole)/self.N)
-        df = DataFrame(forceValues,forceNames)
+        df = pd.DataFrame(forceValues,forceNames)
         df.columns = ['Values']
         print(df)
 
-
+    def printHeader(self):
+        print('{:^96s}'.format("***************************************************************************************"))
+        print('{:^96s}'.format("**** **** *** *** *** *** *** *** OpenMiChroM-1.0.0 *** *** *** *** *** *** **** ****"))
+        print('')
+        print('{:^96s}'.format("OpenMiChroM is a Python library for performing chromatin dynamics simulations."))
+        print('{:^96s}'.format("OpenMiChroM uses the OpenMM Python API,"))
+        print('{:^96s}'.format("employing the MiChroM (Minimal Chromatin Model) energy function."))
+        print('{:^96s}'.format("The chromatin dynamics simulations generate an ensemble of 3D chromosomal structures"))
+        print('{:^96s}'.format("that are consistent with experimental Hi-C maps, also allows simulations of a single"))
+        print('{:^96s}'.format("or multiple chromosome chain using High-Performance Computing "))
+        print('{:^96s}'.format("in different platforms (GPUs and CPUs)."))
+        print('{:^96s}'.format("OpenMiChroM documentation is available at https://open-michrom.readthedocs.io"))
+        print('')
+        print('{:^96s}'.format("OpenMiChroM is described in: Oliveira Junior, A. B & Contessoto, V, G et. al."))
+        print('{:^96s}'.format("A Scalable Computational Approach for Simulating Complexes of Multiple Chromosomes."))
+        print('{:^96s}'.format("Journal of Molecular Biology. doi:10.1016/j.jmb.2020.10.034."))
+        print('{:^96s}'.format("and"))
+        print('{:^96s}'.format("Oliveira Junior, A. B. et al."))
+        print('{:^96s}'.format("Chromosome Modeling on Downsampled Hi-C Maps Enhances the Compartmentalization Signal."))
+        print('{:^96s}'.format("J. Phys. Chem. B, doi:10.1021/acs.jpcb.1c04174."))
+        print('')
+        print('{:^96s}'.format("Copyright (c) 2021, The OpenMiChroM development team at"))
+        print('{:^96s}'.format("Rice University"))
+        print('{:^96s}'.format("***************************************************************************************"))
+        stdout.flush()
