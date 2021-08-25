@@ -6,15 +6,10 @@ The :class:`~.Optimization` classes perform the energy function parameters train
 """
 
 from simtk.openmm.app import *
-import simtk.openmm as openmm
-import simtk.unit as units
 from sys import stdout, argv
 import numpy as np
 from six import string_types
-import os
-import time
 import random
-import h5py
 from scipy.spatial import distance
 import scipy as sp
 import itertools
@@ -51,13 +46,12 @@ class FullTraining:
     """
     def __init__(self, state, expHiC, mu=2.0, rc=2.5, 
                  cutoff=0.0, reduce=True,
-                 pair_h=2, c_h=0.1, pair_l=4, c_l=0.02, gpu=False 
+                 pair_h=2, c_h=0.1, pair_l=4, c_l=0.02
                 ):
             
         self.mi = mu
         self.rc = rc
         self.cutoff = cutoff
-        self.gpu = gpu
         
         self.getHiCexp(expHiC, centerRemove=False, centrange=[0,0])
         self.hic_sparse = sp.sparse.csr_matrix(np.triu(self.expHiC, k=2))
@@ -66,11 +60,6 @@ class FullTraining:
        
 
         self.ind = self.get_indices(self.hic_sparse)
-        if (self.gpu):
-            import pycuda.driver as drv
-            import pycuda.gpuarray as gpuarray
-            import pycuda.autoinit
-            import skcuda.linalg as linalg
 
         self.size = len(self.ind)     
         self.Pi = np.zeros(self.size)
