@@ -15,6 +15,8 @@ import scipy as sp
 import itertools
 from scipy.stats.stats import pearsonr
 from sklearn.preprocessing import normalize
+import os
+import pandas as pd
 
 
 class FullTraining:
@@ -44,7 +46,7 @@ class FullTraining:
         c_l (float, required if **reduce** = :code:`True`)):
             The the low-resolution cutoff. (Default value = 0.02).
     """
-    def __init__(self, state, expHiC, mu=2.0, rc=2.5, 
+    def __init__(self, expHiC, mu=2.0, rc=2.5, 
                  cutoff=0.0, reduce=True,
                  pair_h=2, c_h=0.1, pair_l=4, c_l=0.02
                 ):
@@ -63,9 +65,17 @@ class FullTraining:
 
         self.size = len(self.ind)     
         self.Pi = np.zeros(self.size)
-        self.Prod_dist = np.zeros(self.hic_sparse.shape)
+        self.Prob_dist = np.zeros(self.hic_sparse.shape)
         self.PiPj = np.zeros((self.size,self.size))
         self.NFrames = 0
+
+    def createInitialLambda(self, sequenceFile, outputPath=".", initialGuess=0.0, baseLine=-0.2):
+        lambdas = np.zeros(self.hic_sparse.shape) + baseLine
+        for i in self.ind:
+            lambdas[i] = initialGuess
+        lambdas = np.triu(lambdas) + np.triu(lambdas).T
+
+        self.saveLambdas(sequenceFile=sequenceFile, data=lambdas, outputPath=outputPath, name="lambda_0")
 
     def appCutoff(self, pair_h, c_h, pair_l, c_l):
         R"""
@@ -84,7 +94,8 @@ class FullTraining:
             if (hic_full[i] > c_h):
                 hic_final[i] = hic_full[i]
 
-        print('Non-zero interactions after high-resolution cutoff ({}): {}'.format( c_h, sp.sparse.csr_matrix(np.triu(hic_final, k=2)).nnz ))
+        high_cut_number =   sp.sparse.csr_matrix(np.triu(hic_final, k=2)).nnz
+        print('Non-zero interactions after high-resolution cutoff ({}): {}'.format( c_h, high_cut_number ))
 
         values = [n for n in range(1,N,pair_l)]
         index =  [x for x in itertools.combinations_with_replacement(values, r=2)]
@@ -92,7 +103,8 @@ class FullTraining:
             if (hic_full[i] > c_l):
                 hic_final[i] = hic_full[i]
         self.hic_sparse = sp.sparse.csr_matrix(np.triu(hic_final, k=2))
-        print('Non-zero interactions after low-resolution cutoff ({}): {}'.format(c_l,  self.hic_sparse.nnz ))
+        print('Non-zero interactions after low-resolution cutoff ({}): {}'.format(c_l,  (self.hic_sparse.nnz-high_cut_number) ))
+        print('Total Non-zero interactions: {}'.format(self.hic_sparse.nnz))
 
     
     def get_indices(self, hic):
@@ -150,7 +162,7 @@ class FullTraining:
         self.PiPj += PiPj                                       
 
      
-        self.Prod_dist += Prob
+        self.Prob_dist += Prob
         self.Pi += Pi
         self.NFrames += 1
         
@@ -186,6 +198,13 @@ class FullTraining:
 
 
         return(pearsonr(a1,a2)[0])
+    def saveLambdas(self, sequenceFile, data, outputPath, name):
+        seq = np.loadtxt(sequenceFile, dtype=str)[:,1]
+
+        lamb = pd.DataFrame(data,columns=seq)
+        lamb.to_csv(os.path.join(outputPath, name), index=False)
+        print("{} file save in {}".format(name, outputPath))
+
         
     def getLambdas(self):
         R"""
