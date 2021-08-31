@@ -542,28 +542,6 @@ class MiChroM:
 
         self.addCustomTypes(name="TypetoType", mu=mu, rc=rc, TypesTable=filepath)
         
-        #if not hasattr(self, "type_list"): 
-        #     self.type_list = self.random_ChromSeq(self.N)
-
-        #energy = "mapType(t1,t2)*0.5*(1. + tanh(mu*(rc - r)))*step(r-1.0)"
-        
-        #crossLP = self.mm.CustomNonbondedForce(energy)
-    
-        #crossLP.addGlobalParameter('mu', mu)
-        #crossLP.addGlobalParameter('rc', rc)
-        #crossLP.setCutoffDistance(3.0)
-        
-        #fTypes = self.mm.Discrete2DFunction(7,7,self.inter_Chrom_types)
-        #crossLP.addTabulatedFunction('mapType', fTypes) 
-        
-        
-        #crossLP.addPerParticleParameter("t")
-
-        #for i in range(self.N):
-        #        value = [float(self.type_list[i])]
-        #        crossLP.addParticle(value)
-                
-        #self.forceDict["TypetoType"] = crossLP
 
     def addCustomTypes(self, name="CustomTypes", mu=3.22, rc = 1.78, TypesTable=None,):
         R"""
@@ -1350,6 +1328,7 @@ class MiChroM:
             Res_conversion = {0:'ASP', 1:'GLU',2:'HIS',3:'LYS',4:'ARG',5:'ARG',6:'ASN'}
             Type_conversion = {0:'CA',1:'CA',2:'CA',3:'CA',4:'CA',5:'CA',6:'CA'}
             
+            
             for ncadeia, cadeia in zip(range(len(self.chains)),self.chains):
                 pdb_string = []
                 filename = self.name +"_" + str(ncadeia) + "_block%d." % self.step + mode
@@ -1360,6 +1339,8 @@ class MiChroM:
                 pdb_string.append("MODEL:\t{}".format(self.name +"_" + str(ncadeia)))
 
                 for i, line in zip(list(range(len(data))), data_chain):
+                    if not self.type_list[i] in Res_conversion:
+                        Res_conversion[i] = 'GLY'
                     pdb_string.append(atom.format((i+1),"CA","",Res_conversion[self.type_list[i]],"",(i+1), "",line[0], line[1], line[2], 1.00, 0.00, 'C', ''))
                 pdb_string.append("ENDMDL")
                 np.savetxt(filename,pdb_string,fmt="%s")
@@ -1385,6 +1366,8 @@ class MiChroM:
                 gro_string.append(len(data_chain))
                 
                 for i, line in zip(list(range(len(data))), data_chain):
+                        if not self.type_list[i] in Res_conversion:
+                            Res_conversion[i] = 'GLY'
                         gro_string.append(str(gro_style.format(i+1, Res_conversion[self.type_list[i]],
                                         Type_conversion[self.type_list[i]],i+1,
                                         line[0],
