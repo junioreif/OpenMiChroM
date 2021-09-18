@@ -28,7 +28,7 @@ The code below will install **OpenMiChroM** from `PyPI <https://pypi.org/project
 
 .. code-block:: bash
 
-    pip install OpenMiChroM
+    pip3 install OpenMiChroM
 
 .. note::
 
