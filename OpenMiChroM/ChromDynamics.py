@@ -16,6 +16,7 @@ import time
 import random
 import h5py
 import pandas as pd
+from pathlib import Path
 
 
 
@@ -681,7 +682,7 @@ class MiChroM:
         
         """
 
-        energyIC = ("step(d-dinit)*IClists(d)*step(dend -d)*f*step(r-lim);"
+        energyIC = ("step(d-dinit)*IClist(d)*step(dend -d)*f*step(r-lim);"
                     "f=0.5*(1. + tanh(mu*(rc - r)));"
                     "d=abs(idx2-idx1)")
 
@@ -898,7 +899,7 @@ class MiChroM:
         self.initVelocities()
         self.forcesApplied = True
      
-        with open(self.folder+'/platform_info.dat', 'w') as f:
+        with open(str(Path(self.folder))+'/platform_info.dat', 'w') as f:
                 print('Name: ', self.platform.getName(), file=f)
                 print('Speed: ',self.platform.getSpeed(), file=f)
                 print('Property names: ',self.platform.getPropertyNames(), file=f)
