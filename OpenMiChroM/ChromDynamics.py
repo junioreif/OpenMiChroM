@@ -57,7 +57,7 @@ class MiChroM:
             self.name = name
             self.timestep = time_step
             self.collisionRate = collision_rate
-            self.temperature = temperature * 120.0
+            self.temperature = temperature / 0.008314
             self.verbose = verbose
             self.velocityReinitialize = velocity_reinitialize
             self.loaded = False
