@@ -686,10 +686,11 @@ class MiChroM:
                     "f=0.5*(1. + tanh(mu*(rc - r)));"
                     "d=abs(idx2-idx1)")
 
+               
         IC = self.mm.CustomNonbondedForce(energyIC)
 
-        
-        IClist = np.append(np.zeros(dend),IClist)[:-dend]
+        IClist_listfromfile = np.loadtxt(IClist)
+        IClist = np.append(np.zeros(dinit),IClist_listfromfile)[:-dinit]
         
         tabIClist = self.mm.Discrete1DFunction(IClist)
         IC.addTabulatedFunction('IClist', tabIClist) 
