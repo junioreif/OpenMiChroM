@@ -1744,7 +1744,7 @@ class MiChroM:
 
     def printHeader(self):
         print('{:^96s}'.format("***************************************************************************************"))
-        print('{:^96s}'.format("**** **** *** *** *** *** *** *** OpenMiChroM-1.0.0 *** *** *** *** *** *** **** ****"))
+        print('{:^96s}'.format("**** **** *** *** *** *** *** *** OpenMiChroM-1.0.1 *** *** *** *** *** *** **** ****"))
         print('')
         print('{:^96s}'.format("OpenMiChroM is a Python library for performing chromatin dynamics simulations."))
         print('{:^96s}'.format("OpenMiChroM uses the OpenMM Python API,"))
