@@ -1307,7 +1307,7 @@ class MiChroM:
             if not hasattr(self, "storage"):
                 raise Exception("Cannot save to h5dict!"                                    " Initialize storage first!")
             for k, chain in zip(range(len(self.chains)),self.chains):
-                self.storage[k][str(self.step)] = data[chain[0]:chain[1]+2]
+                self.storage[k][str(self.step)] = data[chain[0]:chain[1]+1]
             return
         
         elif mode == "xyz":
@@ -1412,7 +1412,7 @@ class MiChroM:
                 ndbf.append(author_string.format('AUTHOR','  ','Antonio B. Oliveira Junior - 2020'))
 
                 
-                Seqlist = [Type_conversion[x] for x in self.type_list]
+                Seqlist = [Type_conversion[x] for x in self.type_list[cadeia[0]:cadeia[1]+1]]
                 Seqlista = chunks(Seqlist,23)
                 
                 for num, line in enumerate(Seqlista):
@@ -1744,7 +1744,7 @@ class MiChroM:
 
     def printHeader(self):
         print('{:^96s}'.format("***************************************************************************************"))
-        print('{:^96s}'.format("**** **** *** *** *** *** *** *** OpenMiChroM-1.0.1 *** *** *** *** *** *** **** ****"))
+        print('{:^96s}'.format("**** **** *** *** *** *** *** *** OpenMiChroM-1.0.2 *** *** *** *** *** *** **** ****"))
         print('')
         print('{:^96s}'.format("OpenMiChroM is a Python library for performing chromatin dynamics simulations."))
         print('{:^96s}'.format("OpenMiChroM uses the OpenMM Python API,"))
