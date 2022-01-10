@@ -309,13 +309,13 @@ class CustomMiChroMTraining:
         R"""
         Calculates the contact probability matrix and the cross term of the Hessian for the Ideal Chromosome optimization.
         """
-        PiPj = np.zeros((dmax,dmax))
         self.Pold += self.P
         self.P = 0.5*(1.0 + np.tanh(self.mu*(self.r_cut - distance.cdist(state,state, 'euclidean'))))
         self.P[self.P<self.cutoff] = 0.0
-        dmaxl = range(dmax)
-        for i, j in itertools.product(dmaxl,dmaxl):
-            PiPj[i,j] = np.mean(np.diagonal(self.P, offset=(i+self.dinit)))*np.mean(np.diagonal(self.P, offset=(j+self.dinit)))
+        Pi = []
+        for i in range(dmax):
+             Pi.append(np.mean(np.diagonal(agg_P, offset=(i+self.dinit))))
+        PiPj = np.outer(Pi, Pi)
       
         self.Bij += PiPj
         self.Nframes += 1 
@@ -423,13 +423,7 @@ class CustomMiChroMTraining:
         
         vec = []
         for pcount,q in enumerate(itertools.combinations_with_replacement(just.keys(), r=2)):
-            nt=0
-            for i, j in itertools.product(just[q[0]],just[q[1]]):
-
-                p_instant[ind[0][pcount], ind[1][pcount]] += self.P[i,j]
-
-                nt += 1
-            p_instant[ind[0][pcount], ind[1][pcount]] = p_instant[ind[0][pcount], ind[1][pcount]]/nt #pi
+            p_instant[ind[0][pcount], ind[1][pcount]] = np.average(self.P[np.ix_(just[q[0]], just[q[1]])])
             vec.append(p_instant[ind[0][pcount], ind[1][pcount]])
         vec = np.array(vec)
 
