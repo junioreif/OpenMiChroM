@@ -314,7 +314,7 @@ class CustomMiChroMTraining:
         self.P[self.P<self.cutoff] = 0.0
         Pi = []
         for i in range(dmax):
-             Pi.append(np.mean(np.diagonal(agg_P, offset=(i+self.dinit))))
+             Pi.append(np.mean(np.diagonal(self.P, offset=(i+self.dinit))))
         PiPj = np.outer(Pi, Pi)
       
         self.Bij += PiPj
