@@ -5,7 +5,7 @@ R"""
 The :class:`~.cndbTools` class perform analysis from **cndb** or **ndb** - (Nucleome Data Bank) file format for storing an ensemble of chromosomal 3D structures.
 Details about the NDB/CNDB file format can be found at the `Nucleome Data Bank <https://ndb.rice.edu/ndb-format>`__.
 """
-#test comment
+
 import h5py
 import numpy as np
 import os
@@ -193,26 +193,161 @@ class cndbTools:
             
         return np.asarray(Psi)
 
-
-
-    def compute_RG(self,xyz): 
+    def compute_RG(self, xyz):
         R"""
         Calculates the Radius of Gyration. 
         
         Args:
-            xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray`, required):
+            xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray` (dim: TxNx3), required):
                 Array of the 3D position of the selected beads for different frames extracted by using the :code: `xyz()` function.  
                        
         Returns:
-            :class:`numpy.ndarray`:
+            :class:`numpy.ndarray` (dim: Tx1):
                 Returns the Radius of Gyration in units of :math:`\sigma`.
         """
-        rg = []
-        for frame in range(len(xyz)):
-            data = xyz[frame]
-            data = data - np.mean(data, axis=0)[None,:]
-            rg.append(np.sqrt(np.sum(np.var(np.array(data), 0))))
-        return np.array(rg) 
+        rcm=np.mean(xyz, axis=1,keepdims=True)
+        xyz_rel_to_cm= xyz - np.tile(rcm,(xyz.shape[1],1))
+        rg=np.sqrt(np.mean(np.linalg.norm(xyz_rel_to_cm,axis=2)**2,axis=1))
+        return rg
+
+    def compute_GyrTensorEigs(self, xyz):
+        R"""
+        Calculates the eigenvalues of the Gyration tensor:
+        For a cloud of N points with positions: {[xi,yi,zi]},gyr tensor is a symmetric matrix defined as,
+        
+        gyr= (1/N) * [[sum_i(xi-xcm)(xi-xcm)  sum_i(xi-xcm)(yi-ycm) sum_i(xi-xcm)(zi-zcm)],
+                      [sum_i(yi-ycm)(xi-xcm)  sum_i(yi-ycm)(yi-ycm) sum_i(yi-ycm)(zi-zcm)],
+                      [sum_i(zi-zcm)(xi-xcm)  sum_i(zi-zcm)(yi-ycm) sum_i(zi-zcm)(zi-zcm)]]
+        
+        the three non-negative eigenvalues of gyr are used to define shape parameters like radius of gyration, asphericity, etc
+
+        Args:
+            xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray` (dim: TxNx3), required):
+                Array of the 3D position of the selected beads for different frames extracted by using the :code: `xyz()` function.  
+                       
+        Returns:
+            :class:`numpy.ndarray` (dim: Tx3):
+                Returns the sorted eigenvalues of the Gyration Tensor.
+        """
+        rcm=np.mean(xyz, axis=1,keepdims=True)
+        sorted_eigenvals=[]
+        for frame in xyz-rcm:
+            gyr=np.matmul(np.transpose(frame),frame)/xyz.shape[1]
+            sorted_eigenvals.append(np.sort(np.linalg.eig(gyr)[0]))
+        return np.array(sorted_eigenvals)
+
+
+    def compute_MSD(self,xyz):
+        R"""
+        Calculates the Mean-Squared Displacement using Fast-Fourier Transform. 
+        Uses Weiner-Kinchin theorem to compute the autocorrelation, and a recursion realtion from the following reference:
+        see Sec. 4.2 in Calandrini V, et al. (2011) EDP Sciences (https://doi.org.10.1051/sfn/201112010).
+        Also see this stackoverflow post: https://stackoverflow.com/questions/34222272/computing-mean-square-displacement-using-python-and-fft
+        
+        Args:
+            xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray` (dim: TxNx3), required):
+                Array of the 3D position of the selected beads for different frames extracted by using the :code: `xyz()` function.  
+                       
+        Returns:
+            :class:`numpy.ndarray` (dim: NxT):
+                Returns the MSD of each particle over the trajectory.
+
+        """
+
+        def autocorrFFT(x):
+            N=len(x)
+            F = np.fft.fft(x,n=2*N)  #2*N because of zero-padding
+            res = np.fft.ifft(F * F.conjugate()) #autocorrelation using Weiner Kinchin theorem
+            res = (res[:N]).real   
+            return res/(N-np.arange(0,N)) #this is the normalized autocorrelation
+
+        #r is an (T,3) ndarray: [time stamps,dof]
+        def msd_fft(r):
+            N=len(r)
+            D=np.square(r).sum(axis=1)
+            D=np.append(D,0)
+            S2=sum([autocorrFFT(r[:, i]) for i in range(r.shape[1])])
+            Q=2*D.sum()
+            S1=[]
+            for m in range(N):
+                Q=Q-D[m-1]-D[N-m]
+                S1.append(Q/(N-m))
+            return np.array(S1) - 2*S2
+        
+        msd=[msd_fft(xyz[:,mono_id,:]) for mono_id in range(xyz.shape[1])]
+
+        return np.array(msd)
+        
+
+    def compute_RadNumDens(self, xyz, dr=1.0, ref='centroid',center=None):
+
+        R"""
+        Calculates the radial number density of monomers; which when integrated over 
+        the volume (with the appropriate kernel: 4*pi*r^2) gives the total number of monomers.
+        
+        Args:
+            xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray` (dim: TxNx3), required):
+                Array of the 3D position of the selected beads for different frames extracted by using the :code: `xyz()` function.  
+
+            dr (float, required):
+                mesh size of radius for calculating the radial distribution. 
+                can be arbitrarily small, but leads to empty bins for small values.
+                bins are computed from the maximum values of radius and dr.
+            
+            ref (string):
+                defines reference for centering the disribution. It can take three values:
+                
+                'origin': radial distance is calculated from the center
+
+                'centroid' (default value): radial distributioin is computed from the centroid of the cloud of points at each time step
+
+                'custom': user defined center of reference. 'center' is required to be specified when 'custom' reference is chosen
+
+            center (list of float, len 3):
+                defines the reference point in custom reference. required when ref='custom'
+                       
+        Returns:
+            num_density:class:`numpy.ndarray`:
+                the number density
+            
+            bins:class:`numpy.ndarray`:
+                bins corresponding to the number density
+
+        """
+
+        if ref=='origin':
+            rad_vals = np.ravel(np.linalg.norm(xyz,axis=2))
+
+        elif ref=='centroid':
+            rcm=np.mean(xyz,axis=1, keepdims=True)
+            rad_vals = np.ravel(np.linalg.norm(xyz-rcm,axis=2))
+
+        elif ref == 'custom':
+            try:
+                if len(center)!=3: raise TypeError
+                center=np.array(center,dtype=float)
+                center_nd=np.tile(center,(xyz.shape[0],1,1))
+                rad_vals=np.ravel(np.linalg.norm(xyz-center_nd,axis=2))
+
+            except (TypeError,ValueError):
+                print("FATAL ERROR!!\n Invalid 'center' for ref='custom'.\n\
+                        Please provide a valid center: [x0,y0,z0]")
+                return ([0],[0])
+        else:
+            print("FATAL ERROR!! Unvalid 'ref'\n\
+                'ref' can take one of three values: 'origin', 'centroid', and 'custom'")
+            return ([0],[0])
+
+        rdp_hist,bin_edges=np.histogram(rad_vals, 
+                                bins=np.arange(0,rad_vals.max()+1,dr),
+                                density=False)
+
+        bin_mids=0.5*(bin_edges[:-1] + bin_edges[1:])
+        bin_vols = (4/3)*np.pi*(bin_edges[1:]**3 - bin_edges[:-1]**3)
+        num_density = rdp_hist/(xyz.shape[0]*bin_vols)
+
+        return (num_density, bin_mids)
+
         
     def compute_RDP(self, xyz, radius=20.0, bins=200):
         R"""
