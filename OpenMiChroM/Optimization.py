@@ -5,10 +5,20 @@ R"""
 The :class:`~.Optimization` classes perform the energy function parameters training of the chromosomes based on experimental Hi-C data.
 """
 
-from simtk.openmm.app import *
-from sys import stdout, argv
+# with OpenMM 7.7.0, the import calls have changed. So, try both, if needed
+try:
+    try:
+        # >=7.7.0
+        from openmm.app import *
+    except:
+        # earlier
+        print('Unable to load OpenMM as \'openmm\'. Will try the older way \'simtk.openmm\'')
+        from simtk.openmm.app import *
+except:
+    print('Failed to load OpenMM. Check your configuration.')
+
+
 import numpy as np
-from six import string_types
 import random
 from scipy.spatial import distance
 import scipy as sp

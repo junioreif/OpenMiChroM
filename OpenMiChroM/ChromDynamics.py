@@ -5,10 +5,24 @@ R"""
 The :class:`~.ChromDynamics` classes perform chromatin dynamics based on the compartment annotations sequence of chromosomes. The simulations can be performed either using the default parameters of MiChroM (Minimal Chromatin Model) or using custom values for the type-to-type and Ideal Chromosome parameters..
 """
 
-from simtk.openmm.app import *
-import simtk.openmm as openmm
-import simtk.unit as units
-from sys import stdout, argv
+# with OpenMM 7.7.0, the import calls have changed. So, try both, if needed
+try:
+    try:
+        # >=7.7.0
+        from openmm.app import *
+        import openmm as openmm
+        import openmm.unit as units
+    except:
+        # earlier
+        print('Unable to load OpenMM as \'openmm\'. Will try the older way \'simtk.openmm\'')
+        from simtk.openmm.app import *
+        import simtk.openmm as openmm
+        import simtk.unit as units  
+except:
+    print('Failed to load OpenMM. Check your configuration.')
+
+
+from sys import stdout
 import numpy as np
 from six import string_types
 import os
