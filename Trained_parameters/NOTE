@@ -1,5 +1,0 @@
-This folder contains trained parameters for nucleosome resolution MiChroM model. Posted parameters are trained to reproduce the Hi-C contact map at 1 kb resolution on the 39.5-42.5 Mb region of chromosome 7. 
-
-File "Type_to_type_alphas" contains the values of parameter alpha in U_type-to-type.
-
-File "IC_gammas" contains the values of parameter gamma in U_IC.
