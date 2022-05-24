@@ -19,7 +19,6 @@ import pandas as pd
 from pathlib import Path
 
 
-
 class MiChroM:
     R"""
     The :class:`~.MiChroM` class performs chromatin dynamics employing the default MiChroM energy function parameters for the type-to-type and Ideal Chromosome interactions.
@@ -299,6 +298,18 @@ class MiChroM:
         
         return np.asarray(self.data / self.nm, dtype=np.float32)
 
+    def getVelocities(self):
+        R"""
+        Returns:
+            :math:`(N, 3)` :class:`numpy.ndarray`:
+                Returns an array of velocities.
+        """
+
+        state = self.context.getState(getVelocities=True)
+        vel = state.getVelocities()
+
+        return np.asarray(vel / (self.nm / units.picosecond ), dtype=np.float32)
+
         
     def randomizePositions(self):
         R"""
@@ -575,8 +586,8 @@ class MiChroM:
         """
 
         self.metadata["CrossLink"] = repr({"mu": mu})
-        if not hasattr(self, "type_list"):
-             self.type_list = self.random_ChromSeq(self.N)
+        if not hasattr(self, "type_list_letter"):
+            raise ValueError("Chromatin sequence not defined!")
 
         energy = "mapType(t1,t2)*0.5*(1. + tanh(mu*(rc - r)))*step(r-lim)"
         
@@ -605,26 +616,24 @@ class MiChroM:
         fTypes = self.mm.Discrete2DFunction(diff_types_size,diff_types_size,lambdas)
         crossLP.addTabulatedFunction('mapType', fTypes) 
             
-        self._types_Letter2number(header_types)
+        self._createTypeList(header_types)
         crossLP.addPerParticleParameter("t")
 
         for i in range(self.N):
-                value = [float(self.type_list[i])]
-                crossLP.addParticle(value)
-                
+            value = [float(self.type_list[i])]
+            crossLP.addParticle(value)
                 
         self.forceDict[name] = crossLP
     
-    def _types_Letter2number(self, header_types):
+    def _createTypeList(self, header_types):
         R"""
         Internal function for indexing unique chromatin types.
         """
-        type2number = {}
-        for i,t in enumerate(header_types):
-            type2number[t] = i
-        
-        for bead in self.type_list_letter:
-            self.type_list.append(type2number[bead])
+        typesDict = {}
+        for index,type in enumerate(header_types):
+            typesDict[type] = index
+
+        self.type_list = [typesDict[letter] for letter in self.type_list_letter]
         
         
     def addLoops(self, mu=3.22, rc = 1.78, X=-1.612990, looplists=None):
@@ -829,17 +838,14 @@ class MiChroM:
 
     def removeFlatBottomharmonic(self, forcename="FlatBottomHarmonic"):
         if (forcename in self.forceDict):
+
             self.system.removeForce(self.forceDict[forcename].getForceGroup())
             del self.forceDict[forcename]
-            positions = self.context.getState(getPositions=True).getPositions() 
-            velocities = self.context.getState(getVelocities=True).getVelocities()
-            self.context.reinitialize() 
-            self.context.setPositions(positions) 
-            self.context.setVelocities(velocities)
+
+            self.context.reinitialize(preserveState=True) 
+
         else:
             print("The system does not have {} force.\nThe forces applied in the system are: {}\n".format(forcename, self.forceDict.keys() ))
-
-        
 
     def _loadParticles(self):
         R"""
@@ -891,9 +897,13 @@ class MiChroM:
                     force.setNonbondedMethod(force.CutoffNonPeriodic)
             print("adding force ", i, self.system.addForce(self.forceDict[i]))
         
-       
+        ForceGroupIndex = 0
         for i,name in enumerate(self.forceDict):
-            self.forceDict[name].setForceGroup(i)
+            if name[:5] == "Ideal":                     # Ideal Chromosome potential has to come after other forces
+                self.forceDict[name].setForceGroup(31) 
+            else:
+                self.forceDict[name].setForceGroup(ForceGroupIndex)
+                ForceGroupIndex+= 1
             
         self.context = self.mm.Context(self.system, self.integrator, self.platform, self.properties)
         self.initPositions()
@@ -954,15 +964,13 @@ class MiChroM:
    
         """
 
-        Type_conversion = {'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6}
         x = []
         y = []
         z = []
-        index = []
         start = 0
+        typesLetter = []
         chains = []
         sizeChain = 0
-
 
         for ndb in NDBfiles:
             aFile = open(ndb,'r')
@@ -976,26 +984,31 @@ class MiChroM:
                     x.append(float(line[5]))
                     y.append(float(line[6]))
                     z.append(float(line[7]))
-                    index.append(line[2])
+
+                    typesLetter.append(line[2])
+
                     sizeChain += 1
                 elif line[0] == "TER" or line[0] == "END":
                     break
-
 
             chains.append((start, sizeChain-1, 0))
             start = sizeChain 
 
         print("Chains: ", chains)
 
-        self.diff_types = set(index)
-        self.type_list_letter = index
-        self.index = list(range(len(self.type_list_letter)))
+        if set(typesLetter) == {'SQ'}:
+            typesLetter = ['bead{:}'.format(x) for x in range(1,len(typesLetter)+1)]
+
+        self.diff_types = set(typesLetter)
+        
+        self.type_list_letter = typesLetter
+
         self.setChains(chains)
 
         return np.vstack([x,y,z]).T
     
     
-    def loadGRO(self, GROfiles=None):
+    def loadGRO(self, GROfiles=None, ChromSeq=None):
         R"""
         Loads a single or multiple *.gro* files and gets position and types of the chromosome beads.
         Initially, the MiChroM energy function was implemented in GROMACS. Details on how to run and use these files can be found at the `Nucleome Data Bank <https://ndb.rice.edu/GromacsInput-Documentation>`__.
@@ -1013,14 +1026,13 @@ class MiChroM:
    
         """
         
-        Type_conversion = {'ASP':"A1", 'GLU':"A2", 'HIS':"B1", 'LYS':"B2", 'ARG':"B3", 'ARG':"B3", 'ASN':"NA"}
         x = []
         y = []
         z = []
-        index = []
         start = 0
         chains = []
         sizeChain = 0
+        typesLetter = []
         
         for gro in GROfiles:
             aFile = open(gro,'r')
@@ -1028,26 +1040,58 @@ class MiChroM:
             size = int(pos[1])
             
             for t in range(2, len(pos)-1):
-                pos[t] = pos[t].split()
+
+                try:
+                    float(pos[t].split()[3]); float(pos[t].split()[4]); float(pos[t].split()[5])
+                    pos[t] = pos[t].split()
+                except:
+                    pos[t] = [str(pos[t][0:10]).split()[0], str(pos[t][10:15]), str(pos[t][15:20]), str(pos[t][20:28]), str(pos[t][28:36]), str(pos[t][36:44])]
+                
                 x.append(float(pos[t][3]))
                 y.append(float(pos[t][4]))
                 z.append(float(pos[t][5]))
-                index.append(Type_conversion[pos[t][0][-3:]])
+                
+                typesLetter.append(self._aa2types(pos[t][0][-3:]))
                 sizeChain += 1
-
 
             chains.append((start, sizeChain-1, 0))
             start = sizeChain 
             
+        if not ChromSeq is None:
+
+            if len(ChromSeq) != len(GROfiles):
+                raise ValueError("Number of sequence files provided must agree with number of coordinate files!")
+
+            typesLetter = []
+            for seqFile in ChromSeq:
+                print('Reading sequence in {}...'.format(seqFile))
+                with open(seqFile, 'r') as sequence:
+                    for type in sequence:
+                        typesLetter.append(type.split()[1])
+
+        if len(typesLetter) != len(x):
+            raise ValueError("Sequence length is different from coordinates length!")
+
         print("Chains: ", chains)
-        self.diff_types = set(index)
-        self.type_list_letter = index
-        self.index = list(range(len(self.type_list_letter)))
+
+        self.diff_types = set(typesLetter)
+
+        self.type_list_letter = typesLetter
+
         self.setChains(chains)
 
         return np.vstack([x,y,z]).T
+
+    def _aa2types (self, amino_acid):
+        
+        Type_conversion = {'ASP':"A1", 'GLU':"A2", 'HIS':"B1", 'LYS':"B2", 'ARG':"B3", 'ARG':"B3", 'ASN':"NA"}
+
+        if amino_acid in Type_conversion.keys():
+            return Type_conversion[amino_acid]
+        else:
+            return 'NA'
                     
-    def loadPDB(self, PDBfiles=None):
+    def loadPDB(self, PDBfiles=None, ChromSeq=None):
         
         R"""
         Loads a single or multiple *.pdb* files and gets position and types of the chromosome beads.
@@ -1064,41 +1108,61 @@ class MiChroM:
    
         """
         
-        Type_conversion = {'ASP':"A1", 'GLU':"A2", 'HIS':"B1", 'LYS':"B2", 'ARG':"B3", 'ARG':"B3", 'ASN':"NA"}
         x = []
         y = []
         z = []
-        index = []
         start = 0
         chains = []
         sizeChain = 0
+        typesLetter = []
         
         for pdb in PDBfiles:
             aFile = open(pdb,'r')
             pos = aFile.read().splitlines()
 
             for t in range(len(pos)):
-                pos[t] = pos[t].split()
+
+                try:
+                    float(pos[t].split()[5]); float(pos[t].split()[6]); float(pos[t].split()[7])
+                    pos[t] = pos[t].split()
+                except:
+                    pos[t] = [str(pos[t][0:6]).split()[0], pos[t][6:11], pos[t][12:6], pos[t][17:20], pos[t][22:26], pos[t][30:38], pos[t][38:46], pos[t][46:54]]
+
                 if pos[t][0] == 'ATOM':
                     x.append(float(pos[t][5]))
                     y.append(float(pos[t][6]))
                     z.append(float(pos[t][7]))
-                    index.append(Type_conversion[pos[t][3]])
+                    typesLetter.append(self._aa2types(pos[t][3]))
                     sizeChain += 1
-
 
             chains.append((start, sizeChain-1, 0))
             start = sizeChain 
+
+        if not ChromSeq is None:
+
+            if len(ChromSeq) != len(PDBfiles):
+                raise ValueError("Number of sequence files provided must agree with number of coordinate files!")
+
+            typesLetter = []
+            for seqFile in ChromSeq:
+                print('Reading sequence in {}...'.format(seqFile))
+                with open(seqFile, 'r') as sequence:
+                    for type in sequence:
+                        typesLetter.append(type.split()[1])
+
+        if len(typesLetter) != len(x):
+            raise ValueError("Sequence length is different from coordinates length!")
             
         print("Chains: ", chains)
 
-        self.diff_types = set(index)
-        self.type_list_letter = index
-        self.index = list(range(len(self.type_list_letter)))
+        self.diff_types = set(typesLetter)
+
+        self.type_list_letter = typesLetter
+
         self.setChains(chains)
+
         return np.vstack([x,y,z]).T
 
-    
 
     def create_springSpiral(self,Nbeads=1000, ChromSeq=None, isRing=False):
         
@@ -1127,12 +1191,11 @@ class MiChroM:
             self.type_list = []
         if type_list == None:
             beads = Nbeads
-            self.type_list = self.random_type(beads)
+            self.type_list = self.random_ChromSeq(beads)
         else:
             self._translate_type(type_list)
             beads = len(self.type_list_letter)
         
-        self.index = list(range(beads))    
         for i in range(beads):
             if (isRing):
                 a = 2.0*((beads-1)/beads)*np.pi*(i-1)/(beads-1)
@@ -1198,7 +1261,7 @@ class MiChroM:
                 self.diff_types.append(pos[t][1]) 
                 self.type_list_letter.append(pos[t][1])
 
-    def create_line(self,Nbeads, length_scale=1.0):
+    def create_line(self, Nbeads, length_scale=1.0):
         
         R"""
         Creates a straight line for the initial configuration of the chromosome polymer.
@@ -1231,6 +1294,69 @@ class MiChroM:
 
         return np.vstack([x,y,z]).T
     
+
+    def initStructure(self, mode='auto', CoordFiles=None, ChromSeq=None, isRing=False):
+
+        if mode == 'auto':
+            if CoordFiles is None:
+                mode = 'spring'
+            else:
+                _, extension = os.path.splitext(CoordFiles[0])
+                if extension == '.pdb':
+                    mode = 'pdb'
+                elif extension == '.gro':
+                    mode = 'gro'
+                elif extension == '.ndb':
+                    mode = 'ndb'
+                else:
+                    raise ValueError("Unrecognizable coordinate file.")
+
+        if mode in ['ndb','pdb','gro']:
+            if isinstance(CoordFiles, str):
+                CoordFiles = [CoordFiles]
+
+            if isinstance(ChromSeq, str):
+                ChromSeq = [ChromSeq]
+
+        if mode == 'line':
+
+            return self.create_line(ChromSeq=ChromSeq) # precisa ajeitar o create line para aceitar sequencia
+
+        elif mode == 'spring':
+
+            return self.create_springSpiral(ChromSeq=ChromSeq, isRing=isRing)
+
+        elif mode == 'randwalk':
+
+            return self.createRandomWalk(ChromSeq=ChromSeq) # precisa ajeitar o create rw para aceitar sequencia
+
+        elif mode == 'ndb':
+
+            if not ChromSeq is None:
+                print("Attention! Sequence files are not considered for 'ndb' mode.")
+
+            if CoordFiles is None:
+                raise ValueError("Coordinate files required for mode '{:}'!".format(mode))
+
+            return self.loadNDB(NDBfiles=CoordFiles)
+            
+        elif mode == 'pdb':
+            if CoordFiles is None:
+                raise ValueError("Coordinate files required for mode '{:}'!".format(mode))
+
+            return self.loadPDB(PDBfiles=CoordFiles,ChromSeq=ChromSeq)
+
+        elif mode == 'gro':
+
+            if CoordFiles is None:
+                raise ValueError("Coordinate files required for mode '{:}'!".format(mode))
+
+            return self.loadGRO(GROfiles=CoordFiles,ChromSeq=ChromSeq)
+
+        else:
+            if mode != 'auto':
+                raise ValueError("Mode '{:}' not supported!".format(mode))
+
 
     def initStorage(self, filename, mode="w"):
         
@@ -1296,12 +1422,14 @@ class MiChroM:
 
         filename = os.path.join(self.folder, filename)
         
-        if not hasattr(self, "type_list"):
-             self.type_list = self.random_ChromSeq(self.N)
+        if not hasattr(self, "type_list_letter"):
+            raise ValueError("Chromatin sequence not defined!")
         
         if mode == "auto":
             if hasattr(self, "storage"):
                 mode = "h5dict"
+            else:
+                mode = 'ndb'
 
         if mode == "h5dict":
             if not hasattr(self, "storage"):
@@ -1326,55 +1454,62 @@ class MiChroM:
 
         elif mode == 'pdb':
             atom = "ATOM  {0:5d} {1:^4s}{2:1s}{3:3s} {4:1s}{5:4d}{6:1s}   {7:8.3f}{8:8.3f}{9:8.3f}{10:6.2f}{11:6.2f}          {12:>2s}{13:2s}"
-            ter = "TER   {0:5d}      {1:3s} {2:1s}{3:4d}{4:1s}" 
-            Res_conversion = {0:'ASP', 1:'GLU',2:'HIS',3:'LYS',4:'ARG',5:'ARG',6:'ASN'}
+            ter = "TER   {0:5d}      {1:3s} {2:1s}{3:4d}{4:1s}"
+            Res_conversion = {'A1':'ASP', 'A2':'GLU', 'B1':'HIS', 'B2':'LYS', 'B3':'ARG', 'B4':'ARG', 'NA':'ASN'}
             Type_conversion = {0:'CA',1:'CA',2:'CA',3:'CA',4:'CA',5:'CA',6:'CA'}
-            
             
             for ncadeia, cadeia in zip(range(len(self.chains)),self.chains):
                 pdb_string = []
                 filename = self.name +"_" + str(ncadeia) + "_block%d." % self.step + mode
 
                 filename = os.path.join(self.folder, filename)
-                data_chain = data[cadeia[0]:cadeia[1]+1] 
+                data_chain = data[cadeia[0]:cadeia[1]+1]
+                types_chain = self.type_list_letter[cadeia[0]:cadeia[1]+1] 
 
                 pdb_string.append("MODEL:\t{}".format(self.name +"_" + str(ncadeia)))
 
-                for i, line in zip(list(range(len(data))), data_chain):
-                    if not self.type_list[i] in Res_conversion:
+                totalAtom = 1
+                for i, line in zip(types_chain, data_chain):
+                    if not i in Res_conversion:
                         Res_conversion[i] = 'GLY'
-                    pdb_string.append(atom.format((i+1),"CA","",Res_conversion[self.type_list[i]],"",(i+1), "",line[0], line[1], line[2], 1.00, 0.00, 'C', ''))
+
+                    pdb_string.append(atom.format(totalAtom,"CA","",Res_conversion[i],"",totalAtom,"",line[0], line[1], line[2], 1.00, 0.00, 'C', ''))
+                    totalAtom += 1
+                
+                pdb_string.append(ter.format(totalAtom,Res_conversion[i],"",totalAtom,""))
                 pdb_string.append("ENDMDL")
                 np.savetxt(filename,pdb_string,fmt="%s")
 
-                    
                     
         elif mode == 'gro':
             
             gro_style = "{0:5d}{1:5s}{2:5s}{3:5d}{4:8.3f}{5:8.3f}{6:8.3f}"
             gro_box_string = "{0:10.5f}{1:10.5f}{2:10.5f}"
 
-
-            Res_conversion = {0:'ASP', 1:'GLU',2:'HIS',3:'LYS',4:'ARG',5:'ARG',6:'ASN'}
-            Type_conversion = {0:'CA',1:'CA',2:'CA',3:'CA',4:'CA',5:'CA',6:'CA'}
+            Res_conversion = {'A1':'ASP', 'A2':'GLU', 'B1':'HIS', 'B2':'LYS', 'B3':'ARG', 'B4':'ARG', 'NA':'ASN'}
+            Type_conversion = {'A1':'CA', 'A2':'CA', 'B1':'CA', 'B2':'CA', 'B3':'CA', 'B4':'CA', 'NA':'CA'}
             
             for ncadeia, cadeia in zip(range(len(self.chains)),self.chains):
-                filename = self.name +"_" + str(ncadeia) + "_block%d." % self.step + mode
+                
                 gro_string = []
+                filename = self.name +"_" + str(ncadeia) + "_block%d." % self.step + mode
                 filename = os.path.join(self.folder, filename)
+                
                 data_chain = data[cadeia[0]:cadeia[1]+1] 
+                types_chain = self.type_list_letter[cadeia[0]:cadeia[1]+1] 
 
                 gro_string.append(self.name +"_" + str(ncadeia))
                 gro_string.append(len(data_chain))
                 
-                for i, line in zip(list(range(len(data))), data_chain):
-                        if not self.type_list[i] in Res_conversion:
-                            Res_conversion[i] = 'GLY'
-                        gro_string.append(str(gro_style.format(i+1, Res_conversion[self.type_list[i]],
-                                        Type_conversion[self.type_list[i]],i+1,
-                                        line[0],
-                                        line[1],
-                                        line[2])                ))
+                totalAtom = 1
+                for i, line in zip(types_chain, data_chain):
+                    if not i in Res_conversion:
+                        Res_conversion[i] = 'GLY'
+                    
+                    gro_string.append(str(gro_style.format(totalAtom, Res_conversion[i],Type_conversion[i],totalAtom,
+                                    float(line[0]), float(line[1]), float(line[2]))))
+                    
+                    totalAtom += 1
                         
                 gro_string.append(str(gro_box_string.format(0.000,0.000,0.000)))
                 np.savetxt(filename,gro_string,fmt="%s")
@@ -1396,7 +1531,6 @@ class MiChroM:
                 n = max(1, n)
                 return ([l[i:i+n] for i in range(0, len(l), n)])
             
-            
             for ncadeia, cadeia in zip(range(len(self.chains)),self.chains):
                 filename = self.name +"_" + str(ncadeia) + "_block%d." % self.step + mode
                 ndbf = []
@@ -1410,20 +1544,22 @@ class MiChroM:
                 ndbf.append(expdata_string.format('EXPDTA','  ','Cell Line  @50k bp resolution'))
                 ndbf.append(expdata_string.format('EXPDTA','  ','Simulation - Open-MiChroM'))
                 ndbf.append(author_string.format('AUTHOR','  ','Antonio B. Oliveira Junior - 2020'))
+                
+                seqList = self.type_list_letter[cadeia[0]:cadeia[1]+1]
 
+                if len(self.diff_types) == len(self.data):
+                    seqList = ['SQ' for x in range(len(self.type_list_letter))]
+
+                seqChunk = chunks(seqList,23)
                 
-                Seqlist = [Type_conversion[x] for x in self.type_list[cadeia[0]:cadeia[1]+1]]
-                Seqlista = chunks(Seqlist,23)
-                
-                for num, line in enumerate(Seqlista):
-                    ndbf.append(seqchr_string.format("SEQCHR", num+1, "C1", 
-                                                     len(self.type_list)," ".join(line)))
+                for num, line in enumerate(seqChunk):
+                    ndbf.append(seqchr_string.format("SEQCHR", num+1, "C1", len(seqList)," ".join(line)))
                 ndbf.append("MODEL 1")
                 
-                for i, line in zip(list(range(len(data))), data_chain):
-                    ndbf.append(ndb_string.format("CHROM", i+1, Seqlist[i]," ","C1",i+1,
+                for i, line in zip(list(range(len(data_chain))), data_chain):
+                    ndbf.append(ndb_string.format("CHROM", i+1, seqList[i]," ","C1",i+1,
                                         line[0], line[1], line[2],
-                                        np.int((i) * 50000)+1, np.int(i * 50000+50000), 0))
+                                        int((i) * 50000)+1, int(i * 50000+50000), 0))
                 ndbf.append("END")
                 
                 if hasattr(self, "loopPosition"):
@@ -1432,12 +1568,7 @@ class MiChroM:
                     for p in loops:
                         ndbf.append(loops_string.format("LOOPS",p[0],p[1]))
                     
-                            
-                
-                
                 np.savetxt(filename,ndbf,fmt="%s")
-                
-                
         
     def runSimBlock(self, steps=None, increment=True, num=None):
         R"""
@@ -1607,6 +1738,8 @@ class MiChroM:
                 x = np.cos(phi) * r
                 z = np.sin(phi) * r
                 points.append([x,y,z])
+
+            np.random.shuffle(points)
             return points
     
         def plotDistribution(points, filename='.'):
@@ -1731,9 +1864,9 @@ class MiChroM:
         forceNames = []
         forceValues = []
         
-        for i,n in enumerate(self.forceDict):
+        for n in (self.forceDict):
             forceNames.append(n)
-            forceValues.append(self.context.getState(getEnergy=True, groups={i}).getPotentialEnergy().value_in_unit(units.kilojoules_per_mole))
+            forceValues.append(self.context.getState(getEnergy=True, groups={self.forceDict[n].getForceGroup()}).getPotentialEnergy().value_in_unit(units.kilojoules_per_mole))
         forceNames.append('Potential Energy (total)')
         forceValues.append(self.context.getState(getEnergy=True).getPotentialEnergy().value_in_unit(units.kilojoules_per_mole))
         forceNames.append('Potential Energy (per loci)')
@@ -1744,7 +1877,7 @@ class MiChroM:
 
     def printHeader(self):
         print('{:^96s}'.format("***************************************************************************************"))
-        print('{:^96s}'.format("**** **** *** *** *** *** *** *** OpenMiChroM-1.0.2 *** *** *** *** *** *** **** ****"))
+        print('{:^96s}'.format("**** **** *** *** *** *** *** *** OpenMiChroM-1.0.3 *** *** *** *** *** *** **** ****"))
         print('')
         print('{:^96s}'.format("OpenMiChroM is a Python library for performing chromatin dynamics simulations."))
         print('{:^96s}'.format("OpenMiChroM uses the OpenMM Python API,"))
