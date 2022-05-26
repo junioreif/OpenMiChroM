@@ -1017,8 +1017,11 @@ class MiChroM:
         
         Args:
 
-            GROfiles (file, required):
-                Single or multiple files in  *.gro* file format.  (Default value: :code:`None`).
+            GROfiles (list of files, required):
+                List with a single or multiple files in *.gro* file format.  (Default value: :code:`None`).
+            ChromSeq (list of files, optional):
+                List of files with sequence information for each chromosomal chain. The first column should contain the locus index. The second column should have the locus type annotation. A template of the chromatin sequence of types file can be found at the `Nucleome Data Bank (NDB) <https://ndb.rice.edu/static/text/chr10_beads.txt>`__.
+                If the chromatin types considered are different from the ones used in the original MiChroM (A1, A2, B1, B2, B3, B4, and NA), the sequence file must be provided, otherwise all the chains will be defined with 'NA' type.
                 
         Returns:
             :math:`(N, 3)` :class:`numpy.ndarray`:
@@ -1100,8 +1103,12 @@ class MiChroM:
         
         Args:
 
-            PDBfiles (file, required):
-                Single or multiple files in *.pdb* file format.  (Default value: :code:`None`).
+            PDBfiles (list of files, required):
+                List with a single or multiple files in *.pdb* file format.  (Default value: :code:`None`).
+            ChromSeq (list of files, optional):
+                List of files with sequence information for each chromosomal chain. The first column should contain the locus index. The second column should have the locus type annotation. A template of the chromatin sequence of types file can be found at the `Nucleome Data Bank (NDB) <https://ndb.rice.edu/static/text/chr10_beads.txt>`__.
+                If the chromatin types considered are different from the ones used in the original MiChroM (A1, A2, B1, B2, B3, B4, and NA), the sequence file must be provided, otherwise all the chains will be defined with 'NA' type.
+
         Returns:
             :math:`(N, 3)` :class:`numpy.ndarray`:
                 Returns an array of positions.
@@ -1297,6 +1304,33 @@ class MiChroM:
 
     def initStructure(self, mode='auto', CoordFiles=None, ChromSeq=None, isRing=False):
 
+        R"""
+        Creates the coordinates for the initial configuration of the chromosomal chains and sets their sequence information.
+ 
+        Args:
+
+        mode (str, required):
+            - 'auto' - Creates a spring-spiral-like shape when a CoordFiles is not provided. If CoordFiles is provided, it loads the respective type of coordinate files (.ndb, .gro, or .pdb). (Default value = 'auto').
+            - 'line' - Creates a straight line for the initial configuration of the chromosome polymer. Can only be used to create single chains.
+            - 'spring' - Creates a spring-spiral-like shape for the initial configuration of the chromosome polymer. Can only be used to create single chains.
+            - 'random' - Creates a chromosome polymeric chain with beads positions based on a random walk. Can only be used to create single chains.
+            - 'ndb' - Loads a single or multiple *.ndb* files and gets the position and types of the chromosome beads.
+            - 'pdb' - Loads a single or multiple *.pdb* files and gets the position and types of the chromosome beads.
+            - 'gro' - Loads a single or multiple *.gro* files and gets the position and types of the chromosome beads.
+        CoordFiles (list of files, optional):
+            List of files with xyz information for each chromosomal chain. Accepts .ndb, .pdb, and .gro files. All files provided in the list must be in the same file format.
+        ChromSeq (list of files, optional):
+            List of files with sequence information for each chromosomal chain. The first column should contain the locus index. The second column should have the locus type annotation. A template of the chromatin sequence of types file can be found at the `Nucleome Data Bank (NDB) <https://ndb.rice.edu/static/text/chr10_beads.txt>`__.
+            If the chromatin types considered are different from the ones used in the original MiChroM (A1, A2, B1, B2, B3, B4, and NA), the sequence file must be provided when loading .pdb or .gro files, otherwise, all the chains will be defined with 'NA' type. For the .ndb files, the sequence used is the one provided in the file.
+        isRing (bool, optional):
+            Whether the chromosome chain is circular or not (used to simulate bacteria genome, for example). To be used with the option :code:`'random'`. If :code:`bool(isRing)` is :code:`True` , the first and last particles of the chain are linked, forming a ring. (Default value = :code:`False`).
+ 
+        Returns:
+            :math:`(N, 3)` :class:`numpy.ndarray`:
+                Returns an array of positions.
+   
+        """
+
         if mode == 'auto':
             if CoordFiles is None:
                 mode = 'spring'
@@ -1320,7 +1354,7 @@ class MiChroM:
 
         if mode == 'line':
 
-            return self.create_line(ChromSeq=ChromSeq) # precisa ajeitar o create line para aceitar sequencia
+            return self.create_line(ChromSeq=ChromSeq)
 
         elif mode == 'spring':
 
@@ -1328,7 +1362,7 @@ class MiChroM:
 
         elif mode == 'randwalk':
 
-            return self.createRandomWalk(ChromSeq=ChromSeq) # precisa ajeitar o create rw para aceitar sequencia
+            return self.createRandomWalk(ChromSeq=ChromSeq)
 
         elif mode == 'ndb':
 
