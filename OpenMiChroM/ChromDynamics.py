@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021 The Center for Theoretical Biological Physics (CTBP) - Rice University
+# Copyright (c) 2020-2021-2022 The Center for Theoretical Biological Physics (CTBP) - Rice University
 # This file is from the Open-MiChroM project, released under the MIT License. 
 
 R"""  
@@ -569,7 +569,7 @@ class MiChroM:
         self.addCustomTypes(name="TypetoType", mu=mu, rc=rc, TypesTable=filepath)
         
 
-    def addCustomTypes(self, name="CustomTypes", mu=3.22, rc = 1.78, TypesTable=None,):
+    def addCustomTypes(self, name="CustomTypes", mu=3.22, rc = 1.78, TypesTable=None):
         R"""
         Adds the type-to-type potential using custom values for interactions between the chromatin types. The parameters :math:`\mu` (mu) and rc are part of the probability of crosslink function :math:`f(r_{i,j}) = \frac{1}{2}\left( 1 + tanh\left[\mu(r_c - r_{i,j}\right] \right)`, where :math:`r_{i,j}` is the spatial distance between loci (beads) *i* and *j*.
         
@@ -931,35 +931,6 @@ class MiChroM:
                 for name in self.platform.getPropertyNames():
                      print(name,' value: ',self.platform.getPropertyValue(self.context, name), file=f) 
 
-    def createRandomWalk(self, step_size=1.0, Nbeads=1000, segment_length=1):    
-        R"""
-        Creates a chromosome polymer chain with beads position based on a random walk.
-        
-        Args:
-
-            step_size (float, required):
-                The step size of the random walk. (Default value = 1.0).
-            Nbeads (int, required):
-                Number of beads of the chromosome polymer chain. (Default value = 1000).
-            segment_length (int, required):
-                Distance between beads. (Default value = 1).
-        Returns:
-            :math:`(N, 3)` :class:`numpy.ndarray`:
-                Returns an array of positions.
-   
-        """
-        
-        theta = np.repeat(np.random.uniform(0., 1., Nbeads // segment_length + 1),
-                      segment_length)
-        theta = 2.0 * np.pi * theta[:Nbeads]
-        u = np.repeat(np.random.uniform(0., 1., Nbeads // segment_length + 1),
-                  segment_length)
-        u = 2.0 * u[:Nbeads] - 1.0
-        x = step_size * np.sqrt(1. - u * u) * np.cos(theta)
-        y = step_size * np.sqrt(1. - u * u) * np.sin(theta)
-        z = step_size * u
-        x, y, z = np.cumsum(x), np.cumsum(y), np.cumsum(z)
-        return np.vstack([x, y, z]).T
     
     def loadNDB(self, NDBfiles=None):
         R"""
@@ -1178,15 +1149,13 @@ class MiChroM:
         return np.vstack([x,y,z]).T
 
 
-    def create_springSpiral(self,Nbeads=1000, ChromSeq=None, isRing=False):
+    def create_springSpiral(self, ChromSeq=None, isRing=False):
         
         R"""
         Creates a spring-spiral-like shape for the initial configuration of the chromosome polymer.
         
         Args:
 
-            Nbeads (int, required):
-                Number of beads of the chromosome polymer chain. (Default value = 1000).
             ChromSeq (file, required):
                 Chromatin sequence of types file. The first column should contain the locus index. The second column should have the locus type annotation. A template of the chromatin sequence of types file can be found at the `Nucleome Data Bank (NDB) <https://ndb.rice.edu/static/text/chr10_beads.txt>`__.
             isRing (bool, optional):
@@ -1197,18 +1166,12 @@ class MiChroM:
                 Returns an array of positions.
    
         """
-        type_list=ChromSeq
+
         x = []
         y = []
         z = []
-        if not hasattr(self, "type_list"):
-            self.type_list = []
-        if type_list == None:
-            beads = Nbeads
-            self.type_list = self.random_ChromSeq(beads)
-        else:
-            self._translate_type(type_list)
-            beads = len(self.type_list_letter)
+        self._translate_type(ChromSeq)
+        beads = len(self.type_list_letter)
         
         for i in range(beads):
             if (isRing):
@@ -1229,7 +1192,9 @@ class MiChroM:
             chain.append((0,beads-1,1))
         else:
             chain.append((0,beads-1,0))
+
         self.setChains(chain)
+
         return np.vstack([x,y,z]).T
     
     def random_ChromSeq(self, Nbeads):
@@ -1246,7 +1211,7 @@ class MiChroM:
                 Returns an 1D array of a randomized chromatin type annotation sequence.
    
         """
-
+        
         return random.choices(population=[0,1,2,3,4,5], k=Nbeads)
     
     def _translate_type(self, filename):
@@ -1266,7 +1231,6 @@ class MiChroM:
         af = open(filename,'r')
         pos = af.read().splitlines()
         
-        diff_opt = 0
         for t in range(len(pos)):
             pos[t] = pos[t].split()
             if pos[t][1] in self.diff_types:
@@ -1275,15 +1239,15 @@ class MiChroM:
                 self.diff_types.append(pos[t][1]) 
                 self.type_list_letter.append(pos[t][1])
 
-    def create_line(self, Nbeads, length_scale=1.0):
+    def create_line(self, ChromSeq):
         
         R"""
         Creates a straight line for the initial configuration of the chromosome polymer.
         
         Args:
 
-            Nbeads (int, required):
-                Number of beads of the chromosome polymer chain. (Default value = 1000).
+            ChromSeq (file, required):
+                Chromatin sequence of types file. The first column should contain the locus index. The second column should have the locus type annotation. A template of the chromatin sequence of types file can be found at the `Nucleome Data Bank (NDB) <https://ndb.rice.edu/static/text/chr10_beads.txt>`__.
             length_scale (float, required):
                 Length scale used in the distances of the system in units of reduced length :math:`\sigma`. (Default value = 1.0).    
                 
@@ -1293,7 +1257,10 @@ class MiChroM:
    
         """
 
-        beads = Nbeads
+        self._translate_type(ChromSeq)
+        beads = len(self.type_list_letter)
+
+        length_scale = 1.0
         x = []
         y = []
         z = []
@@ -1303,11 +1270,45 @@ class MiChroM:
             z.append(0.15*length_scale*beads+(i-1)*0.6)
         
         chain = []
-        chain.append((0,Nbeads-1,0))
+        chain.append((0,beads-1,0))
         self.setChains(chain)
 
         return np.vstack([x,y,z]).T
     
+    def createRandomWalk(self, ChromSeq=None):    
+        R"""
+        Creates a chromosome polymer chain with beads position based on a random walk.
+        
+        Args:
+
+        ChromSeq (file, required):
+            Chromatin sequence of types file. The first column should contain the locus index. The second column should have the locus type annotation. A template of the chromatin sequence of types file can be found at the `Nucleome Data Bank (NDB) <https://ndb.rice.edu/static/text/chr10_beads.txt>`__.
+        Returns:
+            :math:`(N, 3)` :class:`numpy.ndarray`:
+                Returns an array of positions.
+   
+        """
+        
+        self._translate_type(ChromSeq)
+        Nbeads = len(self.type_list_letter)
+
+        segment_length = 1
+        step_size = 1
+
+        theta = np.repeat(np.random.uniform(0., 1., Nbeads // segment_length + 1), segment_length)
+        theta = 2.0 * np.pi * theta[:Nbeads]
+        u = np.repeat(np.random.uniform(0., 1., Nbeads // segment_length + 1), segment_length)
+        u = 2.0 * u[:Nbeads] - 1.0
+        x = step_size * np.sqrt(1. - u * u) * np.cos(theta)
+        y = step_size * np.sqrt(1. - u * u) * np.sin(theta)
+        z = step_size * u
+        x, y, z = np.cumsum(x), np.cumsum(y), np.cumsum(z)
+
+        chain = []
+        chain.append((0,Nbeads-1,0))
+        self.setChains(chain)
+
+        return np.vstack([x, y, z]).T
 
     def initStructure(self, mode='auto', CoordFiles=None, ChromSeq=None, isRing=False):
 
@@ -1340,7 +1341,7 @@ class MiChroM:
 
             return self.create_springSpiral(ChromSeq=ChromSeq, isRing=isRing)
 
-        elif mode == 'randwalk':
+        elif mode == 'random':
 
             return self.createRandomWalk(ChromSeq=ChromSeq) # precisa ajeitar o create rw para aceitar sequencia
 
@@ -1397,7 +1398,7 @@ class MiChroM:
         for k, chain in zip(range(len(self.chains)),self.chains):
             fname = os.path.join(self.folder, filename + '_' +str(k) + '.cndb')
             self.storage.append(h5py.File(fname, mode))    
-            self.storage[k]['types'] = self.type_list[chain[0]:chain[1]+1]
+            self.storage[k]['types'] = self.type_list_letter[chain[0]:chain[1]+1]
 
         if mode == "r+":
             myKeys = []
