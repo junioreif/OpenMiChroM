@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021-2022 The Center for Theoretical Biological Physics (CTBP) - Rice University
+# Copyright (c) 2020-2022 The Center for Theoretical Biological Physics (CTBP) - Rice University
 # This file is from the Open-MiChroM project, released under the MIT License. 
 
 R"""  
@@ -1945,7 +1945,7 @@ class MiChroM:
         print('{:^96s}'.format("Chromosome Modeling on Downsampled Hi-C Maps Enhances the Compartmentalization Signal."))
         print('{:^96s}'.format("J. Phys. Chem. B, doi:10.1021/acs.jpcb.1c04174."))
         print('')
-        print('{:^96s}'.format("Copyright (c) 2021, The OpenMiChroM development team at"))
+        print('{:^96s}'.format("Copyright (c) 2022, The OpenMiChroM development team at"))
         print('{:^96s}'.format("Rice University"))
         print('{:^96s}'.format("***************************************************************************************"))
         stdout.flush()
