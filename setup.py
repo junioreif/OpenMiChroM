@@ -5,7 +5,7 @@ this_dir = path.abspath(path.dirname(__file__))
 with open(path.join(this_dir, "README.rst")) as f:
     long_description = f.read()
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 for line in open(path.join("OpenMiChroM", "__init__.py")):
     if line.startswith("__version__"):
         exec(line.strip())
