@@ -8,7 +8,7 @@ from ChromDynamics import MiChroM
 
 class PersistentBrownianIntegrator(ThermostatedIntegrator):
     def __init__(self,
-                 timestep=0.001, 
+                timestep=0.001, 
                 temperature=120.0,
                 collision_rate=0.1,
                 persistent_time=10.0,
