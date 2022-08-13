@@ -66,11 +66,11 @@ class ActiveMonomer(MiChroM):
 
         #set up integrator        
         integrator=PersistentBrownianIntegrator(
-                    timestep=self.timestep, 
-                    collision_rate=self.collisionRate,
-                    temperature=self.temperature,
-                    persistent_time=self.activeCorrTime,
-                    )
+            timestep=self.timestep, 
+            collision_rate=self.collisionRate,
+            temperature=self.temperature,
+            persistent_time=self.activeCorrTime,
+            )
         """
         integrator=CustomBrownianIntegrator(temperature=self.temperature * unit.kelvin,
                                             timestep=self.timestep * unit.picoseconds,
