@@ -103,15 +103,15 @@ class ActiveMonomer(MiChroM):
 
 
 
-    def addHarmonicBonds(self, kfb=30.0):
+    def addHarmonicBonds(self, kfb=30.0, r0=1.0):
 
         for start, end, isRing in self.chains:
             for j in range(start, end):
-                self.addHarmonicBond_ij(j, j + 1, kfb=kfb)
+                self.addHarmonicBond_ij(j, j + 1, kfb=kfb, r0=r0)
                 self.bondsForException.append((j, j + 1))
 
             if isRing:
-                self.addHarmonicBond_ij(start, end, distance=1, kfb=kfb)
+                self.addHarmonicBond_ij(start, end, r0=r0, kfb=kfb)
                 self.bondsForException.append((start, end ))
 
         self.metadata["HarmonicBond"] = repr({"kfb": kfb})
@@ -126,17 +126,12 @@ class ActiveMonomer(MiChroM):
                 
             self.forceDict["HarmonicBond"] = bondforceGr
         
-    def addHarmonicBond_ij(self, i, j, distance=None, kfb=30):
+    def addHarmonicBond_ij(self, i, j, r0=1.0, kfb=30):
         
         if (i >= self.N) or (j >= self.N):
             raise ValueError("\n Cannot add a bond between beads  %d,%d that are beyond the chromosome length %d" % (i, j, self.N))
-        if distance is None:
-            distance = self.length_scale
-        else:
-            distance = self.length_scale * distance
-        distance = float(distance)
-
-        self._initHarmonicBond(kfb=kfb)
+        
+        self._initHarmonicBond(kfb=kfb, r0=r0)
         self.forceDict["HarmonicBond"].addBond(int(i), int(j), [])
 
 
