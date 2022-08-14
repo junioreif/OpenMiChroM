@@ -3,7 +3,7 @@ import simtk.unit as unit
 from openmmtools.constants import kB
 from openmmtools.integrators import ThermostatedIntegrator
 import sys 
-sys.path.append('../OpenMiChroM/')
+sys.path.append('/home/sb95/ActiveOpenMiChroM/OpenMiChroM/')
 from ChromDynamics import MiChroM
 
 class PersistentBrownianIntegrator(ThermostatedIntegrator):
