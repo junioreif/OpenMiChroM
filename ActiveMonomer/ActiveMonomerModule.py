@@ -87,9 +87,8 @@ class ActiveMonomer(MiChroM):
         
         try:
             act_seq=np.asfarray(act_seq)
-            for bead_id, Fval in enumerate(act_seq):
-                if Fval>0:
-                    self.forceDict["ActiveForce"].addParticle(int(bead_id),[Fval])
+            for bead_id, Fval in enumerate(act_seq):    
+                self.forceDict["ActiveForce"].addParticle(int(bead_id),[Fval])
 
             print('\n\
             ==================================\n\
