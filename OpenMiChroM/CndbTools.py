@@ -226,7 +226,7 @@ class cndbTools:
                        
         Returns:
             xf:class:`numpy.ndarray`:
-                Indices of the output calculated frequencies.
+                Return frequencies.
             yf:class:`numpy.ndarray`:
                 Returns the Fourier transform of the Orientation Order Parameter OP in space of 1/Chrom_Length.
         """
@@ -234,7 +234,7 @@ class cndbTools:
         y = _butter_bandpass_filter(Oijy, lowcut, highcut, N, order=5)
         xf = np.linspace(1, N//2 , N//2)
         yf=fft(y)/len(y)
-        return xf[0:N//2],np.abs(yf[0:N//2])
+        return (xf[0:N//2]-1)/N,np.abs(yf[0:N//2])
 
     def _butter_bandpass(lowcut, highcut, fs, order=5):
         R"""
