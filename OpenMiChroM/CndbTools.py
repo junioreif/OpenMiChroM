@@ -160,6 +160,101 @@ class cndbTools:
 #### Analisys start here!
 #########################################################################################
 
+    def compute_Orientation_OP(self,xyz,chrom_start=0,chrom_end=1000,vec_length=4):
+        from collections import OrderedDict
+        import itertools
+        R"""
+        Calculates the Orientation Order Parameter OP. Details are decribed in "Zhang, Bin, and Peter G. Wolynes. "Topology, structures, and energy landscapes of human chromosomes." Proceedings of the National Academy of Sciences 112.19 (2015): 6062-6067."
+        
+        Args:
+            xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray`, required):
+                Array of the 3D position of the selected beads for different frames extracted by using the :code: `xyz()` function.
+            chrom_start (int, required):
+                First bead to consider in the calculations (Default value = 0).
+            chrom_end (int, required):
+                Last bead to consider in the calculations (Default value = 1000).  
+            vec_length (int, required):
+                Number of neighbor beads to build the vector separation :math:`i` and :math:`i+4` if vec_length is set to 4. (Default value = 4).  
+           
+                       
+        Returns:
+            Oijx:class:`numpy.ndarray`:
+                Returns the genomic separation employed in the calculations.
+            Oijy:class:`numpy.ndarray`:
+                Returns the Orientation Order Parameter OP as a function of the genomic separation.
+        """
+
+        vec_rij=[] 
+        for i in range(chrom_start,chrom_end-vec_length):
+            vec_rij.append(xyz[i+vec_length]-xyz[i]) # from a trajectory, gets the vector ri,i+vec_length
+
+        dot_ri_rj=[]
+        ij=[]
+        for i in itertools.combinations_with_replacement(range(1,chrom_end-vec_length),2):  
+            dot_ri_rj.append(np.dot(vec_rij[i[0]]/np.linalg.norm(vec_rij[i[0]]),vec_rij[i[1]]/np.linalg.norm(vec_rij[i[1]]))) # dot product between all vector r,r+_vec_length
+            ij.append(i[1]-i[0]) # genomic separation
+
+        d = OrderedDict()
+        for k, v in zip(ij, dot_ri_rj):
+            d[k] = d.get(k, 0) + v # sum the values v for each genomic separation k
+        
+        Oijx=[]
+        Oijy=[]
+        for i in range(1,np.size(list(d.keys()))+1):
+            Oijx.append(list(d.keys())[i-1]+1)
+            Oijy.append(list(d.values())[i-1]/(chrom_end-list(d.keys())[i-1])) # gets Oij normalized by the number of elements. For example, in a chromosome of length 100, genomic distance 1 has more elements (99) considered than genomic distance 100 (1).
+
+        return np.asarray(Oijx),np.asarray(Oijy)
+
+
+    def compute_FFT_from_Oij(Oijy,lowcut=1, highcut=500, order=5):
+        from scipy.signal import butter, lfilter
+        from scipy.fftpack import fft
+        R"""
+        Calculates the Fourier transform of the Orientation Order Parameter OP. Details are decribed in "Zhang, Bin, and Peter G. Wolynes. "Topology, structures, and energy landscapes of human chromosomes." Proceedings of the National Academy of Sciences 112.19 (2015): 6062-6067."
+        
+        Args:
+            xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray`, required):
+                Array of the 3D position of the selected beads for different frames extracted by using the :code: `xyz()` function.
+            lowcut (int, required):
+                Filter to cut low frequencies (Default value = 1).
+            highcut (int, required):
+                Filter to cut high frequencies (Default value = 500).  
+            order (int, required):
+                Order of the Butterworth filter obtained from `scipy.signal.butter <https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.butter.html>`__. (Default value = 5).  
+           
+                       
+        Returns:
+            xf:class:`numpy.ndarray`:
+                Indices of the output calculated frequencies.
+            yf:class:`numpy.ndarray`:
+                Returns the Fourier transform of the Orientation Order Parameter OP in space of 1/Chrom_Length.
+        """
+        N=np.shape(Oijy)[0]
+        y = _butter_bandpass_filter(Oijy, lowcut, highcut, N, order=5)
+        xf = np.linspace(1, N//2 , N//2)
+        yf=fft(y)/len(y)
+        return xf[0:N//2],np.abs(yf[0:N//2])
+
+    def _butter_bandpass(lowcut, highcut, fs, order=5):
+        R"""
+        Internal function for selecting frequencies.
+        """
+        nyq = fs//2
+        low = lowcut / nyq
+        high = highcut / nyq
+        b, a = butter(order, [low, high], btype='band')
+        return b, a
+
+
+    def _butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
+        R"""
+        Internal function for filtering bands.
+        """
+        b, a = _butter_bandpass(lowcut, highcut, fs, order=order)
+        y = lfilter(b, a, data)
+        return y
+
     def compute_Chirality(self,xyz,neig_beads=4):
         R"""
         Calculates the Chirality parameter :math:`\Psi`. Details are decribed in "Zhang, B. and Wolynes, P.G., 2016. Shape transitions and chiral symmetry breaking in the energy landscape of the mitotic chromosome. Physical review letters, 116(24), p.248101."
@@ -253,31 +348,36 @@ class cndbTools:
                 Returns the MSD of each particle over the trajectory.
 
         """
-
-        def autocorrFFT(x):
-            N=len(x)
-            F = np.fft.fft(x,n=2*N)  #2*N because of zero-padding
-            res = np.fft.ifft(F * F.conjugate()) #autocorrelation using Weiner Kinchin theorem
-            res = (res[:N]).real   
-            return res/(N-np.arange(0,N)) #this is the normalized autocorrelation
-
-        #r is an (T,3) ndarray: [time stamps,dof]
-        def msd_fft(r):
-            N=len(r)
-            D=np.square(r).sum(axis=1)
-            D=np.append(D,0)
-            S2=sum([autocorrFFT(r[:, i]) for i in range(r.shape[1])])
-            Q=2*D.sum()
-            S1=[]
-            for m in range(N):
-                Q=Q-D[m-1]-D[N-m]
-                S1.append(Q/(N-m))
-            return np.array(S1) - 2*S2
         
-        msd=[msd_fft(xyz[:,mono_id,:]) for mono_id in range(xyz.shape[1])]
-
+        msd=[_msd_fft(xyz[:,mono_id,:]) for mono_id in range(xyz.shape[1])]
         return np.array(msd)
         
+
+    def _autocorrFFT(x):
+        R"""
+        Internal function. 
+        """
+        N=len(x)
+        F = np.fft.fft(x,n=2*N)  #2*N because of zero-padding
+        res = np.fft.ifft(F * F.conjugate()) #autocorrelation using Weiner Kinchin theorem
+        res = (res[:N]).real   
+        return res/(N-np.arange(0,N)) #this is the normalized autocorrelation
+
+        #r is an (T,3) ndarray: [time stamps,dof]
+    def _msd_fft(r):
+        R"""
+        Internal function. 
+        """
+        N=len(r)
+        D=np.square(r).sum(axis=1)
+        D=np.append(D,0)
+        S2=sum([_autocorrFFT(r[:, i]) for i in range(r.shape[1])])
+        Q=2*D.sum()
+        S1=[]
+        for m in range(N):
+            Q=Q-D[m-1]-D[N-m]
+            S1.append(Q/(N-m))
+        return np.array(S1) - 2*S2
 
     def compute_RadNumDens(self, xyz, dr=1.0, ref='centroid',center=None):
 
