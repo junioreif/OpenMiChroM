@@ -32,7 +32,8 @@ class cndbTools:
 
         self.cndb = h5py.File(filename, 'r')
         
-        self.ChromSeq = np.array(self.cndb['types'])
+        self.ChromSeq_numbers = np.array(self.cndb['types'])
+        self.ChromSeq = [self.Type_conversionInv[x] for x in self.ChromSeq_numbers]
         self.uniqueChromSeq = set(self.ChromSeq)
         
         self.dictChromSeq = {}
@@ -40,7 +41,7 @@ class cndbTools:
         for tt in self.uniqueChromSeq:
             self.dictChromSeq[tt] = ([i for i, e in enumerate(self.ChromSeq) if e == tt])
         
-        self.Nbeads = len(self.ChromSeq)
+        self.Nbeads = len(self.ChromSeq_numbers)
         self.Nframes = len(self.cndb.keys()) -1
         
         return(self)
