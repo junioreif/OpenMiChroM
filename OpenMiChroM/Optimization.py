@@ -28,6 +28,144 @@ from sklearn.preprocessing import normalize
 import os
 import pandas as pd
 
+class AdamTraining:
+    R"""
+    The :class:`~.AdamTraining` class performs the parameters training for each selected loci pair interaction. 
+    
+    Details about the methodology are decribed in "Zhang, Bin, and Peter G. Wolynes. "Topology, structures, and energy landscapes of human chromosomes." Proceedings of the National Academy of Sciences 112.19 (2015): 6062-6067."
+    
+    
+    The :class:`~.AdamTraining` class receive a Hi-C matrix (text file) as input. The parameters :math:`\mu` (mu) and rc are part of the probability of crosslink function :math:`f(r_{i,j}) = \frac{1}{2}\left( 1 + tanh\left[\mu(r_c - r_{i,j}\right] \right)`, where :math:`r_{i,j}` is the spatial distance between loci (beads) *i* and *j*.
+    
+    Args:
+        mu (float, required):
+            Parameter in the probability of crosslink function. (Default value = 2.0).
+        rc (float, required):
+            Parameter in the probability of crosslink function. (Default value = 2.0).
+        eta (float, required):
+            Learning rate applied in each step (Default value = 0.01).
+        it (integer, required)
+            Iteration step      
+        
+    """
+    def __init__(self, mu=2.0, rc = 2.0, eta=0.01, beta1=0.9, beta2=0.999, epsilon=1e-8, it=1):
+        self.m_dw, self.v_dw = 0, 0
+        self.m_db, self.v_db = 1, 1
+        self.beta1 = beta1
+        self.beta2 = beta2
+        self.epsilon = epsilon
+        self.eta = eta
+        self.mu = mu
+        self.rc = rc
+        self.NFrames = 0
+        self.t = it
+
+    def update(self, w, b, dw, db):
+        ## dw, db are from current minibatch
+        ## momentum beta 1
+        # *** weights *** #
+        self.m_dw = self.beta1*self.m_dw + (1-self.beta1)*dw
+        # *** biases *** #
+        self.m_db = self.beta1*self.m_db + (1-self.beta1)*db
+
+        ## rms beta 2
+        # *** weights *** #
+        self.v_dw = self.beta2*self.v_dw + (1-self.beta2)*(dw**2)
+        # *** biases *** #
+        self.v_db = self.beta2*self.v_db + (1-self.beta2)*(db)
+
+        ## bias correction
+        m_dw_corr = self.m_dw/(1-self.beta1**self.t)
+        m_db_corr = self.m_db/(1-self.beta1**self.t)
+        v_dw_corr = self.v_dw/(1-self.beta2**self.t)
+        v_db_corr = self.v_db/(1-self.beta2**self.t)
+
+        ## update weights and biases
+        w = w - self.eta*(m_dw_corr/(np.sqrt(v_dw_corr)+self.epsilon))
+        b = b - self.eta*(m_db_corr/(np.sqrt(v_db_corr)+self.epsilon))
+        self.t += 1
+        return w, b
+
+    def getPars(self, HiC, centerRemove=False, centrange=[0,0], cutoff= 0.0):
+        R"""
+        Receives the experimental Hi-C map (Full dense matrix) in a text format and performs the data normalization from Hi-C frequency/counts/reads to probability.
+        
+        Args:
+            centerRemove (bool, optional):
+                Whether to set the contact probability of the centromeric region to zero. (Default value: :code:`False`).
+            centrange (list, required if **centerRemove** = :code:`True`)):
+                Range of the centromeric region, *i.e.*, :code:`centrange=[i,j]`, where *i* and *j*  are the initial and final beads in the centromere. (Default value = :code:`[0,0]`).
+        """
+        allmap = np.loadtxt(HiC)
+
+        r=np.triu(allmap, k=1)
+        r[np.isinf(r)]= 0.0
+        r[np.isnan(r)]= 0.0
+        r = normalize(r, axis=1, norm='max')
+
+        for i in range(len(r)-1):
+            maxElem = r[i][i+1]
+            if (maxElem != np.max(r[i])):
+                for j in range(len(r[i])):
+                    if maxElem != 0.0:
+                        r[i][j] = float(r[i][j] / maxElem)
+                    else:
+                        r[i][j] = 0.0 
+                    if r[i][j] > 1.0:
+                        r[i][j] = 0.5
+
+        rd = np.transpose(r) 
+        self.expHiC = r+rd + np.diag(np.ones(len(r)))
+        
+        if (centerRemove):
+            centrome = range(centrange[0],centrange[1])
+            self.expHiC[centrome,:] = 0.0
+            self.expHiC[:,centrome] = 0.0
+        
+        #remove noise by cutoff    
+        self.expHiC[self.expHiC<cutoff] = 0.0
+
+        self.mask = self.expHiC == 0.0
+
+        self.phi_exp = self.expHiC #np.triu(self.expHiC, k=1)
+        self.Pi = np.zeros(self.phi_exp.shape)
+
+    def probCalc(self, state):
+        R"""
+        Calculates the contact probability matrix and the cross term of the Hessian.
+        """
+
+        Pi = 0.5*(1.0 + np.tanh(self.mu*(self.rc - distance.cdist(state,state, 'euclidean'))))
+    
+        self.Pi += Pi
+        self.NFrames += 1
+
+    def _getGrad(self):
+        return (-self.phi_sim + self.phi_exp)
+
+    def getLamb(self, Lambdas, fixedPoints=None):
+        self.phi_sim = self.Pi/self.NFrames
+        self.phi_sim[self.mask] = 0.0
+
+        grad = self._getGrad()
+
+        self.lambdas = pd.read_csv(Lambdas, sep=None, engine='python')
+        newlamb_values, newbias_values = self.update(self.lambdas.values, self.lambdas.values, grad, grad)
+
+        self.bias = newbias_values
+
+        if fixedPoints == None:
+            lamb  = pd.DataFrame(newlamb_values,columns=list(self.lambdas.columns.values))
+        else:
+            for p in fixedPoints: #fixedPoints is a list of tuples for iteraction fixed i,j
+                self.mask[p] = True
+
+            lambs_final = np.where(self.mask,self.lambdas.values, newlamb_values)
+            lamb  = pd.DataFrame(lambs_final,columns=list(self.lambdas.columns.values))
+
+        self.error = np.sum(np.absolute(np.triu(self.phi_sim, k=3) - np.triu(self.phi_exp, k=3)))/np.sum(np.triu(self.phi_exp, k=3))
+
+        return (lamb)
 
 class FullTraining:
     R"""
