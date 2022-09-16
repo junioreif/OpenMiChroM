@@ -44,8 +44,12 @@ class AdamTraining:
             Parameter in the probability of crosslink function. (Default value = 2.0).
         eta (float, required):
             Learning rate applied in each step (Default value = 0.01).
-        it (integer, required)
-            Iteration step      
+        beta1 (float, required):
+            The hyper-parameter of Adam are initial decay rates used when estimating the first and second moments of the gradient. (Default value = 0.9).
+        beta2 (float, required):
+            The hyper-parameter of Adam are initial decay rates used when estimating the first and second moments of the gradient. (Default value = 0.999).
+        it (int, required)
+            The iteration step      
         
     """
     def __init__(self, mu=2.0, rc = 2.0, eta=0.01, beta1=0.9, beta2=0.999, epsilon=1e-8, it=1):
@@ -60,7 +64,10 @@ class AdamTraining:
         self.NFrames = 0
         self.t = it
 
-    def update(self, w, b, dw, db):
+    def _update(self, w, b, dw, db):
+        R"""Adam optimization step. This function updates weights and biases for each step.
+        """
+
         ## dw, db are from current minibatch
         ## momentum beta 1
         # *** weights *** #
@@ -91,10 +98,14 @@ class AdamTraining:
         Receives the experimental Hi-C map (Full dense matrix) in a text format and performs the data normalization from Hi-C frequency/counts/reads to probability.
         
         Args:
+            HiC (file, required):
+                Experimental Hi-C map (Full dense matrix) in a text format.
             centerRemove (bool, optional):
                 Whether to set the contact probability of the centromeric region to zero. (Default value: :code:`False`).
             centrange (list, required if **centerRemove** = :code:`True`)):
                 Range of the centromeric region, *i.e.*, :code:`centrange=[i,j]`, where *i* and *j*  are the initial and final beads in the centromere. (Default value = :code:`[0,0]`).
+            cutoff (float, optional):
+                Cutoff value for reducing the noise in the original data. Values lower than the **cutoff** are considered :math:`0.0`.
         """
         allmap = np.loadtxt(HiC)
 
@@ -132,7 +143,7 @@ class AdamTraining:
 
     def probCalc(self, state):
         R"""
-        Calculates the contact probability matrix and the cross term of the Hessian.
+        Calculates the contact probability matrix for a given state.
         """
 
         Pi = 0.5*(1.0 + np.tanh(self.mu*(self.rc - distance.cdist(state,state, 'euclidean'))))
@@ -141,16 +152,32 @@ class AdamTraining:
         self.NFrames += 1
 
     def _getGrad(self):
+        R"""
+        Calcultes the gradient function.
+        """
         return (-self.phi_sim + self.phi_exp)
 
     def getLamb(self, Lambdas, fixedPoints=None):
+        R"""
+        Calculates the Lagrange multipliers of each pair of interaction and returns the matrix containing the energy values for the optimization step.
+        
+        Args:
+            Lambdas (file, required):
+                The matrix containing the energies values used to make the simulation in that step. 
+            fixedPoints (list, optional):
+                List of all pairs (i,j) of interactions that will remain unchanged throughout the optimization procedure.
+        
+        Returns:
+            :math:`(N,N)` :class:`numpy.ndarray`:
+                Returns an updated matrix of interactions between each pair of bead.
+        """
         self.phi_sim = self.Pi/self.NFrames
         self.phi_sim[self.mask] = 0.0
 
         grad = self._getGrad()
 
         self.lambdas = pd.read_csv(Lambdas, sep=None, engine='python')
-        newlamb_values, newbias_values = self.update(self.lambdas.values, self.lambdas.values, grad, grad)
+        newlamb_values, newbias_values = self._update(self.lambdas.values, self.lambdas.values, grad, grad)
 
         self.bias = newbias_values
 
