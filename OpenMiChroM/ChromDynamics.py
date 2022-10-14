@@ -433,6 +433,7 @@ class MiChroM:
 
         self.metadata["FENEBond"] = repr({"kfb": kfb})
         
+
     def _initFENEBond(self, kfb=30):
         R"""
         Internal function that inits FENE bond force.
@@ -448,6 +449,7 @@ class MiChroM:
                 
             self.forceDict["FENEBond"] = bondforceGr
         
+
     def addBond(self, i, j, distance=None, kfb=30):
         
         R"""
@@ -506,7 +508,6 @@ class MiChroM:
         self.metadata["AngleForce"] = repr({"stiffness": ka})
         self.forceDict["AngleForce"] = angles
         
-
         
     def addRepulsiveSoftCore(self, Ecut=4.0):
         
@@ -791,7 +792,7 @@ class MiChroM:
         
         
     def addMultiChainIC(self, mu=3.22, rc = 1.78, Gamma1=-0.030,Gamma2=-0.351,
-                           Gamma3=-3.727, dinit=3, dend=500, chains=None):
+                           Gamma3=-3.727, dinit=3, dend=500, chainIndex=0):
         
         R"""
         Adds the Ideal Chromosome potential for multiple chromosome simulations. The interactions between beads separated by a genomic distance :math:`d` is applied according to the MiChroM energy function parameters reported in "Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173". 
@@ -816,8 +817,8 @@ class MiChroM:
                 The first neighbor in sequence separation (Genomic Distance) to be considered in the Ideal Chromosome potential. (Default value = 3).
             dend (int, required):
                 The last neighbor in sequence separation (Genomic Distance) to be considered in the Ideal Chromosome potential. (Default value = 500).
-            chains (list of tuples, optional):
-                The list of chains in the format [(start, end, isRing)]. isRing is a boolean whether the chromosome chain is circular or not (Used to simulate bacteria genome, for example). The particle range should be semi-open, i.e., a chain  :math:`(0,3,0)` links the particles :math:`0`, :math:`1`, and :math:`2`. If :code:`bool(isRing)` is :code:`True` , the first and last particles of the chain are linked, forming a ring. The default value links all particles of the system into one chain. (Default value: :code:`[(0, None, 0)]`).
+            chainIndex (integer, required):
+                The index of the chain to add the Ideal Chromosome potential. All chains are stored in :code:`self.chains`. (Default value: :code:`0`).
         """
 
         energyIC = ("step(d-dinit)*(gamma1/log(d) + gamma2/d + gamma3/d^2)*step(dend-d)*f;"
@@ -832,14 +833,15 @@ class MiChroM:
         IC.addGlobalParameter('gamma3', Gamma3)
         IC.addGlobalParameter('dinit', dinit)
         IC.addGlobalParameter('dend', dend)
-        
       
         IC.addGlobalParameter('mu', mu)  
         IC.addGlobalParameter('rc', rc) 
         
         IC.setCutoffDistance(3)
         
-        groupList = list(range(chains[0],chains[1]+1))
+        chain = self.chains[chainIndex]
+
+        groupList = list(range(chain[0],chain[1]+1))
         
         IC.addInteractionGroup(groupList,groupList)
         
@@ -848,7 +850,7 @@ class MiChroM:
         for i in range(self.N):
                 IC.addParticle([i])
         
-        self.forceDict["IdealChromosome_chain_"+str(chains[0])] = IC
+        self.forceDict["IdealChromosomeChain{0}".format(chainIndex)] = IC
 
 
     def _getForceIndex(self, forceName):
@@ -923,6 +925,7 @@ class MiChroM:
                 print("%d particles loaded" % self.N)
             self.loaded = True
             
+
     def _applyForces(self):
         R"""Internal function that adds all loci to the system and applies all the forces present in the forcedict."""
 
@@ -962,7 +965,7 @@ class MiChroM:
         
         ForceGroupIndex = 0
         for i,name in enumerate(self.forceDict):
-            if name[:5] == "Ideal":                     # Ideal Chromosome potential has to come after other forces
+            if "IdealChromosomeChain" in name:
                 self.forceDict[name].setForceGroup(31) 
             else:
                 self.forceDict[name].setForceGroup(ForceGroupIndex)
@@ -1381,11 +1384,14 @@ class MiChroM:
             - 'ndb' - Loads a single or multiple *.ndb* files and gets the position and types of the chromosome beads.
             - 'pdb' - Loads a single or multiple *.pdb* files and gets the position and types of the chromosome beads.
             - 'gro' - Loads a single or multiple *.gro* files and gets the position and types of the chromosome beads.
+
         CoordFiles (list of files, optional):
             List of files with xyz information for each chromosomal chain. Accepts .ndb, .pdb, and .gro files. All files provided in the list must be in the same file format.
+
         ChromSeq (list of files, optional):
             List of files with sequence information for each chromosomal chain. The first column should contain the locus index. The second column should have the locus type annotation. A template of the chromatin sequence of types file can be found at the `Nucleome Data Bank (NDB) <https://ndb.rice.edu/static/text/chr10_beads.txt>`__.
             If the chromatin types considered are different from the ones used in the original MiChroM (A1, A2, B1, B2, B3, B4, and NA), the sequence file must be provided when loading .pdb or .gro files, otherwise, all the chains will be defined with 'NA' type. For the .ndb files, the sequence used is the one provided in the file.
+        
         isRing (bool, optional):
             Whether the chromosome chain is circular or not (used to simulate bacteria genome, for example). To be used with the option :code:`'random'`. If :code:`bool(isRing)` is :code:`True` , the first and last particles of the chain are linked, forming a ring. (Default value = :code:`False`).
  
