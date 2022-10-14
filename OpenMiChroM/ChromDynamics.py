@@ -850,30 +850,65 @@ class MiChroM:
         
         self.forceDict["IdealChromosome_chain_"+str(chains[0])] = IC
 
+
     def _getForceIndex(self, forceName):
         R""""
         Get the index of one of the forces in the force dictionary.
         """   
 
         forceObject = self.forceDict[forceName]
-        
+
         index = [i for i,systemForce in enumerate(self.system.getForces()) if systemForce.this == forceObject.this]
 
         if len(index) == 1:
             return index[0]
         else:
-            raise ValueError("Found more than one force with input name!")
+            raise Exception("Found more than one force with input name!")
 
-    def removeFlatBottomharmonic(self, forcename="FlatBottomHarmonic"):
-        if (forcename in self.forceDict):
 
-            self.system.removeForce(self.forceDict[forcename].getForceGroup())
-            del self.forceDict[forcename]
+    def _isForceDictEqualSystemForces(self):
+        R""""
+        Return True when forces in self.forceDict and in self.system are equal.
+        """
+
+        forcesInDict = [ x.this for x in self.forceDict.values() ]
+        forcesInSystem = [ x.this for x in self.system.getForces() ]
+
+        if not len(forcesInDict) == len(forcesInSystem):
+            return False
+        else:
+            isEqual = []
+            for i in forcesInDict:
+                isEqual.append((i in forcesInSystem))
+            return all(isEqual)
+
+
+    def removeForce(self, forceName):
+        R""""
+        Remove force from the system.
+        """
+
+        if forceName in self.forceDict:
+            self.system.removeForce(self._getForceIndex(forceName))
+            del self.forceDict[forceName]
 
             self.context.reinitialize(preserveState=True) 
 
+            assert self._isForceDictEqualSystemForces(), 'Forces in forceDict should be the same as in the system!'
+
         else:
-            print("The system does not have {} force.\nThe forces applied in the system are: {}\n".format(forcename, self.forceDict.keys() ))
+            raise ValueError("The system does not have force {0}.\nThe forces applied in the system are: {}\n".format(forceName, self.forceDict.keys()))
+
+
+    def removeFlatBottomHarmonic(self):
+        R""""
+        Remove FlatBottomHarmonic force from the system.
+        """
+
+        forceName = "FlatBottomHarmonic"
+
+        self.removeForce(forceName)
+
 
     def _loadParticles(self):
         R"""
