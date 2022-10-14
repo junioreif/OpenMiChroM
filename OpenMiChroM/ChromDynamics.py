@@ -1954,6 +1954,11 @@ class MiChroM:
         eP = state.getPotentialEnergy()
         pos = np.array(state.getPositions() / (units.meter * 1e-9))
         bonds = np.sqrt(np.sum(np.diff(pos, axis=0) ** 2, axis=1))
+        
+        # delete "bonds" from different chains
+        indexInDifferentChains = [x[1] for x in self.chains]
+        bonds = np.delete(bonds, indexInDifferentChains[:-1])
+
         sbonds = np.sort(bonds)
         vel = state.getVelocities()
         mass = self.system.getParticleMass(1)
