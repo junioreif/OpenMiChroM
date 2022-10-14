@@ -850,6 +850,20 @@ class MiChroM:
         
         self.forceDict["IdealChromosome_chain_"+str(chains[0])] = IC
 
+    def _getForceIndex(self, forceName):
+        R""""
+        Get the index of one of the forces in the force dictionary.
+        """   
+
+        forceObject = self.forceDict[forceName]
+        
+        index = [i for i,systemForce in enumerate(self.system.getForces()) if systemForce.this == forceObject.this]
+
+        if len(index) == 1:
+            return index[0]
+        else:
+            raise ValueError("Found more than one force with input name!")
+
     def removeFlatBottomharmonic(self, forcename="FlatBottomHarmonic"):
         if (forcename in self.forceDict):
 
