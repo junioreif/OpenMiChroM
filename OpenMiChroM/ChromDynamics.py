@@ -1599,18 +1599,22 @@ class MiChroM:
         elif mode == 'pdb':
             atom = "ATOM  {0:5d} {1:^4s}{2:1s}{3:3s} {4:1s}{5:4d}{6:1s}   {7:8.3f}{8:8.3f}{9:8.3f}{10:6.2f}{11:6.2f}          {12:>2s}{13:2s}"
             ter = "TER   {0:5d}      {1:3s} {2:1s}{3:4d}{4:1s}"
+            model = "MODEL     {0:4d}"
+            title = "TITLE     {0:70s}"
+
             Res_conversion = {'A1':'ASP', 'A2':'GLU', 'B1':'HIS', 'B2':'LYS', 'B3':'ARG', 'B4':'ARG', 'NA':'ASN'}
             Type_conversion = {0:'CA',1:'CA',2:'CA',3:'CA',4:'CA',5:'CA',6:'CA'}
             
-            for ncadeia, cadeia in zip(range(len(self.chains)),self.chains):
+            for chainNum, chain in zip(range(len(self.chains)),self.chains):
                 pdb_string = []
-                filename = self.name +"_" + str(ncadeia) + "_block%d." % self.step + mode
+                filename = self.name +"_" + str(chainNum) + "_block%d." % self.step + mode
 
                 filename = os.path.join(self.folder, filename)
-                data_chain = data[cadeia[0]:cadeia[1]+1]
-                types_chain = self.type_list_letter[cadeia[0]:cadeia[1]+1] 
+                data_chain = data[chain[0]:chain[1]+1]
+                types_chain = self.type_list_letter[chain[0]:chain[1]+1] 
 
-                pdb_string.append("MODEL:\t{}".format(self.name +"_" + str(ncadeia)))
+                pdb_string.append(title.format(self.name + " - chain " + str(chainNum)))
+                pdb_string.append(model.format(0))
 
                 totalAtom = 1
                 for i, line in zip(types_chain, data_chain):
@@ -1633,16 +1637,16 @@ class MiChroM:
             Res_conversion = {'A1':'ASP', 'A2':'GLU', 'B1':'HIS', 'B2':'LYS', 'B3':'ARG', 'B4':'ARG', 'NA':'ASN'}
             Type_conversion = {'A1':'CA', 'A2':'CA', 'B1':'CA', 'B2':'CA', 'B3':'CA', 'B4':'CA', 'NA':'CA'}
             
-            for ncadeia, cadeia in zip(range(len(self.chains)),self.chains):
+            for chainNum, chain in zip(range(len(self.chains)),self.chains):
                 
                 gro_string = []
-                filename = self.name +"_" + str(ncadeia) + "_block%d." % self.step + mode
+                filename = self.name +"_" + str(chainNum) + "_block%d." % self.step + mode
                 filename = os.path.join(self.folder, filename)
                 
-                data_chain = data[cadeia[0]:cadeia[1]+1] 
-                types_chain = self.type_list_letter[cadeia[0]:cadeia[1]+1] 
+                data_chain = data[chain[0]:chain[1]+1] 
+                types_chain = self.type_list_letter[chain[0]:chain[1]+1] 
 
-                gro_string.append(self.name +"_" + str(ncadeia))
+                gro_string.append(self.name +"_" + str(chainNum))
                 gro_string.append(len(data_chain))
                 
                 totalAtom = 1
@@ -1675,12 +1679,12 @@ class MiChroM:
                 n = max(1, n)
                 return ([l[i:i+n] for i in range(0, len(l), n)])
             
-            for ncadeia, cadeia in zip(range(len(self.chains)),self.chains):
-                filename = self.name +"_" + str(ncadeia) + "_block%d." % self.step + mode
+            for chainNum, chain in zip(range(len(self.chains)),self.chains):
+                filename = self.name +"_" + str(chainNum) + "_block%d." % self.step + mode
                 ndbf = []
                 
                 filename = os.path.join(self.folder, filename)
-                data_chain = data[cadeia[0]:cadeia[1]+1]
+                data_chain = data[chain[0]:chain[1]+1]
                 
                 ndbf.append(header_string.format('HEADER','NDB File genereted by Open-MiChroM'," ", " "))
                 ndbf.append(title_string.format('TITLE ','  ','A Scalable Computational Approach for '))
@@ -1689,7 +1693,7 @@ class MiChroM:
                 ndbf.append(expdata_string.format('EXPDTA','  ','Simulation - Open-MiChroM'))
                 ndbf.append(author_string.format('AUTHOR','  ','Antonio B. Oliveira Junior - 2020'))
                 
-                seqList = self.type_list_letter[cadeia[0]:cadeia[1]+1]
+                seqList = self.type_list_letter[chain[0]:chain[1]+1]
 
                 if len(self.diff_types) == len(self.data):
                     seqList = ['SQ' for x in range(len(self.type_list_letter))]
@@ -1707,7 +1711,7 @@ class MiChroM:
                 ndbf.append("END")
                 
                 if hasattr(self, "loopPosition"):
-                    loops = self.loopPosition[cadeia[0]:cadeia[1]+1]
+                    loops = self.loopPosition[chain[0]:chain[1]+1]
                     loops.sort()
                     for p in loops:
                         ndbf.append(loops_string.format("LOOPS",p[0],p[1]))
