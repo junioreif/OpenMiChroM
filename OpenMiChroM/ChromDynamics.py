@@ -684,7 +684,6 @@ class MiChroM:
         for p in self.loopPosition:
             Loop.addBond(p[0]-1,p[1]-1)
   
-        
         self.forceDict["Loops"] = Loop  
         
     def addCustomIC(self, mu=3.22, rc = 1.78, dinit=3, dend=200, IClist=None):
@@ -910,6 +909,47 @@ class MiChroM:
         forceName = "FlatBottomHarmonic"
 
         self.removeForce(forceName)
+
+
+    def applyAdditionalForces(self, forceFunction, **args):
+        R""""
+        Apply additional forces after the system has already been initialized.
+
+        Args:
+
+            forceFunciton (function, required):
+                Force function to be added. Example: addSphericalConfinementLJ
+            *args (collection of arguments, required):
+                Arguments of the function to add the force. Consult respective documentation.
+        """
+
+        try:
+            forceFunction in dir(self)
+        except:
+            raise ValueError("No function with name '{:}' found!".format(forceFunction))
+
+        oldForceDictKeys = [x for x in self.forceDict.keys()]
+
+        forceFunction(**args)
+
+        newForceDictKey = [i for i in self.forceDict.keys() if i not in oldForceDictKeys][0]
+
+        self.system.addForce(self.forceDict[newForceDictKey])
+        self.context.reinitialize(preserveState=True) 
+
+        groupForces = [i.getForceGroup() for i in self.forceDict.values()]
+        
+        i = 0
+        while i in groupForces:
+            i += 1
+
+        if i < 32:
+            self.forceDict[newForceDictKey].setForceGroup(i)
+        else:
+            self.forceDict[newForceDictKey].setForceGroup(31)
+            print("Attention, force was added to Group Force 31 because no other was available.")
+        
+        assert self._isForceDictEqualSystemForces(), 'Forces in forceDict should be the same as in the system!'
 
 
     def _loadParticles(self):
