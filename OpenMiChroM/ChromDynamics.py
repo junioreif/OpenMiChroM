@@ -1248,7 +1248,7 @@ class MiChroM:
         return np.vstack([x,y,z]).T
 
 
-    def create_springSpiral(self, ChromSeq=None, isRing=False):
+    def createSpringSpiral(self, ChromSeq=None, isRing=False):
         
         R"""
         Creates a spring-spiral-like shape for the initial configuration of the chromosome polymer.
@@ -1338,7 +1338,7 @@ class MiChroM:
                 self.diff_types.append(pos[t][1]) 
                 self.type_list_letter.append(pos[t][1])
 
-    def create_line(self, ChromSeq):
+    def createLine(self, ChromSeq):
         
         R"""
         Creates a straight line for the initial configuration of the chromosome polymer.
@@ -1455,24 +1455,35 @@ class MiChroM:
                 else:
                     raise ValueError("Unrecognizable coordinate file.")
 
-        if mode in ['ndb','pdb','gro']:
-            if isinstance(CoordFiles, str):
-                CoordFiles = [CoordFiles]
+        # if the user provide 'str' instead of 'list of str'
+        if isinstance(CoordFiles, str):
+            CoordFiles = [CoordFiles]
 
-            if isinstance(ChromSeq, str):
-                ChromSeq = [ChromSeq]
+        if isinstance(ChromSeq, str):
+            ChromSeq = [ChromSeq]
 
+        # error checking
+        if mode in ['spring', 'line', 'random']:
+            if isinstance(ChromSeq, list):
+                
+                if len(ChromSeq) > 1:
+                    raise ValueError("'{}' mode can only be used to create single chains.".format(mode))
+
+            if CoordFiles != None:
+                raise ValueError("Providing coordinates' file not compatible with mode '{0}'.".format(mode))
+
+        ##
         if mode == 'line':
 
-            return self.create_line(ChromSeq=ChromSeq)
+            return self.createLine(ChromSeq=ChromSeq[0])
 
         elif mode == 'spring':
 
-            return self.create_springSpiral(ChromSeq=ChromSeq, isRing=isRing)
+            return self.createSpringSpiral(ChromSeq=ChromSeq[0], isRing=isRing)
 
         elif mode == 'random':
 
-            return self.createRandomWalk(ChromSeq=ChromSeq)
+            return self.createRandomWalk(ChromSeq=ChromSeq[0])
 
         elif mode == 'ndb':
 
