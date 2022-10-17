@@ -919,7 +919,7 @@ class MiChroM:
 
             forceFunciton (function, required):
                 Force function to be added. Example: addSphericalConfinementLJ
-            *args (collection of arguments, required):
+            **args (collection of arguments, required):
                 Arguments of the function to add the force. Consult respective documentation.
         """
 
@@ -937,17 +937,17 @@ class MiChroM:
         self.system.addForce(self.forceDict[newForceDictKey])
         self.context.reinitialize(preserveState=True) 
 
-        groupForces = [i.getForceGroup() for i in self.forceDict.values()]
+        forceGroups = [i.getForceGroup() for i in self.forceDict.values()]
         
         i = 0
-        while i in groupForces:
+        while i in forceGroups:
             i += 1
 
         if i < 32:
             self.forceDict[newForceDictKey].setForceGroup(i)
         else:
             self.forceDict[newForceDictKey].setForceGroup(31)
-            print("Attention, force was added to Group Force 31 because no other was available.")
+            print("Attention, force was added to Force Group 31 because no other was available.")
         
         assert self._isForceDictEqualSystemForces(), 'Forces in forceDict should be the same as in the system!'
 
@@ -2030,7 +2030,7 @@ class MiChroM:
 
     def printHeader(self):
         print('{:^96s}'.format("***************************************************************************************"))
-        print('{:^96s}'.format("**** **** *** *** *** *** *** *** OpenMiChroM-1.0.4 *** *** *** *** *** *** **** ****"))
+        print('{:^96s}'.format("**** **** *** *** *** *** *** *** OpenMiChroM-1.0.5 *** *** *** *** *** *** **** ****"))
         print('')
         print('{:^96s}'.format("OpenMiChroM is a Python library for performing chromatin dynamics simulations."))
         print('{:^96s}'.format("OpenMiChroM uses the OpenMM Python API,"))
