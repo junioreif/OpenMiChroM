@@ -145,7 +145,7 @@ class MiChroM:
                 data = self.getPositions()
                 data -= np.min(data, axis=0)
 
-                datasize = 1.1 * (2 + (np.max(self.getPositions(), axis=0) -                                        np.min(self.getPositions(), axis=0)))
+                datasize = 1.1 * (2 + (np.max(self.getPositions(), axis=0) - np.min(self.getPositions(), axis=0)))
 
                 self.SolventGridSize = (datasize / 1.1) - 2
                 print("density is ", self.N / (datasize[0]
@@ -847,7 +847,7 @@ class MiChroM:
         IC.addPerParticleParameter("idx")
 
         for i in range(self.N):
-                IC.addParticle([i])
+            IC.addParticle([i])
         
         self.forceDict["IdealChromosomeChain{0}".format(chainIndex)] = IC
 
@@ -869,7 +869,7 @@ class MiChroM:
 
     def _isForceDictEqualSystemForces(self):
         R""""
-        Return True when forces in self.forceDict and in self.system are equal.
+        Internal function that returns True when forces in self.forceDict and in self.system are equal.
         """
 
         forcesInDict = [ x.this for x in self.forceDict.values() ]
@@ -911,9 +911,9 @@ class MiChroM:
         self.removeForce(forceName)
 
 
-    def applyAdditionalForces(self, forceFunction, **args):
+    def addAdditionalForce(self, forceFunction, **args):
         R""""
-        Apply additional forces after the system has already been initialized.
+        Add an additional force after the system has already been initialized.
 
         Args:
 
@@ -1861,18 +1861,22 @@ class MiChroM:
 
         self.context.setVelocities(velocs) 
         
-    def setFibPosition(self, myChrom, plot=False, dist=(1.0,3.0)):
+    def setFibPosition(self, myChrom, plot=False, factor=1.0):
         R"""
         Distributes the chromosomes inside a nucleus according to the Fibonacci Sphere algorithm.
         
         Args:
 
             myChrom (file, required):
-                 The 3D structure of the chromosome chain to be distributed in the sphere surface.
+                The 3D structure of the chromosome chain to be distributed in the sphere surface.
             plot (bool, optional):
                 Whether to build a 3D plot of the initial chromosome distribution. (Default value: :code:`False`).
-            dist (tuple, optional):
-                Values used as references to keep the center of the chromosome chain at a certain distance from the center of the nucleus and the nucleus wall. (Default value: (1.0,3.0)).
+            factor (float, optional):
+                Scale coefficient to be multiplied to the radius of the nucleus, determining the radius of the sphere
+                in which the center of mass of chromosomes will be distributed. The radius of the nucleus is calculated 
+                based on the number of beads to generate a volume density of 0.1. 
+
+                :math:`R_{sphere} = factor * R_{nucleus}`
                 
         Returns:
                 Returns the chromosome chain positions that are loaded into OpenMM using the function :class:`loadStructure`.
@@ -1926,8 +1930,8 @@ class MiChroM:
             plotDistribution(points=points, filename=filename)
         
         for i in range(len(self.chains)):
-            points[i] = [ x * dist[0] * R_nucleus + dist[1] * R_nucleus for x in points[i]]
-            myChrom[self.chains[i][0]:self.chains[i][1]+1] -= np.array(points[i])
+            points[i] = [ x * factor * R_nucleus for x in points[i]]
+            myChrom[self.chains[i][0]:self.chains[i][1]+1] += np.array(points[i])
             
         return(myChrom)
         
