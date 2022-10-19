@@ -1455,14 +1455,12 @@ class MiChroM:
                 else:
                     raise ValueError("Unrecognizable coordinate file.")
 
-        # if the user provide 'str' instead of 'list of str'
         if isinstance(CoordFiles, str):
             CoordFiles = [CoordFiles]
 
         if isinstance(ChromSeq, str):
             ChromSeq = [ChromSeq]
 
-        # error checking
         if mode in ['spring', 'line', 'random']:
             if isinstance(ChromSeq, list):
                 
@@ -1472,7 +1470,6 @@ class MiChroM:
             if CoordFiles != None:
                 raise ValueError("Providing coordinates' file not compatible with mode '{0}'.".format(mode))
 
-        ##
         if mode == 'line':
 
             return self.createLine(ChromSeq=ChromSeq[0])
@@ -1861,16 +1858,16 @@ class MiChroM:
 
         self.context.setVelocities(velocs) 
         
-    def setFibPosition(self, myChrom, plot=False, factor=1.0):
+    def setFibPosition(self, positions, returnCM=False, factor=1.0):
         R"""
-        Distributes the chromosomes inside a nucleus according to the Fibonacci Sphere algorithm.
+        Distributes the center of mass of chromosomes on the surface of a sphere according to the Fibonacci Sphere algorithm.
         
         Args:
 
-            myChrom (file, required):
-                The 3D structure of the chromosome chain to be distributed in the sphere surface.
-            plot (bool, optional):
-                Whether to build a 3D plot of the initial chromosome distribution. (Default value: :code:`False`).
+            positions (:math:`(Nbeads, 3)` :class:`numpy.ndarray`, required):
+                The array of positions of the chromosome chains to be distributed in the sphere surface.
+            returnCM (bool, optional):
+                Whether to return an array with the center of mass of the chromosomes. (Default value: :code:`False`).
             factor (float, optional):
                 Scale coefficient to be multiplied to the radius of the nucleus, determining the radius of the sphere
                 in which the center of mass of chromosomes will be distributed. The radius of the nucleus is calculated 
@@ -1879,10 +1876,16 @@ class MiChroM:
                 :math:`R_{sphere} = factor * R_{nucleus}`
                 
         Returns:
-                Returns the chromosome chain positions that are loaded into OpenMM using the function :class:`loadStructure`.
+
+            :math:`(Nbeads, 3)` :class:`numpy.ndarray`:
+                Returns an array of positions to be loaded into OpenMM using the function :class:`loadStructure`.
+
+            :math:`(Nchains, 3)` :class:`numpy.ndarray`:
+                Returns an array with the new coordinates of the center of mass of each chain.
+
         """
         
-        def fibonacci_sphere(samples=1, randomize=True):
+        def fibonacciSphere(samples=1, randomize=True):
             R"""
             Internal function for running the Fibonacci Sphere algorithm.
             """
@@ -1903,37 +1906,21 @@ class MiChroM:
                 points.append([x,y,z])
 
             np.random.shuffle(points)
+            
             return points
     
-        def plotDistribution(points, filename='.'):
-            R"""
-            Internal function for plotting the initial chromosome distribution.
-            """
-            from mpl_toolkits.mplot3d import Axes3D
-            r = 1
-            pi = np.pi
-            cos = np.cos
-            sin = np.sin
-            phi, theta = np.mgrid[0.0:pi:100j, 0.0:2.0*pi:100j]
-            x = r*sin(phi)*cos(theta)
-            y = r*sin(phi)*sin(theta)
-            z = r*cos(phi)
-            xx=np.array(points)[:,0]
-            yy=np.array(points)[:,1]
-            zz=np.array(points)[:,2]
-    
-        points = fibonacci_sphere(len(self.chains))
-        R_nucleus = ( (self.chains[-1][1]+1) * (1.0/2.)**3 / 0.1 )**(1./3)
-        if (plot):
-            filename = "chainsDistr_%d." % self.step
-            filename = os.path.join(self.folder, filename)
-            plotDistribution(points=points, filename=filename)
+        points = fibonacciSphere(len(self.chains))
+        
+        R_nucleus = ( (self.chains[-1][1]+1) * (1.0/2.0)**3 / 0.1 )**(1.0/3.0)
         
         for i in range(len(self.chains)):
             points[i] = [ x * factor * R_nucleus for x in points[i]]
-            myChrom[self.chains[i][0]:self.chains[i][1]+1] += np.array(points[i])
+            positions[self.chains[i][0]:self.chains[i][1]+1] += np.array(points[i])
             
-        return(myChrom)
+        if returnCM:
+            return positions,points
+        else:
+            return positions
         
     def chromRG(self):
         R"""
