@@ -145,7 +145,7 @@ class MiChroM:
                 data = self.getPositions()
                 data -= np.min(data, axis=0)
 
-                datasize = 1.1 * (2 + (np.max(self.getPositions(), axis=0) -                                        np.min(self.getPositions(), axis=0)))
+                datasize = 1.1 * (2 + (np.max(self.getPositions(), axis=0) - np.min(self.getPositions(), axis=0)))
 
                 self.SolventGridSize = (datasize / 1.1) - 2
                 print("density is ", self.N / (datasize[0]
@@ -433,6 +433,7 @@ class MiChroM:
 
         self.metadata["FENEBond"] = repr({"kfb": kfb})
         
+
     def _initFENEBond(self, kfb=30):
         R"""
         Internal function that inits FENE bond force.
@@ -448,6 +449,7 @@ class MiChroM:
                 
             self.forceDict["FENEBond"] = bondforceGr
         
+
     def addBond(self, i, j, distance=None, kfb=30):
         
         R"""
@@ -506,7 +508,6 @@ class MiChroM:
         self.metadata["AngleForce"] = repr({"stiffness": ka})
         self.forceDict["AngleForce"] = angles
         
-
         
     def addRepulsiveSoftCore(self, Ecut=4.0):
         
@@ -683,7 +684,6 @@ class MiChroM:
         for p in self.loopPosition:
             Loop.addBond(p[0]-1,p[1]-1)
   
-        
         self.forceDict["Loops"] = Loop  
         
     def addCustomIC(self, mu=3.22, rc = 1.78, dinit=3, dend=200, IClist=None):
@@ -791,7 +791,7 @@ class MiChroM:
         
         
     def addMultiChainIC(self, mu=3.22, rc = 1.78, Gamma1=-0.030,Gamma2=-0.351,
-                           Gamma3=-3.727, dinit=3, dend=500, chains=None):
+                           Gamma3=-3.727, dinit=3, dend=500, chainIndex=0):
         
         R"""
         Adds the Ideal Chromosome potential for multiple chromosome simulations. The interactions between beads separated by a genomic distance :math:`d` is applied according to the MiChroM energy function parameters reported in "Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173". 
@@ -816,8 +816,8 @@ class MiChroM:
                 The first neighbor in sequence separation (Genomic Distance) to be considered in the Ideal Chromosome potential. (Default value = 3).
             dend (int, required):
                 The last neighbor in sequence separation (Genomic Distance) to be considered in the Ideal Chromosome potential. (Default value = 500).
-            chains (list of tuples, optional):
-                The list of chains in the format [(start, end, isRing)]. isRing is a boolean whether the chromosome chain is circular or not (Used to simulate bacteria genome, for example). The particle range should be semi-open, i.e., a chain  :math:`(0,3,0)` links the particles :math:`0`, :math:`1`, and :math:`2`. If :code:`bool(isRing)` is :code:`True` , the first and last particles of the chain are linked, forming a ring. The default value links all particles of the system into one chain. (Default value: :code:`[(0, None, 0)]`).
+            chainIndex (integer, required):
+                The index of the chain to add the Ideal Chromosome potential. All chains are stored in :code:`self.chains`. (Default value: :code:`0`).
         """
 
         energyIC = ("step(d-dinit)*(gamma1/log(d) + gamma2/d + gamma3/d^2)*step(dend-d)*f;"
@@ -832,34 +832,125 @@ class MiChroM:
         IC.addGlobalParameter('gamma3', Gamma3)
         IC.addGlobalParameter('dinit', dinit)
         IC.addGlobalParameter('dend', dend)
-        
       
         IC.addGlobalParameter('mu', mu)  
         IC.addGlobalParameter('rc', rc) 
         
         IC.setCutoffDistance(3)
         
-        groupList = list(range(chains[0],chains[1]+1))
+        chain = self.chains[chainIndex]
+
+        groupList = list(range(chain[0],chain[1]+1))
         
         IC.addInteractionGroup(groupList,groupList)
         
         IC.addPerParticleParameter("idx")
 
         for i in range(self.N):
-                IC.addParticle([i])
+            IC.addParticle([i])
         
-        self.forceDict["IdealChromosome_chain_"+str(chains[0])] = IC
+        self.forceDict["IdealChromosomeChain{0}".format(chainIndex)] = IC
 
-    def removeFlatBottomharmonic(self, forcename="FlatBottomHarmonic"):
-        if (forcename in self.forceDict):
 
-            self.system.removeForce(self.forceDict[forcename].getForceGroup())
-            del self.forceDict[forcename]
+    def _getForceIndex(self, forceName):
+        R""""
+        Get the index of one of the forces in the force dictionary.
+        """   
+
+        forceObject = self.forceDict[forceName]
+
+        index = [i for i,systemForce in enumerate(self.system.getForces()) if systemForce.this == forceObject.this]
+
+        if len(index) == 1:
+            return index[0]
+        else:
+            raise Exception("Found more than one force with input name!")
+
+
+    def _isForceDictEqualSystemForces(self):
+        R""""
+        Internal function that returns True when forces in self.forceDict and in self.system are equal.
+        """
+
+        forcesInDict = [ x.this for x in self.forceDict.values() ]
+        forcesInSystem = [ x.this for x in self.system.getForces() ]
+
+        if not len(forcesInDict) == len(forcesInSystem):
+            return False
+        else:
+            isEqual = []
+            for i in forcesInDict:
+                isEqual.append((i in forcesInSystem))
+            return all(isEqual)
+
+
+    def removeForce(self, forceName):
+        R""""
+        Remove force from the system.
+        """
+
+        if forceName in self.forceDict:
+            self.system.removeForce(self._getForceIndex(forceName))
+            del self.forceDict[forceName]
 
             self.context.reinitialize(preserveState=True) 
 
+            assert self._isForceDictEqualSystemForces(), 'Forces in forceDict should be the same as in the system!'
+
         else:
-            print("The system does not have {} force.\nThe forces applied in the system are: {}\n".format(forcename, self.forceDict.keys() ))
+            raise ValueError("The system does not have force {0}.\nThe forces applied in the system are: {}\n".format(forceName, self.forceDict.keys()))
+
+
+    def removeFlatBottomHarmonic(self):
+        R""""
+        Remove FlatBottomHarmonic force from the system.
+        """
+
+        forceName = "FlatBottomHarmonic"
+
+        self.removeForce(forceName)
+
+
+    def addAdditionalForce(self, forceFunction, **args):
+        R""""
+        Add an additional force after the system has already been initialized.
+
+        Args:
+
+            forceFunciton (function, required):
+                Force function to be added. Example: addSphericalConfinementLJ
+            **args (collection of arguments, required):
+                Arguments of the function to add the force. Consult respective documentation.
+        """
+
+        try:
+            forceFunction in dir(self)
+        except:
+            raise ValueError("No function with name '{:}' found!".format(forceFunction))
+
+        oldForceDictKeys = [x for x in self.forceDict.keys()]
+
+        forceFunction(**args)
+
+        newForceDictKey = [i for i in self.forceDict.keys() if i not in oldForceDictKeys][0]
+
+        self.system.addForce(self.forceDict[newForceDictKey])
+        self.context.reinitialize(preserveState=True) 
+
+        forceGroups = [i.getForceGroup() for i in self.forceDict.values()]
+        
+        i = 0
+        while i in forceGroups:
+            i += 1
+
+        if i < 32:
+            self.forceDict[newForceDictKey].setForceGroup(i)
+        else:
+            self.forceDict[newForceDictKey].setForceGroup(31)
+            print("Attention, force was added to Force Group 31 because no other was available.")
+        
+        assert self._isForceDictEqualSystemForces(), 'Forces in forceDict should be the same as in the system!'
+
 
     def _loadParticles(self):
         R"""
@@ -874,6 +965,7 @@ class MiChroM:
                 print("%d particles loaded" % self.N)
             self.loaded = True
             
+
     def _applyForces(self):
         R"""Internal function that adds all loci to the system and applies all the forces present in the forcedict."""
 
@@ -913,7 +1005,7 @@ class MiChroM:
         
         ForceGroupIndex = 0
         for i,name in enumerate(self.forceDict):
-            if name[:5] == "Ideal":                     # Ideal Chromosome potential has to come after other forces
+            if "IdealChromosomeChain" in name:
                 self.forceDict[name].setForceGroup(31) 
             else:
                 self.forceDict[name].setForceGroup(ForceGroupIndex)
@@ -1156,7 +1248,7 @@ class MiChroM:
         return np.vstack([x,y,z]).T
 
 
-    def create_springSpiral(self, ChromSeq=None, isRing=False):
+    def createSpringSpiral(self, ChromSeq=None, isRing=False):
         
         R"""
         Creates a spring-spiral-like shape for the initial configuration of the chromosome polymer.
@@ -1246,7 +1338,7 @@ class MiChroM:
                 self.diff_types.append(pos[t][1]) 
                 self.type_list_letter.append(pos[t][1])
 
-    def create_line(self, ChromSeq):
+    def createLine(self, ChromSeq):
         
         R"""
         Creates a straight line for the initial configuration of the chromosome polymer.
@@ -1332,11 +1424,14 @@ class MiChroM:
             - 'ndb' - Loads a single or multiple *.ndb* files and gets the position and types of the chromosome beads.
             - 'pdb' - Loads a single or multiple *.pdb* files and gets the position and types of the chromosome beads.
             - 'gro' - Loads a single or multiple *.gro* files and gets the position and types of the chromosome beads.
+
         CoordFiles (list of files, optional):
             List of files with xyz information for each chromosomal chain. Accepts .ndb, .pdb, and .gro files. All files provided in the list must be in the same file format.
+
         ChromSeq (list of files, optional):
             List of files with sequence information for each chromosomal chain. The first column should contain the locus index. The second column should have the locus type annotation. A template of the chromatin sequence of types file can be found at the `Nucleome Data Bank (NDB) <https://ndb.rice.edu/static/text/chr10_beads.txt>`__.
             If the chromatin types considered are different from the ones used in the original MiChroM (A1, A2, B1, B2, B3, B4, and NA), the sequence file must be provided when loading .pdb or .gro files, otherwise, all the chains will be defined with 'NA' type. For the .ndb files, the sequence used is the one provided in the file.
+        
         isRing (bool, optional):
             Whether the chromosome chain is circular or not (used to simulate bacteria genome, for example). To be used with the option :code:`'random'`. If :code:`bool(isRing)` is :code:`True` , the first and last particles of the chain are linked, forming a ring. (Default value = :code:`False`).
  
@@ -1360,24 +1455,32 @@ class MiChroM:
                 else:
                     raise ValueError("Unrecognizable coordinate file.")
 
-        if mode in ['ndb','pdb','gro']:
-            if isinstance(CoordFiles, str):
-                CoordFiles = [CoordFiles]
+        if isinstance(CoordFiles, str):
+            CoordFiles = [CoordFiles]
 
-            if isinstance(ChromSeq, str):
-                ChromSeq = [ChromSeq]
+        if isinstance(ChromSeq, str):
+            ChromSeq = [ChromSeq]
+
+        if mode in ['spring', 'line', 'random']:
+            if isinstance(ChromSeq, list):
+                
+                if len(ChromSeq) > 1:
+                    raise ValueError("'{}' mode can only be used to create single chains.".format(mode))
+
+            if CoordFiles != None:
+                raise ValueError("Providing coordinates' file not compatible with mode '{0}'.".format(mode))
 
         if mode == 'line':
 
-            return self.create_line(ChromSeq=ChromSeq)
+            return self.createLine(ChromSeq=ChromSeq[0])
 
         elif mode == 'spring':
 
-            return self.create_springSpiral(ChromSeq=ChromSeq, isRing=isRing)
+            return self.createSpringSpiral(ChromSeq=ChromSeq[0], isRing=isRing)
 
         elif mode == 'random':
 
-            return self.createRandomWalk(ChromSeq=ChromSeq)
+            return self.createRandomWalk(ChromSeq=ChromSeq[0])
 
         elif mode == 'ndb':
 
@@ -1504,18 +1607,22 @@ class MiChroM:
         elif mode == 'pdb':
             atom = "ATOM  {0:5d} {1:^4s}{2:1s}{3:3s} {4:1s}{5:4d}{6:1s}   {7:8.3f}{8:8.3f}{9:8.3f}{10:6.2f}{11:6.2f}          {12:>2s}{13:2s}"
             ter = "TER   {0:5d}      {1:3s} {2:1s}{3:4d}{4:1s}"
+            model = "MODEL     {0:4d}"
+            title = "TITLE     {0:70s}"
+
             Res_conversion = {'A1':'ASP', 'A2':'GLU', 'B1':'HIS', 'B2':'LYS', 'B3':'ARG', 'B4':'ARG', 'NA':'ASN'}
             Type_conversion = {0:'CA',1:'CA',2:'CA',3:'CA',4:'CA',5:'CA',6:'CA'}
             
-            for ncadeia, cadeia in zip(range(len(self.chains)),self.chains):
+            for chainNum, chain in zip(range(len(self.chains)),self.chains):
                 pdb_string = []
-                filename = self.name +"_" + str(ncadeia) + "_block%d." % self.step + mode
+                filename = self.name +"_" + str(chainNum) + "_block%d." % self.step + mode
 
                 filename = os.path.join(self.folder, filename)
-                data_chain = data[cadeia[0]:cadeia[1]+1]
-                types_chain = self.type_list_letter[cadeia[0]:cadeia[1]+1] 
+                data_chain = data[chain[0]:chain[1]+1]
+                types_chain = self.type_list_letter[chain[0]:chain[1]+1] 
 
-                pdb_string.append("MODEL:\t{}".format(self.name +"_" + str(ncadeia)))
+                pdb_string.append(title.format(self.name + " - chain " + str(chainNum)))
+                pdb_string.append(model.format(0))
 
                 totalAtom = 1
                 for i, line in zip(types_chain, data_chain):
@@ -1538,16 +1645,16 @@ class MiChroM:
             Res_conversion = {'A1':'ASP', 'A2':'GLU', 'B1':'HIS', 'B2':'LYS', 'B3':'ARG', 'B4':'ARG', 'NA':'ASN'}
             Type_conversion = {'A1':'CA', 'A2':'CA', 'B1':'CA', 'B2':'CA', 'B3':'CA', 'B4':'CA', 'NA':'CA'}
             
-            for ncadeia, cadeia in zip(range(len(self.chains)),self.chains):
+            for chainNum, chain in zip(range(len(self.chains)),self.chains):
                 
                 gro_string = []
-                filename = self.name +"_" + str(ncadeia) + "_block%d." % self.step + mode
+                filename = self.name +"_" + str(chainNum) + "_block%d." % self.step + mode
                 filename = os.path.join(self.folder, filename)
                 
-                data_chain = data[cadeia[0]:cadeia[1]+1] 
-                types_chain = self.type_list_letter[cadeia[0]:cadeia[1]+1] 
+                data_chain = data[chain[0]:chain[1]+1] 
+                types_chain = self.type_list_letter[chain[0]:chain[1]+1] 
 
-                gro_string.append(self.name +"_" + str(ncadeia))
+                gro_string.append(self.name +"_" + str(chainNum))
                 gro_string.append(len(data_chain))
                 
                 totalAtom = 1
@@ -1580,12 +1687,12 @@ class MiChroM:
                 n = max(1, n)
                 return ([l[i:i+n] for i in range(0, len(l), n)])
             
-            for ncadeia, cadeia in zip(range(len(self.chains)),self.chains):
-                filename = self.name +"_" + str(ncadeia) + "_block%d." % self.step + mode
+            for chainNum, chain in zip(range(len(self.chains)),self.chains):
+                filename = self.name +"_" + str(chainNum) + "_block%d." % self.step + mode
                 ndbf = []
                 
                 filename = os.path.join(self.folder, filename)
-                data_chain = data[cadeia[0]:cadeia[1]+1]
+                data_chain = data[chain[0]:chain[1]+1]
                 
                 ndbf.append(header_string.format('HEADER','NDB File genereted by Open-MiChroM'," ", " "))
                 ndbf.append(title_string.format('TITLE ','  ','A Scalable Computational Approach for '))
@@ -1594,7 +1701,7 @@ class MiChroM:
                 ndbf.append(expdata_string.format('EXPDTA','  ','Simulation - Open-MiChroM'))
                 ndbf.append(author_string.format('AUTHOR','  ','Antonio B. Oliveira Junior - 2020'))
                 
-                seqList = self.type_list_letter[cadeia[0]:cadeia[1]+1]
+                seqList = self.type_list_letter[chain[0]:chain[1]+1]
 
                 if len(self.diff_types) == len(self.data):
                     seqList = ['SQ' for x in range(len(self.type_list_letter))]
@@ -1612,7 +1719,7 @@ class MiChroM:
                 ndbf.append("END")
                 
                 if hasattr(self, "loopPosition"):
-                    loops = self.loopPosition[cadeia[0]:cadeia[1]+1]
+                    loops = self.loopPosition[chain[0]:chain[1]+1]
                     loops.sort()
                     for p in loops:
                         ndbf.append(loops_string.format("LOOPS",p[0],p[1]))
@@ -1751,24 +1858,34 @@ class MiChroM:
 
         self.context.setVelocities(velocs) 
         
-    def setFibPosition(self, myChrom, plot=False, dist=(1.0,3.0)):
+    def setFibPosition(self, positions, returnCM=False, factor=1.0):
         R"""
-        Distributes the chromosomes inside a nucleus according to the Fibonacci Sphere algorithm.
+        Distributes the center of mass of chromosomes on the surface of a sphere according to the Fibonacci Sphere algorithm.
         
         Args:
 
-            myChrom (file, required):
-                 The 3D structure of the chromosome chain to be distributed in the sphere surface.
-            plot (bool, optional):
-                Whether to build a 3D plot of the initial chromosome distribution. (Default value: :code:`False`).
-            dist (tuple, optional):
-                Values used as references to keep the center of the chromosome chain at a certain distance from the center of the nucleus and the nucleus wall. (Default value: (1.0,3.0)).
+            positions (:math:`(Nbeads, 3)` :class:`numpy.ndarray`, required):
+                The array of positions of the chromosome chains to be distributed in the sphere surface.
+            returnCM (bool, optional):
+                Whether to return an array with the center of mass of the chromosomes. (Default value: :code:`False`).
+            factor (float, optional):
+                Scale coefficient to be multiplied to the radius of the nucleus, determining the radius of the sphere
+                in which the center of mass of chromosomes will be distributed. The radius of the nucleus is calculated 
+                based on the number of beads to generate a volume density of 0.1. 
+
+                :math:`R_{sphere} = factor * R_{nucleus}`
                 
         Returns:
-                Returns the chromosome chain positions that are loaded into OpenMM using the function :class:`loadStructure`.
+
+            :math:`(Nbeads, 3)` :class:`numpy.ndarray`:
+                Returns an array of positions to be loaded into OpenMM using the function :class:`loadStructure`.
+
+            :math:`(Nchains, 3)` :class:`numpy.ndarray`:
+                Returns an array with the new coordinates of the center of mass of each chain.
+
         """
         
-        def fibonacci_sphere(samples=1, randomize=True):
+        def fibonacciSphere(samples=1, randomize=True):
             R"""
             Internal function for running the Fibonacci Sphere algorithm.
             """
@@ -1789,37 +1906,21 @@ class MiChroM:
                 points.append([x,y,z])
 
             np.random.shuffle(points)
+            
             return points
     
-        def plotDistribution(points, filename='.'):
-            R"""
-            Internal function for plotting the initial chromosome distribution.
-            """
-            from mpl_toolkits.mplot3d import Axes3D
-            r = 1
-            pi = np.pi
-            cos = np.cos
-            sin = np.sin
-            phi, theta = np.mgrid[0.0:pi:100j, 0.0:2.0*pi:100j]
-            x = r*sin(phi)*cos(theta)
-            y = r*sin(phi)*sin(theta)
-            z = r*cos(phi)
-            xx=np.array(points)[:,0]
-            yy=np.array(points)[:,1]
-            zz=np.array(points)[:,2]
-    
-        points = fibonacci_sphere(len(self.chains))
-        R_nucleus = ( (self.chains[-1][1]+1) * (1.0/2.)**3 / 0.1 )**(1./3)
-        if (plot):
-            filename = "chainsDistr_%d." % self.step
-            filename = os.path.join(self.folder, filename)
-            plotDistribution(points=points, filename=filename)
+        points = fibonacciSphere(len(self.chains))
+        
+        R_nucleus = ( (self.chains[-1][1]+1) * (1.0/2.0)**3 / 0.1 )**(1.0/3.0)
         
         for i in range(len(self.chains)):
-            points[i] = [ x * dist[0] * R_nucleus + dist[1] * R_nucleus for x in points[i]]
-            myChrom[self.chains[i][0]:self.chains[i][1]+1] -= np.array(points[i])
+            points[i] = [ x * factor * R_nucleus for x in points[i]]
+            positions[self.chains[i][0]:self.chains[i][1]+1] += np.array(points[i])
             
-        return(myChrom)
+        if returnCM:
+            return positions,points
+        else:
+            return positions
         
     def chromRG(self):
         R"""
@@ -1855,6 +1956,11 @@ class MiChroM:
         eP = state.getPotentialEnergy()
         pos = np.array(state.getPositions() / (units.meter * 1e-9))
         bonds = np.sqrt(np.sum(np.diff(pos, axis=0) ** 2, axis=1))
+        
+        # delete "bonds" from different chains
+        indexInDifferentChains = [x[1] for x in self.chains]
+        bonds = np.delete(bonds, indexInDifferentChains[:-1])
+
         sbonds = np.sort(bonds)
         vel = state.getVelocities()
         mass = self.system.getParticleMass(1)
@@ -1926,7 +2032,7 @@ class MiChroM:
 
     def printHeader(self):
         print('{:^96s}'.format("***************************************************************************************"))
-        print('{:^96s}'.format("**** **** *** *** *** *** *** *** OpenMiChroM-1.0.4 *** *** *** *** *** *** **** ****"))
+        print('{:^96s}'.format("**** **** *** *** *** *** *** *** OpenMiChroM-1.0.5 *** *** *** *** *** *** **** ****"))
         print('')
         print('{:^96s}'.format("OpenMiChroM is a Python library for performing chromatin dynamics simulations."))
         print('{:^96s}'.format("OpenMiChroM uses the OpenMM Python API,"))
