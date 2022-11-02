@@ -46,7 +46,7 @@ class cndbTools:
         return(self)
     
     
-    def xyz(self, frames=[1,None,1], beadSelection='all', XYZ=[0,1,2]):
+    def xyz(self, frames=[1,None,1], beadSelection=None, XYZ=[0,1,2]):
         R"""
         Get the selected beads' 3D position from a **cndb** or **ndb** for multiple frames.
         
@@ -54,17 +54,16 @@ class cndbTools:
             frames (list, required):
                 Define the range of frames that the position of the bead will get extracted. The range list is defined by :code:`frames=[initial, final, step]`. (Default value = :code: `[1,None,1]`, all frames)
             beadSelection (list of ints, required):
-                List of beads to extract the 3D position for each frame. The list is defined by :code: `beadSelection=[1,2,3...N]`. (Default value = :code: `'all'`, all beads) 
+                List of beads to extract the 3D position for each frame. The list is defined by :code: `beadSelection=[0,1,2,...,N-1]`. (Default value = :code: `None`, all beads) 
             XYZ (list, required):
                 List of the axis in the Cartesian coordinate system that the position of the bead will get extracted for each frame. The list is defined by :code: `XYZ=[0,1,2]`. where 0, 1 and 2 are the axis X, Y and Z, respectively. (Default value = :code: `XYZ=[0,1,2]`) 
     
         Returns:
-            :math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray`:
-                Returns an array of the 3D position of the selected beads for different frames.
+            (:math:`N_{frames}`, :math:`N_{beads}`, 3) :class:`numpy.ndarray`: Returns an array of the 3D position of the selected beads for different frames.
         """
         frame_list = []
         
-        if beadSelection == 'all':
+        if beadSelection == None:
             selection = np.arange(self.Nbeads)
         else:
             selection = np.array(beadSelection)
@@ -156,7 +155,7 @@ class cndbTools:
 
     
 #########################################################################################
-#### Analisys start here!
+#### Analysis start here!
 #########################################################################################
 
     def compute_Orientation_OP(self,xyz,chrom_start=0,chrom_end=1000,vec_length=4):
