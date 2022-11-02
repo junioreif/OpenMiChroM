@@ -14,7 +14,7 @@ from scipy.spatial import distance
 class cndbTools:
 
     def __init__(self):
-        self.Type_conversion = {'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6}
+        self.Type_conversion = {'A1':0, 'A2':1, 'B1':2, 'B2':3, 'B3':4, 'B4':5, 'NA':6}
         self.Type_conversionInv = {y:x for x,y in self.Type_conversion.items()}
     
     def load(self, filename):
@@ -32,7 +32,7 @@ class cndbTools:
 
         self.cndb = h5py.File(filename, 'r')
         
-        self.ChromSeq = np.array(self.cndb['types'])
+        self.ChromSeq = list(self.cndb['types'].asstr())
         self.uniqueChromSeq = set(self.ChromSeq)
         
         self.dictChromSeq = {}
