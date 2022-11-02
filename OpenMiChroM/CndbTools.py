@@ -52,11 +52,11 @@ class cndbTools:
         
         Args:
             frames (list, required):
-                Define the range of frames that the position of the bead will get extracted. The range list is defined by :code:`frames=[initial, final, step]`. (Default value = :code: `[1,None,1]`, all frames)
+                Define the range of frames that the position of the bead will get extracted. The range list is defined by :code:`frames=[initial, final, step]`. (Default value: :code: `[1,None,1]`, all frames)
             beadSelection (list of ints, required):
-                List of beads to extract the 3D position for each frame. The list is defined by :code: `beadSelection=[0,1,2,...,N-1]`. (Default value = :code: `None`, all beads) 
+                List of beads to extract the 3D position for each frame. The list is defined by :code: `beadSelection=[0,1,2,...,N-1]`. (Default value: :code: `None`, all beads) 
             XYZ (list, required):
-                List of the axis in the Cartesian coordinate system that the position of the bead will get extracted for each frame. The list is defined by :code: `XYZ=[0,1,2]`. where 0, 1 and 2 are the axis X, Y and Z, respectively. (Default value = :code: `XYZ=[0,1,2]`) 
+                List of the axis in the Cartesian coordinate system that the position of the bead will get extracted for each frame. The list is defined by :code: `XYZ=[0,1,2]`. where 0, 1 and 2 are the axis X, Y and Z, respectively. (Default value: :code: `XYZ=[0,1,2]`) 
     
         Returns:
             (:math:`N_{frames}`, :math:`N_{beads}`, 3) :class:`numpy.ndarray`: Returns an array of the 3D position of the selected beads for different frames.
