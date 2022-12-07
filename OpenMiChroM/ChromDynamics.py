@@ -1800,7 +1800,7 @@ class MiChroM:
                     self.getPositions()) ** 2, axis=1)))
                 print("dr=%.2lf" % (dif,), end=' ')
                 self.data = coords
-                print("t=%2.1lfps" % (self.state.getTime() / units.second * 1e-12), end=' ')
+                print("t=%2.1lfps" % (self.state.getTime() / (units.second * 1e-12)), end=' ')
                 print("kin=%.2lf pot=%.2lf" % (eK,
                     eP), "Rg=%.3lf" % self.chromRG(), end=' ')
                 print("SPS=%.0lf" % (steps / (float(b - a))), end=' ')
