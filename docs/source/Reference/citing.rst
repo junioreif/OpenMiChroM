@@ -15,6 +15,7 @@ Please acknowledge the use of this software within the body of your publication 
 
 
 The paper are available online at:
+
 [1] `Journal of Molecular Biology (JMB) <https://www.sciencedirect.com/science/article/pii/S0022283620306185>`_.
 
 [2] `Journal of Physical Chemistry B (JPCB) <https://pubs.acs.org/doi/full/10.1021/acs.jpcb.1c04174>`_.
