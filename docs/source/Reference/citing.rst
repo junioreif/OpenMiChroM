@@ -16,8 +16,11 @@ Please acknowledge the use of this software within the body of your publication 
 
 The paper are available online at:
 [1] `Journal of Molecular Biology (JMB) <https://www.sciencedirect.com/science/article/pii/S0022283620306185>`_.
+
 [2] `Journal of Physical Chemistry B (JPCB) <https://pubs.acs.org/doi/full/10.1021/acs.jpcb.1c04174>`_.
+
 [3] `Nucleic Acids Research (NAR) <https://academic.oup.com/nar/article/49/D1/D172/5918320>`_.
+
 
 To cite these references, you can use the following BibTeX entry:
 
