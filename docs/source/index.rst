@@ -20,7 +20,9 @@ Table of Contents
 
    Tutorials/Tutorial_Single_Chromosome
    Tutorials/Tutorial_Multiple_Chromosomes
-   
+   Tutorials/Tutorial_MiChroM_Optimization
+   Tutorials/Tutorial_Full_Inversion_Optimization
+
 .. toctree::
    :maxdepth: 2
    :caption: Reference
