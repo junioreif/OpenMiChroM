@@ -49,7 +49,8 @@ To cite these references, you can use the following BibTeX entry:
     pages = {8757--8767},
     publisher = {{American Chemical Society}},
     issn = {1520-6106},
-    doi = {10.1021/acs.jpcb.1c04174}
+    doi = {10.1021/acs.jpcb.1c04174},
+    }
 
     @article{NucleomeDataBank_2021,
       title = {The {{Nucleome Data Bank}}: Web-Based Resources to Simulate and Analyze the Three-Dimensional Genome},
@@ -62,7 +63,7 @@ To cite these references, you can use the following BibTeX entry:
       number = {D1},
       pages = {D172-D182},
       issn = {0305-1048},
-      doi = {10.1093/nar/gkaa818}
+      doi = {10.1093/nar/gkaa818},
     }
 
 
