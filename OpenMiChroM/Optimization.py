@@ -363,12 +363,12 @@ class FullTraining:
         random.seed(SEED)
         print(len(list(r1[np.triu_indices(np.shape(r1)[0])])))
         print("\n")
-        print(np.int(0.01*np.shape(r1)[0]*np.shape(r1)[0]))                              
+        print(int(0.01*np.shape(r1)[0]*np.shape(r1)[0]))                              
         
-        a1 = np.asarray(random.sample(list(r1[np.triu_indices(np.shape(r1)[0])]),np.int(0.01*np.shape(r1)[0]*np.shape(r1)[0])))
+        a1 = np.asarray(random.sample(list(r1[np.triu_indices(np.shape(r1)[0])]),int(0.01*np.shape(r1)[0]*np.shape(r1)[0])))
         a1 = r1[np.triu_indices(np.shape(r1)[0])]
         random.seed(SEED)
-        a2 = np.asarray(random.sample(list(r2[np.triu_indices(np.shape(r2)[0])]),np.int(0.01*np.shape(r2)[0]*np.shape(r2)[0])))
+        a2 = np.asarray(random.sample(list(r2[np.triu_indices(np.shape(r2)[0])]),int(0.01*np.shape(r2)[0]*np.shape(r2)[0])))
         a2 = r2[np.triu_indices(np.shape(r1)[0])]
 
 
@@ -670,10 +670,10 @@ class CustomMiChroMTraining:
 
         SEED = 100
         random.seed(SEED)
-        a1 = np.asarray(random.sample(list(r1[np.triu_indices(np.shape(r1)[0])]),np.int(0.1*np.shape(r1)[0]*np.shape(r1)[0])))
+        a1 = np.asarray(random.sample(list(r1[np.triu_indices(np.shape(r1)[0])]),int(0.1*np.shape(r1)[0]*np.shape(r1)[0])))
         a1 = r1[np.triu_indices(np.shape(r1)[0])]
         random.seed(SEED)
-        a2 = np.asarray(random.sample(list(r2[np.triu_indices(np.shape(r2)[0])]),np.int(0.1*np.shape(r2)[0]*np.shape(r2)[0])))
+        a2 = np.asarray(random.sample(list(r2[np.triu_indices(np.shape(r2)[0])]),int(0.1*np.shape(r2)[0]*np.shape(r2)[0])))
         a2 = r2[np.triu_indices(np.shape(r1)[0])]
 
 

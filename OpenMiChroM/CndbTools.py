@@ -273,9 +273,9 @@ class cndbTools:
             Psi_per_bead=[]
             for i in range(0,np.shape(xyz)[0] - np.ceil(1.25*neig_beads).astype('int')):
                 a=i
-                b=np.int(np.round(i+0.5*neig_beads))
-                c=np.int(np.round(i+0.75*neig_beads))
-                d=np.int(np.round(i+1.25*neig_beads))
+                b=int(np.round(i+0.5*neig_beads))
+                c=int(np.round(i+0.75*neig_beads))
+                d=int(np.round(i+1.25*neig_beads))
 
                 AB = XYZ[b]-XYZ[a]
                 CD = XYZ[d]-XYZ[c]
