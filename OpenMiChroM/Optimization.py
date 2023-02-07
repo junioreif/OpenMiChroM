@@ -422,6 +422,8 @@ class CustomMiChroMTraining:
     Args:
         ChromSeq (file, required):
            Chromatin sequence of types file. The first column should contain the locus index. The second column should have the locus type annotation. A template of the chromatin sequence of types file can be found at the `Nucleome Data Bank (NDB) <https://ndb.rice.edu/static/text/chr10_beads.txt>`_.
+        TypesTable (file, required):
+                A txt/TSV/CSV file containing the upper triangular matrix of the type-to-type interactions. (Default value: :code:`None`).
         mu (float, required):
             Parameter in the probability of crosslink function (Default value = 3.22, for human chromosomes in interphase).
         rc (float, required):
@@ -434,8 +436,7 @@ class CustomMiChroMTraining:
             The last neighbor in sequence separation (Genomic Distance) to be considered in the Ideal Chromosome potential for training. (Default value = 200).
     """
    
-    def __init__(self, ChromSeq="chr_beads.txt", mu=3.22, rc=1.78, cutoff=0.0, dinit=3, dend=200): 
- 
+    def __init__(self, ChromSeq="chr_beads.txt", TypesTable=None, mu=3.22, rc=1.78, cutoff=0.0, dinit=3, dend=200): 
         self.ChromSeq = self.getChromSeq(ChromSeq)
         self.size = len(self.ChromSeq)
         self.P=np.zeros((self.size,self.size))
@@ -443,7 +444,19 @@ class CustomMiChroMTraining:
         self.r_cut = rc 
         self.mu  = mu
         self.Bij = np.zeros((dend,dend))
+        tab = pd.read_csv(TypesTable, sep=None, engine='python')
+        self.header_types = list(tab.columns.values) 
         self.diff_types = set(self.ChromSeq)
+
+        if not self.diff_types.issubset(set(self.header_types)):
+            errorlist = []
+            for i in self.diff_types:
+                if not (i in set(self.header_types)):
+                    errorlist.append(i)
+            raise ValueError("Types: {} are not present in TypesTables: {}\n".format(errorlist, self.header_types))
+
+        self.lambdas_old = np.triu(tab.values) + np.triu(tab.values, k=1).T
+
         self.n_types = len(self.diff_types)
         self.n_inter = int(self.n_types*(self.n_types-1)/2 + self.n_types)
         self.polds_type = np.zeros((self.n_types, self.n_types))
@@ -465,18 +478,14 @@ class CustomMiChroMTraining:
                 Returns an array of the sequence of chromatin types.
 
         """              
-        
-        Type_conversion = {'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6}
+
         my_list = []
         af = open(filename,'r')
         pos = af.read().splitlines()
         for t in range(len(pos)):
             pos[t] = pos[t].split()
-            
-            if pos[t][1] in Type_conversion:
-                my_list.append(Type_conversion[pos[t][1]])
-            else:
-                my_list.append(t)
+            my_list.append(pos[t][1])
+
         return np.array(my_list)
         
     
@@ -584,13 +593,12 @@ class CustomMiChroMTraining:
         n = int(self.n_types)
         p_instant = np.zeros((n,n))
         
-        n_inter = self.n_inter
-        
         just = {}
         ind = np.triu_indices(n)
         
-        for tt in self.diff_types:
+        for tt in self.header_types:
             just[tt] = ([i for i, e in enumerate(self.ChromSeq) if e == tt])
+
         self.Pold += self.P       
         
         self.P = 0.5*(1.0 + np.tanh(self.mu*(self.r_cut - distance.cdist(state,state, 'euclidean'))))
@@ -606,8 +614,7 @@ class CustomMiChroMTraining:
         
         self.polds_type += p_instant 
         self.Bij_type += PiPj
-        self.Nframes += 1
-        
+        self.Nframes += 1  
     
     def calc_exp_phi_types(self):
         R"""
@@ -618,7 +625,7 @@ class CustomMiChroMTraining:
         just = {}
         ind = np.triu_indices(n)
         
-        for tt in self.diff_types:
+        for tt in self.header_types:
             just[tt] = ([i for i, e in enumerate(self.ChromSeq) if e == tt])
 
 
@@ -679,7 +686,7 @@ class CustomMiChroMTraining:
 
         return(pearsonr(a1,a2)[0])
         
-    def getLamb_types(self, exp_map):
+    def getLamb_types(self, exp_map, damp=5*10**-7):
         R"""
         Calculates the Lagrange multipliers of each type-to-type interaction and returns the matrix containing the energy values for the optimization step.
         """
@@ -714,7 +721,6 @@ class CustomMiChroMTraining:
         with open('error_and_pearsonC_types','a') as tf:
             tf.write("Error: %f  Pearson's Correlation: %f\n" % (erro, pear))
         
-        ind = np.triu_indices(self.n_types)
         gij_vec = []
         for pcount,q in enumerate(itertools.combinations_with_replacement(range(self.n_types), r=2)):
             gij_vec.append(gij[ind[0][pcount], ind[1][pcount]])
@@ -722,10 +728,12 @@ class CustomMiChroMTraining:
         
         lambdas = np.matmul(invBij_mean, gij_vec)
         
-        new = np.zeros((self.n_types,self.n_types))
+        self.lambdas_new = np.zeros((self.n_types,self.n_types))
         
-        inds = np.triu_indices_from(new)
-        new[inds] = lambdas
-        new[(inds[1], inds[0])] = lambdas 
+        inds = np.triu_indices_from(self.lambdas_new)
+        self.lambdas_new[inds] = lambdas
+        self.lambdas_new[(inds[1], inds[0])] = lambdas 
         
-        return(new)
+        lambdas_final = self.lambdas_old  - damp*self.lambdas_new
+
+        return(pd.DataFrame(lambdas_final,columns=self.header_types))
