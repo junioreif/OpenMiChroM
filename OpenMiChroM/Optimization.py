@@ -17,7 +17,6 @@ try:
 except:
     print('Failed to load OpenMM. Check your configuration.')
 
-
 import numpy as np
 import random
 from scipy.spatial import distance
@@ -493,7 +492,7 @@ class CustomMiChroMTraining:
         df = pd.read_csv(filename, index_col=0, names=['Types'], sep=None, engine='python')
         return df.Types.values
         
-    def probCalculation_IC(self, state):
+    def prob_calculation_IC(self, state):
         R"""
         Calculates the contact probability matrix and the cross term of the Hessian for the Ideal Chromosome optimization.
         """
@@ -523,13 +522,13 @@ class CustomMiChroMTraining:
              phi[i] =  np.mean(np.diagonal(Pmean, offset=(i+self.dinit)))
         return phi
     
-    def getPiPj_sim_IC(self):
+    def get_PiPj_sim_IC(self):
         R"""
         Normalizes the cross term of the Hessian by the number of frames in the simulation for the Ideal Chromosome optimization.
         """
         return self.PiPj_IC/self.Nframes
     
-    def getHiC_exp(self, filename):
+    def get_HiC_exp(self, filename):
         R"""
         Receives the experimental Hi-C map (Full dense matrix) in a text format and performs the data normalization from Hi-C frequency/counts/reads to probability.
         """
@@ -553,7 +552,7 @@ class CustomMiChroMTraining:
              phi[i] =  np.mean(np.diagonal(self.expHiC, offset=(i+self.dinit)))
         return phi
     
-    def getLamb_IC(self, exp_map='file.dense', damp=3*10**-7, write_error=True): #dmax=200,
+    def get_lambdas_IC(self, exp_map='file.dense', damp=3*10**-7, write_error=True): #dmax=200,
         R"""
         Calculates the Lagrange multipliers for the Ideal Chromosome optimization and returns a array containing the energy values for the IC optimization step.
         Args:
@@ -570,7 +569,7 @@ class CustomMiChroMTraining:
         
         dmax = self.dend - self.dinit
 
-        self.getHiC_exp(exp_map)
+        self.get_HiC_exp(exp_map)
         
         phi_exp = self.calc_phi_exp_IC() #init=self.dinit, dmax=dmax)
         
@@ -579,7 +578,7 @@ class CustomMiChroMTraining:
         g = -phi_sim + phi_exp   # *1/beta = 1     
     
         B = np.zeros((dmax,dmax))
-        PiPj_mean = self.getPiPj_sim_IC()
+        PiPj_mean = self.get_PiPj_sim_IC()
 
         for i, j in itertools.product(range(dmax),range(dmax)):
             B[i,j] = PiPj_mean[i,j] - (phi_sim[i]*phi_sim[j])
@@ -592,7 +591,7 @@ class CustomMiChroMTraining:
 
         if write_error:
             tolerance = np.sum(np.absolute(g))/np.sum(phi_exp)
-            pearson = self.getPearson()
+            pearson = self.get_Pearson()
                                             
             with open('tolerance_and_pearson_IC','a') as tf:
                 tf.write("Tolerance: %f  Pearson's Correlation: %f\n" % (tolerance, pearson))
@@ -604,7 +603,7 @@ class CustomMiChroMTraining:
         R"""
         Calculates the Lagrange multipliers for the Ideal Chromosome optimization and returns a array containing the energy values for the IC optimization step.
         """    
-        self.getHiC_exp(exp_map)
+        self.get_HiC_exp(exp_map)
 
         
         phi_exp = self.calc_phi_exp_IC(init=self.dinit, dmax=dmax)
@@ -614,7 +613,7 @@ class CustomMiChroMTraining:
         gij = -phi_sim + phi_exp   # *1/beta = 1     
     
         Res = np.zeros((dmax,dmax))
-        Bijmean = self.getPiPj_sim_IC()
+        Bijmean = self.get_PiPj_sim_IC()
 
         for i, j in itertools.product(range(dmax),range(dmax)):
             Res[i,j] = Bijmean[i,j] - (phi_sim[i]*phi_sim[j])
@@ -622,7 +621,7 @@ class CustomMiChroMTraining:
         invRes = sc.linalg.pinv(Res)
 
         erro = np.sum(np.absolute(gij))/np.sum(phi_exp)
-        pear = self.getPearson()
+        pear = self.get_Pearson()
         
                              
         with open('error_and_pearsonC_IC','a') as tf:
@@ -630,7 +629,7 @@ class CustomMiChroMTraining:
         
         return(np.dot(invRes,gij))
 
-    def probCalculation_types(self, state):
+    def prob_calculation_types(self, state):
         R"""
         Calculates the contact probability matrix and the cross term of the Hessian for the type-to-type interactions optimization.
         """    
@@ -689,23 +688,23 @@ class CustomMiChroMTraining:
         """
         return self.Pold_type/self.Nframes
     
-    def getPiPj_sim_types(self):
+    def get_PiPj_sim_types(self):
         R"""
         Normalizes the cross term of the Hessian by the number of frames in the simulation for the Types optimization.
         """
         return self.PiPj_type/self.Nframes
     
-    def getHiC_sim(self):
+    def get_HiC_sim(self):
         R"""
         Calculates the *in silico* Hi-C map (Full dense matrix).
         """
         return self.Pold/self.Nframes
     
-    def getPearson(self):
+    def get_Pearson(self):
         R"""
         Calculates the Pearson's Correlation between the experimental Hi-C used as a reference for the training and the *in silico* Hi-C obtained from the optimization step.
         """
-        r1 = self.getHiC_sim()
+        r1 = self.get_HiC_sim()
         r2 = self.expHiC
 
         r1[np.isinf(r1)]= 0.0
@@ -730,11 +729,11 @@ class CustomMiChroMTraining:
 
         return(pearsonr(a1,a2)[0])
         
-    def getLamb_types(self, exp_map, damp=5*10**-7, write_error=True):
+    def get_lambdas_types(self, exp_map, damp=5*10**-7, write_error=True):
         R"""
         Calculates the Lagrange multipliers of each type-to-type interaction and returns the matrix containing the energy values for the optimization step.
         """
-        self.getHiC_exp(exp_map)
+        self.get_HiC_exp(exp_map)
         
         phi_exp = self.calc_phi_exp_types()
         
@@ -742,7 +741,7 @@ class CustomMiChroMTraining:
         
         g = -phi_sim + phi_exp
 
-        PiPj_mean = self.getPiPj_sim_types()
+        PiPj_mean = self.get_PiPj_sim_types()
         
         ind = np.triu_indices(self.n_types)
         phi_sim_linear = []
@@ -760,7 +759,7 @@ class CustomMiChroMTraining:
 
         if write_error:
             tolerance = np.sum(np.absolute(g))/np.sum(phi_exp)
-            pearson = self.getPearson()
+            pearson = self.get_Pearson()
 
             with open('tolerance_and_pearson_types','a') as tf:
                     tf.write("Tolerance: %f  Pearson's Correlation: %f\n" % (tolerance, pearson))   
