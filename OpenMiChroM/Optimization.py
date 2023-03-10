@@ -583,6 +583,10 @@ class CustomMiChroMTraining:
          
         invRes = sp.linalg.pinv(Res)
 
+        self.lambdas_new = np.dot(invRes,gij)
+        self.lambdas_old = np.genfromtxt(str(self.IClist))
+        lambdas_new = self.lambdas_old - damp*self.lambdas_new
+
         if write_error:
             tolerance = np.sum(np.absolute(gij))/np.sum(phi_exp)
             pearson = self.getPearson()
@@ -590,7 +594,8 @@ class CustomMiChroMTraining:
             with open('tolerance_and_pearson_IC','a') as tf:
                 tf.write("Tolerance: %f  Pearson's Correlation: %f\n" % (tolerance, pearson))
         
-        return(np.dot(invRes,gij))
+        # return(np.dot(invRes,gij))
+        return(lambdas_new)
     
     def getLamb(self, dmax=200, exp_map='file.dense'):
         R"""
@@ -621,7 +626,6 @@ class CustomMiChroMTraining:
             tf.write("Error: %f  Pearson's Correlation: %f\n" % (erro, pear))
         
         return(np.dot(invRes,gij))
-    
 
     def probCalculation_types(self, state):
         R"""
