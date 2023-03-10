@@ -438,7 +438,7 @@ class CustomMiChroMTraining:
     """
    
     def __init__(self, ChromSeq="chr_beads.txt", TypesTable=None, mu=3.22, rc=1.78, cutoff=0.0, IClist=None, dinit=3, dend=200): 
-        self.ChromSeq = self.getChromSeq(ChromSeq)
+        self.ChromSeq = self.get_chrom_seq(ChromSeq)
         self.size = len(self.ChromSeq)
         self.P=np.zeros((self.size,self.size))
         self.Pold=np.zeros((self.size,self.size))
@@ -461,10 +461,10 @@ class CustomMiChroMTraining:
         self.n_types = len(self.diff_types)
         self.n_inter = int(self.n_types*(self.n_types-1)/2 + self.n_types)
         self.Pold_type = np.zeros((self.n_types, self.n_types))
-        self.phi_ij_type = np.zeros((self.n_inter,self.n_inter))
+        self.PiPj_type = np.zeros((self.n_inter,self.n_inter))
         self.Nframes = 0 
         
-        self.phi_ij_IC = np.zeros((dend-dinit,dend-dinit))
+        self.PiPj_IC = np.zeros((dend-dinit,dend-dinit))
         self.dinit = dinit
         self.dend = dend
         self.cutoff = cutoff
@@ -476,8 +476,8 @@ class CustomMiChroMTraining:
             except IOError:
                 print("Error in opening the file containing the Ideal Chromosome interactions!")
 
-    def getChromSeq(self, filename):
-        R"""Converts the letters of the types/compartments following the rule: 'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6.
+    def get_chrom_seq(self, filename):
+        R"""Reads the chromatin sequence as letters of the types/compartments.
         
         Args:
 
@@ -488,18 +488,11 @@ class CustomMiChroMTraining:
             :math:`(N,1)` :class:`numpy.ndarray`:
                 Returns an array of the sequence of chromatin types.
 
-        """              
+        """
 
-        my_list = []
-        af = open(filename,'r')
-        pos = af.read().splitlines()
-        for t in range(len(pos)):
-            pos[t] = pos[t].split()
-            my_list.append(pos[t][1])
-
-        return np.array(my_list)
+        df = pd.read_csv(filename, index_col=0, names=['Types'], sep=None, engine='python')
+        return df.Types.values
         
-    
     def probCalculation_IC(self, state):
         R"""
         Calculates the contact probability matrix and the cross term of the Hessian for the Ideal Chromosome optimization.
@@ -516,7 +509,7 @@ class CustomMiChroMTraining:
              Pi = np.append(Pi, np.mean(np.diagonal(self.P, offset=(i+self.dinit))))
         
         PiPj = np.outer(Pi, Pi)
-        self.phi_ij_IC += PiPj
+        self.PiPj_IC += PiPj
         self.Nframes += 1 
         
     
@@ -530,11 +523,11 @@ class CustomMiChroMTraining:
              phi[i] =  np.mean(np.diagonal(pmean, offset=(i+init)))
         return phi
     
-    def get_phi_ij_sim_IC(self):
+    def getPiPj_sim_IC(self):
         R"""
         Normalizes the cross term of the Hessian by the number of frames in the simulation for the Ideal Chromosome optimization.
         """
-        return self.Bij_IC/self.Nframes
+        return self.PiPj_IC/self.Nframes
     
     def getHiC_exp(self, filename):
         R"""
@@ -583,10 +576,10 @@ class CustomMiChroMTraining:
         g = -phi_sim + phi_exp   # *1/beta = 1     
     
         B = np.zeros((dmax,dmax))
-        phi_ij_mean = self.get_phi_ij_sim_IC()
+        PiPj_mean = self.getPiPj_sim_IC()
 
         for i, j in itertools.product(range(dmax),range(dmax)):
-            B[i,j] = phi_ij_mean[i,j] - (phi_sim[i]*phi_sim[j])
+            B[i,j] = PiPj_mean[i,j] - (phi_sim[i]*phi_sim[j])
          
         invB = sc.linalg.pinv(B)
 
@@ -618,7 +611,7 @@ class CustomMiChroMTraining:
         gij = -phi_sim + phi_exp   # *1/beta = 1     
     
         Res = np.zeros((dmax,dmax))
-        Bijmean = self.get_phi_ij_sim_IC()
+        Bijmean = self.getPiPj_sim_IC()
 
         for i, j in itertools.product(range(dmax),range(dmax)):
             Res[i,j] = Bijmean[i,j] - (phi_sim[i]*phi_sim[j])
@@ -662,10 +655,10 @@ class CustomMiChroMTraining:
         PiPj = np.outer(vec,vec)
         
         self.Pold_type += p_instant 
-        self.phi_ij_type += PiPj
+        self.PiPj_type += PiPj
         self.Nframes += 1  
     
-    def calc_exp_phi_types(self):
+    def calc_phi_exp_types(self):
         R"""
         Calculates the average of the contact probability for each chromatin type (compartment annotation) from the experimental Hi-C for the Types optimization.
         """
@@ -688,19 +681,19 @@ class CustomMiChroMTraining:
         return phi
     
     
-    def calc_sim_phi_types(self):
+    def calc_phi_sim_types(self):
         R"""
         Calculates the average of the contact probability for each chromatin type (compartment annotation) from simulation for the Types optimization.
         """
         return self.Pold_type/self.Nframes
     
-    def getPiPjsim_types(self):
+    def getPiPj_sim_types(self):
         R"""
         Normalizes the cross term of the Hessian by the number of frames in the simulation for the Types optimization.
         """
-        return self.phi_ij_type/self.Nframes
+        return self.PiPj_type/self.Nframes
     
-    def getHiCSim(self):
+    def getHiC_sim(self):
         R"""
         Calculates the *in silico* Hi-C map (Full dense matrix).
         """
@@ -710,7 +703,7 @@ class CustomMiChroMTraining:
         R"""
         Calculates the Pearson's Correlation between the experimental Hi-C used as a reference for the training and the *in silico* Hi-C obtained from the optimization step.
         """
-        r1 = self.getHiCSim()
+        r1 = self.getHiC_sim()
         r2 = self.expHiC
 
         r1[np.isinf(r1)]= 0.0
@@ -741,15 +734,14 @@ class CustomMiChroMTraining:
         """
         self.getHiC_exp(exp_map)
         
-        phi_exp = self.calc_exp_phi_types()
+        phi_exp = self.calc_phi_exp_types()
         
-        phi_sim = self.calc_sim_phi_types()
+        phi_sim = self.calc_phi_sim_types()
         
-        gij = -phi_sim + phi_exp
+        g = -phi_sim + phi_exp
 
-        PiPj_mean = self.getPiPjsim_types()
+        PiPj_mean = self.getPiPj_sim_types()
         
-
         ind = np.triu_indices(self.n_types)
         phi_sim_linear = []
 
@@ -760,23 +752,23 @@ class CustomMiChroMTraining:
 
         Pi2_mean = np.outer(phi_sim_linear,phi_sim_linear)
 
-        Bij_mean = PiPj_mean - Pi2_mean
+        B = PiPj_mean - Pi2_mean
     
-        invBij_mean = sc.linalg.pinv(Bij_mean)
+        invB = sc.linalg.pinv(B)
 
         if write_error:
-            tolerance = np.sum(np.absolute(gij))/np.sum(phi_exp)
+            tolerance = np.sum(np.absolute(g))/np.sum(phi_exp)
             pearson = self.getPearson()
 
             with open('tolerance_and_pearson_types','a') as tf:
                     tf.write("Tolerance: %f  Pearson's Correlation: %f\n" % (tolerance, pearson))   
         
-        gij_vec = []
+        g_vec = []
         for pcount,q in enumerate(itertools.combinations_with_replacement(range(self.n_types), r=2)):
-            gij_vec.append(gij[ind[0][pcount], ind[1][pcount]])
-        gij_vec = np.array(gij_vec)
+            g_vec.append(g[ind[0][pcount], ind[1][pcount]])
+        g_vec = np.array(g_vec)
         
-        lambdas = np.matmul(invBij_mean, gij_vec)
+        lambdas = np.matmul(invB, g_vec)
         
         self.lambdas_new = np.zeros((self.n_types,self.n_types))
         
