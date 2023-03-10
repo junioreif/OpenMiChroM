@@ -444,7 +444,8 @@ class CustomMiChroMTraining:
         self.Pold=np.zeros((self.size,self.size))
         self.r_cut = rc 
         self.mu  = mu
-        self.Bij_IC = np.zeros((dend,dend))
+        # self.Bij_IC = np.zeros((dend,dend))
+        self.Bij_IC = np.zeros((dend-dinit,dend-dinit))
         tab = pd.read_csv(TypesTable, sep=None, engine='python')
         self.header_types = list(tab.columns.values) 
         self.diff_types = set(self.ChromSeq)
@@ -503,11 +504,16 @@ class CustomMiChroMTraining:
         self.Pold += self.P
         self.P = 0.5*(1.0 + np.tanh(self.mu*(self.r_cut - distance.cdist(state,state, 'euclidean'))))
         self.P[self.P<self.cutoff] = 0.0
+        
         Pi = np.array([])
         for i in range(dmax):
              Pi = np.append(Pi, np.mean(np.diagonal(self.P, offset=(i+self.dinit))))
         
         PiPj = np.outer(Pi, Pi)
+
+        print("PiPj ", PiPj.size, PiPj)
+        print("self.Bij_IC ", self.Bij_IC.size, self.Bij_IC)
+
       
         self.Bij_IC += PiPj
         self.Nframes += 1 
