@@ -21,7 +21,7 @@ except:
 import numpy as np
 import random
 from scipy.spatial import distance
-import scipy as sp
+import scipy as sc
 import itertools
 from scipy.stats.stats import pearsonr
 from sklearn.preprocessing import normalize
@@ -231,7 +231,7 @@ class FullTraining:
         self.cutoff = cutoff
         
         self.getHiCexp(expHiC, centerRemove=False, centrange=[0,0])
-        self.hic_sparse = sp.sparse.csr_matrix(np.triu(self.expHiC, k=2))
+        self.hic_sparse = sc.sparse.csr_matrix(np.triu(self.expHiC, k=2))
         if (reduce):
             self.appCutoff(pair_h, c_h, pair_l, c_l)
        
@@ -269,7 +269,7 @@ class FullTraining:
             if (hic_full[i] > c_h):
                 hic_final[i] = hic_full[i]
 
-        high_cut_number =   sp.sparse.csr_matrix(np.triu(hic_final, k=2)).nnz
+        high_cut_number =   sc.sparse.csr_matrix(np.triu(hic_final, k=2)).nnz
         print('Non-zero interactions after high-resolution cutoff ({}): {}'.format( c_h, high_cut_number ))
 
         values = [n for n in range(1,N,pair_l)]
@@ -277,7 +277,7 @@ class FullTraining:
         for i in index:
             if (hic_full[i] > c_l):
                 hic_final[i] = hic_full[i]
-        self.hic_sparse = sp.sparse.csr_matrix(np.triu(hic_final, k=2))
+        self.hic_sparse = sc.sparse.csr_matrix(np.triu(hic_final, k=2))
         print('Non-zero interactions after low-resolution cutoff ({}): {}'.format(c_l,  (self.hic_sparse.nnz-high_cut_number) ))
         print('Total Non-zero interactions: {}'.format(self.hic_sparse.nnz))
 
@@ -286,7 +286,7 @@ class FullTraining:
         R"""
         Receives non-zero interaction indices, *i.e.*, the loci pair *i* and *j* which interaction will be optimized.
         """
-        index = sp.sparse.find(hic)
+        index = sc.sparse.find(hic)
         self.rows = index[0]
         self.cols = index[1]
         self.values = index[2]
@@ -345,7 +345,7 @@ class FullTraining:
         R"""
         Calculates the Pearson's Correlation between the experimental Hi-C used as a reference for the training and the *in silico* Hi-C obtained from the optimization step.
         """
-        r1 = sp.sparse.csr_matrix((self.Pi/self.NFrames,(self.rows,self.cols)), shape=(self.expHiC.shape[0],self.expHiC.shape[0])).todense()
+        r1 = sc.sparse.csr_matrix((self.Pi/self.NFrames,(self.rows,self.cols)), shape=(self.expHiC.shape[0],self.expHiC.shape[0])).todense()
         r2 = self.hic_sparse.todense()
 
         r1[np.isinf(r1)]= 0.0
@@ -396,12 +396,12 @@ class FullTraining:
 
         Bij = PiPj_mean - Pi2_mean
         
-        invBij = sp.linalg.pinvh(Bij)
+        invBij = sc.linalg.pinvh(Bij)
 
         lambdas = np.matmul(invBij, gij)
 
         
-        lamb_matrix = sp.sparse.csr_matrix((lambdas,(self.rows,self.cols)), shape=(self.expHiC.shape[0],self.expHiC.shape[0]))
+        lamb_matrix = sc.sparse.csr_matrix((lambdas,(self.rows,self.cols)), shape=(self.expHiC.shape[0],self.expHiC.shape[0]))
         
         self.error = (np.sum(np.absolute(gij)))/(np.sum(self.phi_exp))
         
@@ -444,8 +444,7 @@ class CustomMiChroMTraining:
         self.Pold=np.zeros((self.size,self.size))
         self.r_cut = rc 
         self.mu  = mu
-        # self.Bij_IC = np.zeros((dend,dend))
-        self.Bij_IC = np.zeros((dend-dinit,dend-dinit))
+        
         tab = pd.read_csv(TypesTable, sep=None, engine='python')
         self.header_types = list(tab.columns.values) 
         self.diff_types = set(self.ChromSeq)
@@ -462,14 +461,18 @@ class CustomMiChroMTraining:
         self.n_types = len(self.diff_types)
         self.n_inter = int(self.n_types*(self.n_types-1)/2 + self.n_types)
         self.Pold_type = np.zeros((self.n_types, self.n_types))
-        self.Bij_type = np.zeros((self.n_inter,self.n_inter))
+        self.phi_ij_type = np.zeros((self.n_inter,self.n_inter))
         self.Nframes = 0 
+        
+        self.phi_ij_IC = np.zeros((dend-dinit,dend-dinit))
         self.dinit = dinit
+        self.dend = dend
         self.cutoff = cutoff
 
         if not IClist == None:
             try:
                 f = open(str(IClist),"r")
+                self.IClist = IClist
             except IOError:
                 print("Error in opening the file containing the Ideal Chromosome interactions!")
 
@@ -497,10 +500,13 @@ class CustomMiChroMTraining:
         return np.array(my_list)
         
     
-    def probCalculation_IC(self, state, dmax=200):
+    def probCalculation_IC(self, state):
         R"""
         Calculates the contact probability matrix and the cross term of the Hessian for the Ideal Chromosome optimization.
         """
+
+        dmax = self.dend - self.dinit
+
         self.Pold += self.P
         self.P = 0.5*(1.0 + np.tanh(self.mu*(self.r_cut - distance.cdist(state,state, 'euclidean'))))
         self.P[self.P<self.cutoff] = 0.0
@@ -510,16 +516,11 @@ class CustomMiChroMTraining:
              Pi = np.append(Pi, np.mean(np.diagonal(self.P, offset=(i+self.dinit))))
         
         PiPj = np.outer(Pi, Pi)
-
-        print("PiPj ", PiPj.size, PiPj)
-        print("self.Bij_IC ", self.Bij_IC.size, self.Bij_IC)
-
-      
-        self.Bij_IC += PiPj
+        self.phi_ij_IC += PiPj
         self.Nframes += 1 
         
     
-    def calc_sim_phi(self, init=3, dmax=200):
+    def calc_phi_sim_IC(self, init=3, dmax=200):
         R"""
         Calculates the contact probability as a function of the genomic distance from simulations for the Ideal Chromosome optimization.
         """
@@ -529,13 +530,13 @@ class CustomMiChroMTraining:
              phi[i] =  np.mean(np.diagonal(pmean, offset=(i+init)))
         return phi
     
-    def getBijsim(self):
+    def get_phi_ij_sim_IC(self):
         R"""
         Normalizes the cross term of the Hessian by the number of frames in the simulation for the Ideal Chromosome optimization.
         """
         return self.Bij_IC/self.Nframes
     
-    def getHiCexp(self, filename):
+    def getHiC_exp(self, filename):
         R"""
         Receives the experimental Hi-C map (Full dense matrix) in a text format and performs the data normalization from Hi-C frequency/counts/reads to probability.
         """
@@ -549,7 +550,7 @@ class CustomMiChroMTraining:
         self.expHiC = r+rd + np.diag(np.ones(len(r)))
         self.expHiC[self.expHiC<self.cutoff] = 0.0
 
-    def calc_exp_phi(self, init=3, dmax=200):
+    def calc_phi_exp_IC(self, init=3, dmax=200):
         R"""
         Calculates the contact probability as a function of the genomic distance from the experimental Hi-C for the Ideal Chromosome optimization.
         """
@@ -573,28 +574,28 @@ class CustomMiChroMTraining:
                 Flag to write the tolerance and Pearson's correlation values. (Default value: :code:`True`). 
         """    
         
-        self.getHiCexp(exp_map)
+        self.getHiC_exp(exp_map)
         
-        phi_exp = self.calc_exp_phi(init=self.dinit, dmax=dmax)
+        phi_exp = self.calc_phi_exp_IC(init=self.dinit, dmax=dmax)
         
-        phi_sim = self.calc_sim_phi(init=self.dinit, dmax=dmax)
+        phi_sim = self.calc_phi_sim_IC(init=self.dinit, dmax=dmax)
         
-        gij = -phi_sim + phi_exp   # *1/beta = 1     
+        g = -phi_sim + phi_exp   # *1/beta = 1     
     
-        Res = np.zeros((dmax,dmax))
-        Bijmean = self.getBijsim()
+        B = np.zeros((dmax,dmax))
+        phi_ij_mean = self.get_phi_ij_sim_IC()
 
         for i, j in itertools.product(range(dmax),range(dmax)):
-            Res[i,j] = Bijmean[i,j] - (phi_sim[i]*phi_sim[j])
+            B[i,j] = phi_ij_mean[i,j] - (phi_sim[i]*phi_sim[j])
          
-        invRes = sp.linalg.pinv(Res)
+        invB = sc.linalg.pinv(B)
 
-        self.lambdas_new = np.dot(invRes,gij)
+        self.lambdas_new = np.dot(invB,g)
         self.lambdas_old = np.genfromtxt(str(self.IClist))
-        lambdas_new = self.lambdas_old - damp*self.lambdas_new
+        lambdas_new = self.lambdas_old[dmax] - damp*self.lambdas_new
 
         if write_error:
-            tolerance = np.sum(np.absolute(gij))/np.sum(phi_exp)
+            tolerance = np.sum(np.absolute(g))/np.sum(phi_exp)
             pearson = self.getPearson()
                                             
             with open('tolerance_and_pearson_IC','a') as tf:
@@ -607,22 +608,22 @@ class CustomMiChroMTraining:
         R"""
         Calculates the Lagrange multipliers for the Ideal Chromosome optimization and returns a array containing the energy values for the IC optimization step.
         """    
-        self.getHiCexp(exp_map)
+        self.getHiC_exp(exp_map)
 
         
-        phi_exp = self.calc_exp_phi(init=self.dinit, dmax=dmax)
+        phi_exp = self.calc_phi_exp_IC(init=self.dinit, dmax=dmax)
         
-        phi_sim = self.calc_sim_phi(init=self.dinit, dmax=dmax)
+        phi_sim = self.calc_phi_sim_IC(init=self.dinit, dmax=dmax)
         
         gij = -phi_sim + phi_exp   # *1/beta = 1     
     
         Res = np.zeros((dmax,dmax))
-        Bijmean = self.getBijsim()
+        Bijmean = self.get_phi_ij_sim_IC()
 
         for i, j in itertools.product(range(dmax),range(dmax)):
             Res[i,j] = Bijmean[i,j] - (phi_sim[i]*phi_sim[j])
          
-        invRes = sp.linalg.pinv(Res)
+        invRes = sc.linalg.pinv(Res)
 
         erro = np.sum(np.absolute(gij))/np.sum(phi_exp)
         pear = self.getPearson()
@@ -661,7 +662,7 @@ class CustomMiChroMTraining:
         PiPj = np.outer(vec,vec)
         
         self.Pold_type += p_instant 
-        self.Bij_type += PiPj
+        self.phi_ij_type += PiPj
         self.Nframes += 1  
     
     def calc_exp_phi_types(self):
@@ -697,7 +698,7 @@ class CustomMiChroMTraining:
         R"""
         Normalizes the cross term of the Hessian by the number of frames in the simulation for the Types optimization.
         """
-        return self.Bij_type/self.Nframes
+        return self.phi_ij_type/self.Nframes
     
     def getHiCSim(self):
         R"""
@@ -738,7 +739,7 @@ class CustomMiChroMTraining:
         R"""
         Calculates the Lagrange multipliers of each type-to-type interaction and returns the matrix containing the energy values for the optimization step.
         """
-        self.getHiCexp(exp_map)
+        self.getHiC_exp(exp_map)
         
         phi_exp = self.calc_exp_phi_types()
         
@@ -761,7 +762,7 @@ class CustomMiChroMTraining:
 
         Bij_mean = PiPj_mean - Pi2_mean
     
-        invBij_mean = sp.linalg.pinv(Bij_mean)
+        invBij_mean = sc.linalg.pinv(Bij_mean)
 
         if write_error:
             tolerance = np.sum(np.absolute(gij))/np.sum(phi_exp)
