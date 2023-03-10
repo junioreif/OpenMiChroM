@@ -512,15 +512,15 @@ class CustomMiChroMTraining:
         self.PiPj_IC += PiPj
         self.Nframes += 1 
         
-    
-    def calc_phi_sim_IC(self, init=3, dmax=200):
+    def calc_phi_sim_IC(self): #init=3, dmax=200
         R"""
         Calculates the contact probability as a function of the genomic distance from simulations for the Ideal Chromosome optimization.
         """
+        dmax = self.dend - self.dinit
         phi = np.zeros(dmax)
-        pmean = self.Pold/self.Nframes
+        Pmean = self.Pold/self.Nframes
         for i in range(dmax):
-             phi[i] =  np.mean(np.diagonal(pmean, offset=(i+init)))
+             phi[i] =  np.mean(np.diagonal(Pmean, offset=(i+self.dinit)))
         return phi
     
     def getPiPj_sim_IC(self):
@@ -543,16 +543,17 @@ class CustomMiChroMTraining:
         self.expHiC = r+rd + np.diag(np.ones(len(r)))
         self.expHiC[self.expHiC<self.cutoff] = 0.0
 
-    def calc_phi_exp_IC(self, init=3, dmax=200):
+    def calc_phi_exp_IC(self): #init=3, dmax=200
         R"""
         Calculates the contact probability as a function of the genomic distance from the experimental Hi-C for the Ideal Chromosome optimization.
         """
+        dmax = self.dend - self.dinit
         phi = np.zeros(dmax)
         for i in range(dmax):
-             phi[i] =  np.mean(np.diagonal(self.expHiC, offset=(i+init)))
+             phi[i] =  np.mean(np.diagonal(self.expHiC, offset=(i+self.dinit)))
         return phi
     
-    def getLamb_IC(self, exp_map='file.dense', dmax=200, damp=3*10**-7, write_error=True):
+    def getLamb_IC(self, exp_map='file.dense', damp=3*10**-7, write_error=True): #dmax=200,
         R"""
         Calculates the Lagrange multipliers for the Ideal Chromosome optimization and returns a array containing the energy values for the IC optimization step.
         Args:
@@ -567,11 +568,13 @@ class CustomMiChroMTraining:
                 Flag to write the tolerance and Pearson's correlation values. (Default value: :code:`True`). 
         """    
         
+        dmax = self.dend - self.dinit
+
         self.getHiC_exp(exp_map)
         
-        phi_exp = self.calc_phi_exp_IC(init=self.dinit, dmax=dmax)
+        phi_exp = self.calc_phi_exp_IC() #init=self.dinit, dmax=dmax)
         
-        phi_sim = self.calc_phi_sim_IC(init=self.dinit, dmax=dmax)
+        phi_sim = self.calc_phi_sim_IC() #init=self.dinit, dmax=dmax)
         
         g = -phi_sim + phi_exp   # *1/beta = 1     
     
@@ -669,7 +672,6 @@ class CustomMiChroMTraining:
         
         for tt in self.header_types:
             just[tt] = ([i for i, e in enumerate(self.ChromSeq) if e == tt])
-
 
         for pcount,q in enumerate(itertools.combinations_with_replacement(just.keys(), r=2)):
             nt=0
