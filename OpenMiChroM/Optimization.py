@@ -460,11 +460,17 @@ class CustomMiChroMTraining:
 
         self.n_types = len(self.diff_types)
         self.n_inter = int(self.n_types*(self.n_types-1)/2 + self.n_types)
-        self.Polds_type = np.zeros((self.n_types, self.n_types))
+        self.Pold_type = np.zeros((self.n_types, self.n_types))
         self.Bij_type = np.zeros((self.n_inter,self.n_inter))
         self.Nframes = 0 
         self.dinit = dinit
         self.cutoff = cutoff
+
+        if not IClist == None:
+            try:
+                f = open(str(IClist),"r")
+            except IOError:
+                print("Error in opening the file containing the Ideal Chromosome interactions!")
 
     def getChromSeq(self, filename):
         R"""Converts the letters of the types/compartments following the rule: 'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6.
@@ -546,16 +552,6 @@ class CustomMiChroMTraining:
              phi[i] =  np.mean(np.diagonal(self.expHiC, offset=(i+init)))
         return phi
     
-    def getlambfromfile(self, filename):
-        R"""
-        Receives the Lagrange multipliers of the Ideal Chromosome optimization from a text file.
-        """
-        aFile = open(filename,'r')
-        pos = aFile.read().splitlines()
-        for t in range(len(pos)):
-            pos[t] = float(pos[t])
-        return np.array(pos)
-    
     def getLamb_IC(self, exp_map='file.dense', dmax=200, damp=3*10**-7, write_error=True):
         R"""
         Calculates the Lagrange multipliers for the Ideal Chromosome optimization and returns a array containing the energy values for the IC optimization step.
@@ -565,7 +561,7 @@ class CustomMiChroMTraining:
             damp (float):
                 The learning parameter for the new lambda. (Default value = :math:`3*10**-7`).
             dmax (float):
-                The maximum distance in the sequence separation (Genomic Distance) to be considered for training the interations of the potential. (Default value = 200).    
+                The maximum distance in the sequence separation (Genomic Distance) to be considered for the convergence of the potential interations. (Default value = 200).    
                 The learning parameter for the new lambda. (Default value = :math:`3*10**-7`).
             write_error (boolean):
                 Flag to write the tolerance and Pearson's correlation values. (Default value: :code:`True`). 
@@ -654,7 +650,7 @@ class CustomMiChroMTraining:
 
         PiPj = np.outer(vec,vec)
         
-        self.Polds_type += p_instant 
+        self.Pold_type += p_instant 
         self.Bij_type += PiPj
         self.Nframes += 1  
     
@@ -685,7 +681,7 @@ class CustomMiChroMTraining:
         R"""
         Calculates the average of the contact probability for each chromatin type (compartment annotation) from simulation for the Types optimization.
         """
-        return self.Polds_type/self.Nframes
+        return self.Pold_type/self.Nframes
     
     def getPiPjsim_types(self):
         R"""
