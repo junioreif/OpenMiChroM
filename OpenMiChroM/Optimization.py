@@ -599,36 +599,6 @@ class CustomMiChroMTraining:
         # return(np.dot(invRes,gij))
         return(lambdas_new)
     
-    def getLamb(self, dmax=200, exp_map='file.dense'):
-        R"""
-        Calculates the Lagrange multipliers for the Ideal Chromosome optimization and returns a array containing the energy values for the IC optimization step.
-        """    
-        self.get_HiC_exp(exp_map)
-
-        
-        phi_exp = self.calc_phi_exp_IC(init=self.dinit, dmax=dmax)
-        
-        phi_sim = self.calc_phi_sim_IC(init=self.dinit, dmax=dmax)
-        
-        gij = -phi_sim + phi_exp   # *1/beta = 1     
-    
-        Res = np.zeros((dmax,dmax))
-        Bijmean = self.get_PiPj_sim_IC()
-
-        for i, j in itertools.product(range(dmax),range(dmax)):
-            Res[i,j] = Bijmean[i,j] - (phi_sim[i]*phi_sim[j])
-         
-        invRes = sc.linalg.pinv(Res)
-
-        erro = np.sum(np.absolute(gij))/np.sum(phi_exp)
-        pear = self.get_Pearson()
-        
-                             
-        with open('error_and_pearsonC_IC','a') as tf:
-            tf.write("Error: %f  Pearson's Correlation: %f\n" % (erro, pear))
-        
-        return(np.dot(invRes,gij))
-
     def prob_calculation_types(self, state):
         R"""
         Calculates the contact probability matrix and the cross term of the Hessian for the type-to-type interactions optimization.
