@@ -1661,6 +1661,7 @@ class MiChroM:
                 for i, line in zip(types_chain, data_chain):
                     if not i in Res_conversion:
                         Res_conversion[i] = 'GLY'
+                        Type_conversion[i] = 'CA'
                     
                     gro_string.append(str(gro_style.format(totalAtom, Res_conversion[i],Type_conversion[i],totalAtom,
                                     float(line[0]), float(line[1]), float(line[2]))))
