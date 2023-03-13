@@ -20,7 +20,7 @@ except:
 import numpy as np
 import random
 from scipy.spatial import distance
-import scipy as sc
+import scipy as sp
 import itertools
 from scipy.stats.stats import pearsonr
 from sklearn.preprocessing import normalize
@@ -230,7 +230,7 @@ class FullTraining:
         self.cutoff = cutoff
         
         self.getHiCexp(expHiC, centerRemove=False, centrange=[0,0])
-        self.hic_sparse = sc.sparse.csr_matrix(np.triu(self.expHiC, k=2))
+        self.hic_sparse = sp.sparse.csr_matrix(np.triu(self.expHiC, k=2))
         if (reduce):
             self.appCutoff(pair_h, c_h, pair_l, c_l)
        
@@ -268,7 +268,7 @@ class FullTraining:
             if (hic_full[i] > c_h):
                 hic_final[i] = hic_full[i]
 
-        high_cut_number =   sc.sparse.csr_matrix(np.triu(hic_final, k=2)).nnz
+        high_cut_number =   sp.sparse.csr_matrix(np.triu(hic_final, k=2)).nnz
         print('Non-zero interactions after high-resolution cutoff ({}): {}'.format( c_h, high_cut_number ))
 
         values = [n for n in range(1,N,pair_l)]
@@ -276,7 +276,7 @@ class FullTraining:
         for i in index:
             if (hic_full[i] > c_l):
                 hic_final[i] = hic_full[i]
-        self.hic_sparse = sc.sparse.csr_matrix(np.triu(hic_final, k=2))
+        self.hic_sparse = sp.sparse.csr_matrix(np.triu(hic_final, k=2))
         print('Non-zero interactions after low-resolution cutoff ({}): {}'.format(c_l,  (self.hic_sparse.nnz-high_cut_number) ))
         print('Total Non-zero interactions: {}'.format(self.hic_sparse.nnz))
 
@@ -285,7 +285,7 @@ class FullTraining:
         R"""
         Receives non-zero interaction indices, *i.e.*, the loci pair *i* and *j* which interaction will be optimized.
         """
-        index = sc.sparse.find(hic)
+        index = sp.sparse.find(hic)
         self.rows = index[0]
         self.cols = index[1]
         self.values = index[2]
@@ -344,7 +344,7 @@ class FullTraining:
         R"""
         Calculates the Pearson's Correlation between the experimental Hi-C used as a reference for the training and the *in silico* Hi-C obtained from the optimization step.
         """
-        r1 = sc.sparse.csr_matrix((self.Pi/self.NFrames,(self.rows,self.cols)), shape=(self.expHiC.shape[0],self.expHiC.shape[0])).todense()
+        r1 = sp.sparse.csr_matrix((self.Pi/self.NFrames,(self.rows,self.cols)), shape=(self.expHiC.shape[0],self.expHiC.shape[0])).todense()
         r2 = self.hic_sparse.todense()
 
         r1[np.isinf(r1)]= 0.0
@@ -395,12 +395,12 @@ class FullTraining:
 
         Bij = PiPj_mean - Pi2_mean
         
-        invBij = sc.linalg.pinvh(Bij)
+        invBij = sp.linalg.pinvh(Bij)
 
         lambdas = np.matmul(invBij, gij)
 
         
-        lamb_matrix = sc.sparse.csr_matrix((lambdas,(self.rows,self.cols)), shape=(self.expHiC.shape[0],self.expHiC.shape[0]))
+        lamb_matrix = sp.sparse.csr_matrix((lambdas,(self.rows,self.cols)), shape=(self.expHiC.shape[0],self.expHiC.shape[0]))
         
         self.error = (np.sum(np.absolute(gij)))/(np.sum(self.phi_exp))
         
@@ -437,7 +437,7 @@ class CustomMiChroMTraining:
     """
    
     def __init__(self, ChromSeq="chr_beads.txt", TypesTable=None, mu=3.22, rc=1.78, cutoff=0.0, IClist=None, dinit=3, dend=200): 
-        self.ChromSeq = self.get_chrom_seq(ChromSeq)
+        self.ChromSeq = self._get_chrom_seq(ChromSeq)
         self.size = len(self.ChromSeq)
         self.P=np.zeros((self.size,self.size))
         self.Pold=np.zeros((self.size,self.size))
@@ -475,7 +475,7 @@ class CustomMiChroMTraining:
             except IOError:
                 print("Error in opening the file containing the Ideal Chromosome interactions!")
 
-    def get_chrom_seq(self, filename):
+    def _get_chrom_seq(self, filename):
         R"""Reads the chromatin sequence as letters of the types/compartments.
         
         Args:
@@ -583,10 +583,11 @@ class CustomMiChroMTraining:
         for i, j in itertools.product(range(dmax),range(dmax)):
             B[i,j] = PiPj_mean[i,j] - (phi_sim[i]*phi_sim[j])
          
-        invB = sc.linalg.pinv(B)
+        invB = sp.linalg.pinv(B)
 
         self.lambdas_new = np.dot(invB,g)
         self.lambdas_old = np.genfromtxt(str(self.IClist))
+        # check size
         lambdas_final = self.lambdas_old[dmax] - damp*self.lambdas_new
 
         if write_error:
@@ -725,7 +726,7 @@ class CustomMiChroMTraining:
 
         B = PiPj_mean - Pi2_mean
     
-        invB = sc.linalg.pinv(B)
+        invB = sp.linalg.pinv(B)
 
         if write_error:
             tolerance = np.sum(np.absolute(g))/np.sum(phi_exp)
