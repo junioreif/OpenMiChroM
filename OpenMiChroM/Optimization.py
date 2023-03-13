@@ -590,11 +590,11 @@ class CustomMiChroMTraining:
         lambdas_new = self.lambdas_old[dmax] - damp*self.lambdas_new
 
         if write_error:
-            tolerance = np.sum(np.absolute(g))/np.sum(phi_exp)
-            pearson = self.get_Pearson()
+            self.tolerance = np.sum(np.absolute(g))/np.sum(phi_exp)
+            self.pearson = self.get_Pearson()
                                             
             with open('tolerance_and_pearson_IC','a') as tf:
-                tf.write("Tolerance: %f  Pearson's Correlation: %f\n" % (tolerance, pearson))
+                tf.write("Tolerance: %f  Pearson's Correlation: %f\n" % (self.tolerance, self.pearson))
         
         # return(np.dot(invRes,gij))
         return(lambdas_new)
