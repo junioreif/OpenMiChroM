@@ -587,7 +587,7 @@ class CustomMiChroMTraining:
 
         self.lambdas_new = np.dot(invB,g)
         self.lambdas_old = np.genfromtxt(str(self.IClist))
-        lambdas_new = self.lambdas_old[dmax] - damp*self.lambdas_new
+        lambdas_final = self.lambdas_old[dmax] - damp*self.lambdas_new
 
         if write_error:
             self.tolerance = np.sum(np.absolute(g))/np.sum(phi_exp)
@@ -597,7 +597,7 @@ class CustomMiChroMTraining:
                 tf.write("Tolerance: %f  Pearson's Correlation: %f\n" % (self.tolerance, self.pearson))
         
         # return(np.dot(invRes,gij))
-        return(lambdas_new)
+        return(lambdas_final)
     
     def prob_calculation_types(self, state):
         R"""
