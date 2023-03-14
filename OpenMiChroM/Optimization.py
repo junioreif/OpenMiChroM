@@ -511,7 +511,7 @@ class CustomMiChroMTraining:
         self.PiPj_IC += PiPj
         self.Nframes += 1 
         
-    def calc_phi_sim_IC(self): #init=3, dmax=200
+    def calc_phi_sim_IC(self):
         R"""
         Calculates the contact probability as a function of the genomic distance from simulations for the Ideal Chromosome optimization.
         """
@@ -542,7 +542,7 @@ class CustomMiChroMTraining:
         self.expHiC = r+rd + np.diag(np.ones(len(r)))
         self.expHiC[self.expHiC<self.cutoff] = 0.0
 
-    def calc_phi_exp_IC(self): #init=3, dmax=200
+    def calc_phi_exp_IC(self):
         R"""
         Calculates the contact probability as a function of the genomic distance from the experimental Hi-C for the Ideal Chromosome optimization.
         """
@@ -552,7 +552,7 @@ class CustomMiChroMTraining:
              phi[i] =  np.mean(np.diagonal(self.expHiC, offset=(i+self.dinit)))
         return phi
     
-    def get_lambdas_IC(self, exp_map='file.dense', damp=3*10**-7, write_error=True): #dmax=200,
+    def get_lambdas_IC(self, exp_map='file.dense', damp=3*10**-7, write_error=True):
         R"""
         Calculates the Lagrange multipliers for the Ideal Chromosome optimization and returns a array containing the energy values for the IC optimization step.
         Args:
@@ -571,9 +571,9 @@ class CustomMiChroMTraining:
 
         self.get_HiC_exp(exp_map)
         
-        phi_exp = self.calc_phi_exp_IC() #init=self.dinit, dmax=dmax)
+        phi_exp = self.calc_phi_exp_IC()
         
-        phi_sim = self.calc_phi_sim_IC() #init=self.dinit, dmax=dmax)
+        phi_sim = self.calc_phi_sim_IC()
         
         g = -phi_sim + phi_exp   # *1/beta = 1     
     
@@ -587,8 +587,12 @@ class CustomMiChroMTraining:
 
         self.lambdas_new = np.dot(invB,g)
         self.lambdas_old = np.genfromtxt(str(self.IClist))
+        
         # check size
-        lambdas_final = self.lambdas_old[dmax] - damp*self.lambdas_new
+        if self.lambdas_old.size > (self.size - self.dinit):
+            print("The IClist file " + str(self.IClist) + " should be smaller than the chromosome size - dinit: " + self.size + " - " + self.dinit)
+        else:
+            lambdas_final = self.lambdas_old[dmax] - damp*self.lambdas_new
 
         if write_error:
             self.tolerance = np.sum(np.absolute(g))/np.sum(phi_exp)
@@ -597,7 +601,6 @@ class CustomMiChroMTraining:
             with open('tolerance_and_pearson_IC','a') as tf:
                 tf.write("Tolerance: %f  Pearson's Correlation: %f\n" % (self.tolerance, self.pearson))
         
-        # return(np.dot(invRes,gij))
         return(lambdas_final)
     
     def prob_calculation_types(self, state):
