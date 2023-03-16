@@ -489,8 +489,14 @@ class CustomMiChroMTraining:
 
         """
 
-        df = pd.read_csv(filename, index_col=0, names=['Types'], sep=None, engine='python')
-        return df.Types.values
+        my_list = []
+        af = open(filename,'r')
+        pos = af.read().splitlines()
+        for t in range(len(pos)):
+            pos[t] = pos[t].split()
+            my_list.append(pos[t][1])
+
+        return np.array(my_list)
         
     def prob_calculation_IC(self, state):
         R"""
