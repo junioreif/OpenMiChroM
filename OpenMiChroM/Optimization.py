@@ -594,11 +594,7 @@ class CustomMiChroMTraining:
         self.lambdas_new = np.dot(invB,g)
         self.lambdas_old = np.genfromtxt(str(self.IClist))
         
-        # check size
-        if self.lambdas_old.size > (self.size - self.dinit):
-            print("The IClist file " + str(self.IClist) + " should be smaller than the chromosome size - dinit: " + self.size + " - " + self.dinit)
-        else:
-            lambdas_final = self.lambdas_old[dmax] - damp*self.lambdas_new
+        lambdas_final = self.lambdas_old[dmax] - damp*self.lambdas_new
 
         if write_error:
             self.tolerance = np.sum(np.absolute(g))/np.sum(phi_exp)
