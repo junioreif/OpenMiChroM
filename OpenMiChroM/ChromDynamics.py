@@ -509,7 +509,7 @@ class MiChroM:
         self.forceDict["AngleForce"] = angles
         
         
-    def addRepulsiveSoftCore(self, Ecut=4.0):
+    def addRepulsiveSoftCore(self, Ecut=4.0,CutoffDistance=3.0):
         
         R"""
         Adds a soft-core repulsive interaction that allows chain crossing, which represents the activity of topoisomerase II. Details can be found in the following publications: 
@@ -542,7 +542,7 @@ class MiChroM:
         repulforceGr.addGlobalParameter('Ecut', Ecut)
         repulforceGr.addGlobalParameter('r_0', r_0)
         repulforceGr.addGlobalParameter('CutOff', nbCutOffDist)
-        repulforceGr.setCutoffDistance(3.0)
+        repulforceGr.setCutoffDistance(CutoffDistance)
 
         for _ in range(self.N):
             repulforceGr.addParticle(())
@@ -570,20 +570,20 @@ class MiChroM:
         self.addCustomTypes(name="TypetoType", mu=mu, rc=rc, TypesTable=filepath)
         
 
-    def addCustomTypes(self, name="CustomTypes", mu=3.22, rc = 1.78, TypesTable=None):
+    def addCustomTypes(self, name="CustomTypes", mu=3.22, rc = 1.78, TypesTable=None,CutoffDistance=3.0):
         R"""
         Adds the type-to-type potential using custom values for interactions between the chromatin types. The parameters :math:`\mu` (mu) and rc are part of the probability of crosslink function :math:`f(r_{i,j}) = \frac{1}{2}\left( 1 + tanh\left[\mu(r_c - r_{i,j}\right] \right)`, where :math:`r_{i,j}` is the spatial distance between loci (beads) *i* and *j*.
         
         The function receives a txt/TSV/CSV file containing the upper triangular matrix of the type-to-type interactions. A file example can be found `here <https://github.com/junioreif/OpenMiChroM/blob/main/OpenMiChroM/share/MiChroM.ff>`__.
         
         +---+------+-------+-------+
-        |   |   A  |   B   |   C   |
+        |  |   A  |   B   |   C   |
         +---+------+-------+-------+
-        | A | -0.2 | -0.25 | -0.15 |
+        |  | -0.2 | -0.25 | -0.15 |
         +---+------+-------+-------+
-        | B |      |  -0.3 | -0.15 |
+        |  |      |  -0.3 | -0.15 |
         +---+------+-------+-------+
-        | C |      |       | -0.35 |
+        |  |      |       | -0.35 |
         +---+------+-------+-------+
         
         Args:
@@ -611,7 +611,7 @@ class MiChroM:
         crossLP.addGlobalParameter('mu', mu)
         crossLP.addGlobalParameter('rc', rc)
         crossLP.addGlobalParameter('lim', 1.0)
-        crossLP.setCutoffDistance(3.0)
+        crossLP.setCutoffDistance(CutoffDistance)
 
         tab = pd.read_csv(TypesTable, sep=None, engine='python')
 
@@ -686,7 +686,7 @@ class MiChroM:
   
         self.forceDict["Loops"] = Loop  
         
-    def addCustomIC(self, mu=3.22, rc = 1.78, dinit=3, dend=200, IClist=None):
+    def addCustomIC(self, mu=3.22, rc = 1.78, dinit=3, dend=200, IClist=None,CutoffDistance=3.0):
         R"""
         Adds the Ideal Chromosome potential using custom values for interactions between beads separated by a genomic distance :math:`d`. The parameters :math:`\mu` (mu) and rc are part of the probability of crosslink function :math:`f(r_{i,j}) = \frac{1}{2}\left( 1 + tanh\left[\mu(r_c - r_{i,j}\right] \right)`, where :math:`r_{i,j}` is the spatial distance between loci (beads) *i* and *j*.
         
@@ -725,7 +725,7 @@ class MiChroM:
         IC.addGlobalParameter('rc', rc) 
         IC.addGlobalParameter('lim', 1.0)
         
-        IC.setCutoffDistance(3.0)
+        IC.setCutoffDistance(CutoffDistance)
 
 
         IC.addPerParticleParameter("idx")
@@ -736,7 +736,7 @@ class MiChroM:
         self.forceDict["CustomIC"] = IC
         
     def addIdealChromosome(self, mu=3.22, rc = 1.78, Gamma1=-0.030,Gamma2=-0.351,
-                           Gamma3=-3.727, dinit=3, dend=500):
+                           Gamma3=-3.727, dinit=3, dend=500,CutoffDistance=3.0):
         
         R"""
         Adds the Ideal Chromosome potential for interactions between beads separated by a genomic distance :math:`d` according to the MiChroM energy function parameters reported in "Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173". 
@@ -779,7 +779,7 @@ class MiChroM:
         IC.addGlobalParameter('mu', mu)  
         IC.addGlobalParameter('rc', rc) 
         
-        IC.setCutoffDistance(3.0)
+        IC.setCutoffDistance(CutoffDistance)
 
 
         IC.addPerParticleParameter("idx")
@@ -791,7 +791,7 @@ class MiChroM:
         
         
     def addMultiChainIC(self, mu=3.22, rc = 1.78, Gamma1=-0.030,Gamma2=-0.351,
-                           Gamma3=-3.727, dinit=3, dend=500, chainIndex=0):
+                           Gamma3=-3.727, dinit=3, dend=500, chainIndex=0,CutoffDistance=3.0):
         
         R"""
         Adds the Ideal Chromosome potential for multiple chromosome simulations. The interactions between beads separated by a genomic distance :math:`d` is applied according to the MiChroM energy function parameters reported in "Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173". 
@@ -836,7 +836,7 @@ class MiChroM:
         IC.addGlobalParameter('mu', mu)  
         IC.addGlobalParameter('rc', rc) 
         
-        IC.setCutoffDistance(3)
+        IC.setCutoffDistance(CutoffDistance)
         
         chain = self.chains[chainIndex]
 
