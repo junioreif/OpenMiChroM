@@ -22,6 +22,7 @@ Table of Contents
    Tutorials/Tutorial_Multiple_Chromosomes
    Tutorials/Tutorial_MiChroM_Optimization
    Tutorials/Tutorial_Full_Inversion_Optimization
+   Tutorials/Tutorial_Pulling
 
 .. toctree::
    :maxdepth: 2

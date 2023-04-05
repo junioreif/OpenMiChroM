@@ -12,6 +12,7 @@ Please acknowledge the use of this software within the body of your publication 
 
   CNDB file format - [3] Contessoto, Vinícius G, et al. “The Nucleome Data Bank: Web-Based Resources to Simulate and Analyze the Three-Dimensional Genome.” Nucleic Acids Research, vol. 49, no. D1, Jan. 2021, pp. D172–82.  
 
+  Pulling Simulations - [4] Ruben, Benjamin S., et al. “Structural Reorganization and Relaxation Dynamics of Axially Stressed Chromosomes.” Biophysical Journal, Mar. 2023.
 
 
 The paper are available online at:
@@ -21,6 +22,10 @@ The paper are available online at:
 [2] `Journal of Physical Chemistry B (JPCB) <https://pubs.acs.org/doi/full/10.1021/acs.jpcb.1c04174>`_.
 
 [3] `Nucleic Acids Research (NAR) <https://academic.oup.com/nar/article/49/D1/D172/5918320>`_.
+
+[4] `Biophysical Journal (BJ) <https://www.sciencedirect.com/science/article/pii/S0006349523002023?via%3Dihub>`_.
+
+
 
 
 To cite these references, you can use the following BibTeX entry:
@@ -70,6 +75,17 @@ To cite these references, you can use the following BibTeX entry:
       doi = {10.1093/nar/gkaa818},
     }
 
+    @article{Pulling_2023,
+      title = {Structural Reorganization and Relaxation Dynamics of Axially Stressed Chromosomes},
+      author = {Ruben, Benjamin S. and Brahmachari, Sumitabha and Contessoto, Vin{\'i}cius G. and Cheng, Ryan R. and Oliveira Junior, Antonio B. and Di Pierro, Michele and Onuchic, Jos{\'e} N.},
+      year = {2023},
+      month = mar,
+      journal = {Biophysical Journal},
+      issn = {0006-3495},
+      doi = {10.1016/j.bpj.2023.03.029},
+      urldate = {2023-04-05},
+      langid = {english}
+    }
 
     
 
