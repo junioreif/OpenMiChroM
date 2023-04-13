@@ -594,7 +594,7 @@ class CustomMiChroMTraining:
         self.lambdas_new = np.dot(invB,g)
         self.lambdas_old = np.genfromtxt(str(self.IClist))
         
-        lambdas_final = self.lambdas_old[dmax] - damp*self.lambdas_new
+        lambdas_final = self.lambdas_old[:dmax] - damp*self.lambdas_new
 
         if write_error:
             self.tolerance = np.sum(np.absolute(g))/np.sum(phi_exp)
