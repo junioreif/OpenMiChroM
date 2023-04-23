@@ -355,7 +355,11 @@ class MiChroM:
                 pos[t][1] = int(pos[t][1]) +m
                 self.loopPosition.append(pos[t])
                 
-
+    
+    ##============================
+    ##      FORCES          
+    ##============================
+    
     def addFlatBottomHarmonic(self, kr=5*10**-3, n_rad=10.0):
         
         R"""
@@ -850,6 +854,150 @@ class MiChroM:
             IC.addParticle([i])
         
         self.forceDict["IdealChromosomeChain{0}".format(chainIndex)] = IC
+
+
+    def addCorrelatedNoise(self, act_seq='none', atol=1e-5):
+        R"""
+        This function assigns active force to monomers, as defined by the act_seq array.
+        Args:
+            
+            act_seq (list, required): 
+                This list should contain the same number of elements as the number of monomers, where the value at index i corresponds to the active force F for the bead i
+
+            atol (float, optional):
+                tolerance for force values. If force is less than atol then it is ignored.
+
+        Returns Error if act_seq is not the same length as the sequence file.
+        """
+        
+        try:
+            act_seq=np.asfarray(act_seq)
+
+            #ensure all the monomers are accounted for
+            assert len(act_seq)==self.N
+
+            #do not redistribute velocities based on Maxwell Boltzman since this is a non-equilbrium sim
+            self.velocityReinitialize = False
+
+            #define active force group
+            act_force = self.mm.CustomExternalForce(" - F_act * (x + y + z)")
+            act_force.addPerParticleParameter('F_act')
+            self.forceDict["ActiveForce"] = act_force
+
+            # Important for the active force group to be set to "0". 
+            # This assignment is however overrun by _applyForces() inside runSimBlock(). 
+            # Hence it is necessary that active force is the *first* force field added to the simulation.
+            self.forceDict["ActiveForce"].setForceGroup(0)
+            
+            #assign correlated noise to the monomers with non-zero active force
+            for bead_id, Fval in enumerate(act_seq):
+                if Fval>atol:    
+                    self.forceDict["ActiveForce"].addParticle(int(bead_id),[Fval])
+
+            print('\n\
+            ==================================\n\
+            Active Monomers (correlated noise) added.\n\
+            Active correlation time: {}\n\
+            Total number of active monomers: {}\n\
+            Total number of monomers: {}\n\
+            ==================================\n'.format(self.integrator.corrTime, self.forceDict["ActiveForce"].getNumParticles(), self.N))
+        
+        except (AttributeError):
+            print("Structure not loaded! Load structure before adding activity.\nCorrelated noise has NOT been added!")
+            
+        except (ValueError, AssertionError):
+            print('Active sequence (act_seq) either not defined or all the monomers are not accounted for!\nCorrelated noise has NOT been added!')
+
+
+    def addHarmonicBonds(self, kfb=30.0, r0=1.0):
+        R"""
+        This function adds harmonic bonds to all the monomers within a chain
+        Args:
+            kfb (float, required): 
+                bond stiffness
+            
+            r0 (float, required):
+                equilibrium distance for the bond
+        """
+
+        for start, end, isRing in self.chains:
+            for j in range(start, end):
+                self.addHarmonicBond_ij(j, j + 1, kfb=kfb, r0=r0)
+
+            if isRing:
+                self.addHarmonicBond_ij(start, end, kfb=kfb, r0=r0)
+
+        self.metadata["HarmonicBond"] = repr({"kfb": kfb})
+        
+
+    def _initHarmonicBond(self, kfb=30,r0=1.0):
+        R"""
+        Internal function used to initiate Harmonic Bond force group
+        Args:
+            kfb (float, required): 
+                bond stiffness
+            
+            r0 (float, required):
+                equilibrium distance for the bond
+        """
+        
+        if "HarmonicBond" not in list(self.forceDict.keys()):
+            force = ("0.5 * kfb * (r-r0)*(r-r0)")
+            bondforceGr = self.mm.CustomBondForce(force)
+            bondforceGr.addGlobalParameter("kfb", kfb)
+            bondforceGr.addGlobalParameter("r0", r0) 
+                
+            self.forceDict["HarmonicBond"] = bondforceGr
+        
+
+    def addHarmonicBond_ij(self, i, j, r0=1.0, kfb=30):
+        R"""
+        Internal function used to add bonds between i and j monomers
+        Args:
+            i,j (int, required):
+                monomers to be bonded
+
+            kfb (float, required): 
+                bond stiffness
+            
+            r0 (float, required):
+                equilibrium distance for the bond
+        """
+        
+        if (i >= self.N) or (j >= self.N):
+            raise ValueError("\n Cannot add a bond between beads  %d,%d that are beyond the chromosome length %d" % (i, j, self.N))
+        
+        self._initHarmonicBond(kfb=kfb, r0=r0)
+        self.forceDict["HarmonicBond"].addBond(int(i), int(j), [])
+        self.bondsForException.append((int(i), int(j)))
+
+
+    def addSelfAvoidance(self, Ecut=4.0, k_rep=20.0, r0=1.0):
+        R"""
+        This adds Soft-core self avoidance between all non-bonded monomers.
+        This force is well behaved across all distances (no diverging parts)
+        Args:
+            Ecut (float, required): 
+                energy associated with full overlap between monomers
+            k_rep (float, required):
+                steepness of the sigmoid repulsive potential
+
+            r0 (float, required):
+                distance from the center at which the sigmoid is half as strong
+        """
+
+        Ecut = Ecut*self.Epsilon
+        repul_energy = ("0.5 * Ecut * (1.0 + tanh(1.0 - (k_rep * (r - r0))))")
+        
+        self.forceDict["SelfAvoidance"] = self.mm.CustomNonbondedForce(repul_energy)
+        repulforceGr = self.forceDict["SelfAvoidance"]
+        repulforceGr.addGlobalParameter('Ecut', Ecut)
+        repulforceGr.addGlobalParameter('r0', r0)
+        repulforceGr.addGlobalParameter('k_rep', k_rep)
+        repulforceGr.setCutoffDistance(3.0)
+
+        for _ in range(self.N):
+            repulforceGr.addParticle(())
 
 
     def _getForceIndex(self, forceName):
