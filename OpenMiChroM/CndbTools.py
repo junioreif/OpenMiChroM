@@ -347,11 +347,11 @@ class cndbTools:
 
         """
         
-        msd=[_msd_fft(xyz[:,mono_id,:]) for mono_id in range(xyz.shape[1])]
+        msd=[self._msd_fft(xyz[:,mono_id,:]) for mono_id in range(xyz.shape[1])]
         return np.array(msd)
         
 
-    def _autocorrFFT(x):
+    def _autocorrFFT(self, x):
         R"""
         Internal function. 
         """
@@ -362,14 +362,14 @@ class cndbTools:
         return res/(N-np.arange(0,N)) #this is the normalized autocorrelation
 
         #r is an (T,3) ndarray: [time stamps,dof]
-    def _msd_fft(r):
+    def _msd_fft(self, r):
         R"""
         Internal function. 
         """
         N=len(r)
         D=np.square(r).sum(axis=1)
         D=np.append(D,0)
-        S2=sum([_autocorrFFT(r[:, i]) for i in range(r.shape[1])])
+        S2=sum([self._autocorrFFT(r[:, i]) for i in range(r.shape[1])])
         Q=2*D.sum()
         S1=[]
         for m in range(N):
