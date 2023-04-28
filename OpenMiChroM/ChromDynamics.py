@@ -31,6 +31,7 @@ import random
 import h5py
 import pandas as pd
 from pathlib import Path
+import types
 
 
 class MiChroM:
@@ -1059,47 +1060,71 @@ class MiChroM:
         self.removeForce(forceName)
 
 
-    def addAdditionalForce(self, forceFunction, **args):
-        R""""
-        Add an additional force after the system has already been initialized.
+def addAdditionalForce(self, forceFunction, **args):
+    R"""
+    Add an additional force after the system has already been initialized.
 
-        Args:
+    Args:
 
-            forceFunciton (function, required):
-                Force function to be added. Example: addSphericalConfinementLJ
-            **args (collection of arguments, required):
-                Arguments of the function to add the force. Consult respective documentation.
-        """
+        forceFunciton (function, required):
+            Force function to be added. Example: addSphericalConfinementLJ
+        **args (collection of arguments, required):
+            Arguments of the function to add the force. Consult respective documentation.
+    """
+    
+    assert isinstance(forceFunction, types.MethodType), f"No function with name {forceFunction}! \
+                                            You can only add functions that are defined as a method of the simulation object"
+    #store old forcedict keys
+    oldForceDictKeys = list(self.forceDict.keys())
+    
+    # call the function --  
+    # the force name is added to the forceDict but not yet added to the system
+    forceFunction(**args)
 
-        try:
-            forceFunction in dir(self)
-        except:
-            raise ValueError("No function with name '{:}' found!".format(forceFunction))
+    # find the new forceDict name
+    newForceDictKey = list(set(oldForceDictKeys)^set(self.forceDict.keys()))[0]
+    force = self.forceDict[newForceDictKey]
+    
+    # exclusion list
+    exc = self.bondsForException
 
-        oldForceDictKeys = [x for x in self.forceDict.keys()]
+    # set all the attributes of the force (see _applyForces)
+    if hasattr(force, "addException"):
+        print('Add exceptions for {0} force'.format(newForceDictKey))
+        for pair in exc:
+            force.addException(int(pair[0]),
+                int(pair[1]), 0, 0, 0, True)
+            
+    elif hasattr(force, "addExclusion"):
+        print('Add exclusions for {0} force'.format(newForceDictKey))
+        for pair in exc:
+            force.addExclusion(int(pair[0]), int(pair[1]))
 
-        forceFunction(**args)
-
-        newForceDictKey = [i for i in self.forceDict.keys() if i not in oldForceDictKeys][0]
-
-        self.system.addForce(self.forceDict[newForceDictKey])
-        self.context.reinitialize(preserveState=True) 
-
-        forceGroups = [i.getForceGroup() for i in self.forceDict.values()]
-        
-        i = 0
-        while i in forceGroups:
-            i += 1
-
-        if i < 32:
-            self.forceDict[newForceDictKey].setForceGroup(i)
+    if hasattr(force, "CutoffNonPeriodic") and hasattr(
+                                            force, "CutoffPeriodic"):
+        if self.PBC:
+            force.setNonbondedMethod(force.CutoffPeriodic)
+            print("Using periodic boundary conditions!!!!")
         else:
-            self.forceDict[newForceDictKey].setForceGroup(31)
+            force.setNonbondedMethod(force.CutoffNonPeriodic)
+    
+    # add the force
+    print("adding force ", newForceDictKey, self.system.addForce(self.forceDict[newForceDictKey]))
+
+    # reinitialize the system with the new force
+    self.context.reinitialize(preserveState=True) 
+
+    for name in self.forceDict.keys():
+        force_group = self.forceDict[name].getForceGroup()
+        if force_group>31: 
+            force_group=31
             print("Attention, force was added to Force Group 31 because no other was available.")
         
-        assert self._isForceDictEqualSystemForces(), 'Forces in forceDict should be the same as in the system!'
+        self.forceDict[name].setForceGroup(force_group)
+    
+    assert self._isForceDictEqualSystemForces(), 'Forces in forceDict should be the same as in the system!'
 
-
+    
     def _loadParticles(self):
         R"""
         Internal function that loads the chromosome beads into the simulations system.
