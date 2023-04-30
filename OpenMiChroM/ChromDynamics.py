@@ -1060,71 +1060,71 @@ class MiChroM:
         self.removeForce(forceName)
 
 
-def addAdditionalForce(self, forceFunction, **args):
-    R"""
-    Add an additional force after the system has already been initialized.
+    def addAdditionalForce(self, forceFunction, **args):
+        R"""
+        Add an additional force after the system has already been initialized.
 
-    Args:
+        Args:
 
-        forceFunciton (function, required):
-            Force function to be added. Example: addSphericalConfinementLJ
-        **args (collection of arguments, required):
-            Arguments of the function to add the force. Consult respective documentation.
-    """
-    
-    assert isinstance(forceFunction, types.MethodType), f"No function with name {forceFunction}! \
-                                            You can only add functions that are defined as a method of the simulation object"
-    #store old forcedict keys
-    oldForceDictKeys = list(self.forceDict.keys())
-    
-    # call the function --  
-    # the force name is added to the forceDict but not yet added to the system
-    forceFunction(**args)
-
-    # find the new forceDict name
-    newForceDictKey = list(set(oldForceDictKeys)^set(self.forceDict.keys()))[0]
-    force = self.forceDict[newForceDictKey]
-    
-    # exclusion list
-    exc = self.bondsForException
-
-    # set all the attributes of the force (see _applyForces)
-    if hasattr(force, "addException"):
-        print('Add exceptions for {0} force'.format(newForceDictKey))
-        for pair in exc:
-            force.addException(int(pair[0]),
-                int(pair[1]), 0, 0, 0, True)
-            
-    elif hasattr(force, "addExclusion"):
-        print('Add exclusions for {0} force'.format(newForceDictKey))
-        for pair in exc:
-            force.addExclusion(int(pair[0]), int(pair[1]))
-
-    if hasattr(force, "CutoffNonPeriodic") and hasattr(
-                                            force, "CutoffPeriodic"):
-        if self.PBC:
-            force.setNonbondedMethod(force.CutoffPeriodic)
-            print("Using periodic boundary conditions!!!!")
-        else:
-            force.setNonbondedMethod(force.CutoffNonPeriodic)
-    
-    # add the force
-    print("adding force ", newForceDictKey, self.system.addForce(self.forceDict[newForceDictKey]))
-
-    # reinitialize the system with the new force
-    self.context.reinitialize(preserveState=True) 
-
-    for name in self.forceDict.keys():
-        force_group = self.forceDict[name].getForceGroup()
-        if force_group>31: 
-            force_group=31
-            print("Attention, force was added to Force Group 31 because no other was available.")
+            forceFunciton (function, required):
+                Force function to be added. Example: addSphericalConfinementLJ
+            **args (collection of arguments, required):
+                Arguments of the function to add the force. Consult respective documentation.
+        """
         
-        self.forceDict[name].setForceGroup(force_group)
-    
-    assert self._isForceDictEqualSystemForces(), 'Forces in forceDict should be the same as in the system!'
+        assert isinstance(forceFunction, types.MethodType), f"No function with name {forceFunction}! \
+                                                You can only add functions that are defined as a method of the simulation object"
+        #store old forcedict keys
+        oldForceDictKeys = list(self.forceDict.keys())
+        
+        # call the function --  
+        # the force name is added to the forceDict but not yet added to the system
+        forceFunction(**args)
 
-    
+        # find the new forceDict name
+        newForceDictKey = list(set(oldForceDictKeys)^set(self.forceDict.keys()))[0]
+        force = self.forceDict[newForceDictKey]
+        
+        # exclusion list
+        exc = self.bondsForException
+
+        # set all the attributes of the force (see _applyForces)
+        if hasattr(force, "addException"):
+            print('Add exceptions for {0} force'.format(newForceDictKey))
+            for pair in exc:
+                force.addException(int(pair[0]),
+                    int(pair[1]), 0, 0, 0, True)
+                
+        elif hasattr(force, "addExclusion"):
+            print('Add exclusions for {0} force'.format(newForceDictKey))
+            for pair in exc:
+                force.addExclusion(int(pair[0]), int(pair[1]))
+
+        if hasattr(force, "CutoffNonPeriodic") and hasattr(
+                                                force, "CutoffPeriodic"):
+            if self.PBC:
+                force.setNonbondedMethod(force.CutoffPeriodic)
+                print("Using periodic boundary conditions!!!!")
+            else:
+                force.setNonbondedMethod(force.CutoffNonPeriodic)
+        
+        # add the force
+        print("adding force ", newForceDictKey, self.system.addForce(self.forceDict[newForceDictKey]))
+
+        # reinitialize the system with the new force
+        self.context.reinitialize(preserveState=True) 
+
+        for name in self.forceDict.keys():
+            force_group = self.forceDict[name].getForceGroup()
+            if force_group>31: 
+                force_group=31
+                print("Attention, force was added to Force Group 31 because no other was available.")
+            
+            self.forceDict[name].setForceGroup(force_group)
+        
+        assert self._isForceDictEqualSystemForces(), 'Forces in forceDict should be the same as in the system!'
+
+
     def _loadParticles(self):
         R"""
         Internal function that loads the chromosome beads into the simulations system.
