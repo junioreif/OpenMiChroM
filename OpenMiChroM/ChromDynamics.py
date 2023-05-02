@@ -1043,7 +1043,7 @@ class MiChroM:
             del self.forceDict[forceName]
 
             self.context.reinitialize(preserveState=True) 
-
+            print(f"Removed {forceName} from the system!")
             assert self._isForceDictEqualSystemForces(), 'Forces in forceDict should be the same as in the system!'
 
         else:
@@ -1111,9 +1111,7 @@ class MiChroM:
         # add the force
         print("adding force ", newForceDictKey, self.system.addForce(self.forceDict[newForceDictKey]))
 
-        # reinitialize the system with the new force
-        self.context.reinitialize(preserveState=True) 
-
+        #assign force groups
         for name in self.forceDict.keys():
             force_group = self.forceDict[name].getForceGroup()
             if force_group>31: 
@@ -1121,6 +1119,9 @@ class MiChroM:
                 print("Attention, force was added to Force Group 31 because no other was available.")
             
             self.forceDict[name].setForceGroup(force_group)
+
+        # reinitialize the system with the new force after force group assignments
+        self.context.reinitialize(preserveState=True) 
         
         assert self._isForceDictEqualSystemForces(), 'Forces in forceDict should be the same as in the system!'
 
