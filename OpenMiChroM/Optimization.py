@@ -17,7 +17,6 @@ try:
 except:
     print('Failed to load OpenMM. Check your configuration.')
 
-
 import numpy as np
 import random
 from scipy.spatial import distance
@@ -407,7 +406,6 @@ class FullTraining:
         
         return(lamb_matrix)
 
-
 class CustomMiChroMTraining:
     R"""
     The :class:`~.CustomMiChroMTraining` class performs the parameters training employing MiChroM (Minimal Chromatin Model) energy function. 
@@ -430,20 +428,22 @@ class CustomMiChroMTraining:
             Parameter in the probability of crosslink function, :math:`f(rc) = 0.5` (Default value = 1.78, for human chromosomes in interphase).
         cutoff (float, optional):
             Cutoff value for reducing the noise in the original data. Values lower than the **cutoff** are considered :math:`0.0`.
+        IClist (file, required for Ideal Chromosome training):
+            A one-column text file containing the energy interaction values for loci *i* and *j* separated by a genomic distance :math:`d`. The list should be at least of the size :math:`dend-dinit`. (Default value: :code:`None`).
         dinit (int, required):
             The first neighbor in sequence separation (Genomic Distance) to be considered in the Ideal Chromosome potential for training. (Default value = 3).
         dend (int, required):
             The last neighbor in sequence separation (Genomic Distance) to be considered in the Ideal Chromosome potential for training. (Default value = 200).
     """
    
-    def __init__(self, ChromSeq="chr_beads.txt", TypesTable=None, mu=3.22, rc=1.78, cutoff=0.0, dinit=3, dend=200): 
-        self.ChromSeq = self.getChromSeq(ChromSeq)
+    def __init__(self, ChromSeq="chr_beads.txt", TypesTable=None, mu=3.22, rc=1.78, cutoff=0.0, IClist=None, dinit=3, dend=200): 
+        self.ChromSeq = self._get_chrom_seq(ChromSeq)
         self.size = len(self.ChromSeq)
         self.P=np.zeros((self.size,self.size))
         self.Pold=np.zeros((self.size,self.size))
         self.r_cut = rc 
         self.mu  = mu
-        self.Bij = np.zeros((dend,dend))
+        
         tab = pd.read_csv(TypesTable, sep=None, engine='python')
         self.header_types = list(tab.columns.values) 
         self.diff_types = set(self.ChromSeq)
@@ -459,14 +459,24 @@ class CustomMiChroMTraining:
 
         self.n_types = len(self.diff_types)
         self.n_inter = int(self.n_types*(self.n_types-1)/2 + self.n_types)
-        self.polds_type = np.zeros((self.n_types, self.n_types))
-        self.Bij_type = np.zeros((self.n_inter,self.n_inter))
+        self.Pold_type = np.zeros((self.n_types, self.n_types))
+        self.PiPj_type = np.zeros((self.n_inter,self.n_inter))
         self.Nframes = 0 
+        
+        self.PiPj_IC = np.zeros((dend-dinit,dend-dinit))
         self.dinit = dinit
+        self.dend = dend
         self.cutoff = cutoff
 
-    def getChromSeq(self, filename):
-        R"""Converts the letters of the types/compartments following the rule: 'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6.
+        if not IClist == None:
+            try:
+                f = open(str(IClist),"r")
+                self.IClist = IClist
+            except IOError:
+                print("Error in opening the file containing the Ideal Chromosome interactions!")
+
+    def _get_chrom_seq(self, filename):
+        R"""Reads the chromatin sequence as letters of the types/compartments.
         
         Args:
 
@@ -477,7 +487,7 @@ class CustomMiChroMTraining:
             :math:`(N,1)` :class:`numpy.ndarray`:
                 Returns an array of the sequence of chromatin types.
 
-        """              
+        """
 
         my_list = []
         af = open(filename,'r')
@@ -488,40 +498,43 @@ class CustomMiChroMTraining:
 
         return np.array(my_list)
         
-    
-    def probCalculation_IC(self, state, dmax=200):
+    def prob_calculation_IC(self, state):
         R"""
         Calculates the contact probability matrix and the cross term of the Hessian for the Ideal Chromosome optimization.
         """
+
+        dmax = self.dend - self.dinit
+
         self.Pold += self.P
         self.P = 0.5*(1.0 + np.tanh(self.mu*(self.r_cut - distance.cdist(state,state, 'euclidean'))))
         self.P[self.P<self.cutoff] = 0.0
-        Pi = []
+        
+        Pi = np.array([])
         for i in range(dmax):
-             Pi.append(np.mean(np.diagonal(self.P, offset=(i+self.dinit))))
+             Pi = np.append(Pi, np.mean(np.diagonal(self.P, offset=(i+self.dinit))))
+        
         PiPj = np.outer(Pi, Pi)
-      
-        self.Bij += PiPj
+        self.PiPj_IC += PiPj
         self.Nframes += 1 
         
-    
-    def calc_sim_phi(self, init=3, dmax=200):
+    def calc_phi_sim_IC(self):
         R"""
         Calculates the contact probability as a function of the genomic distance from simulations for the Ideal Chromosome optimization.
         """
+        dmax = self.dend - self.dinit
         phi = np.zeros(dmax)
-        pmean = self.Pold/self.Nframes
+        Pmean = self.Pold/self.Nframes
         for i in range(dmax):
-             phi[i] =  np.mean(np.diagonal(pmean, offset=(i+init)))
+             phi[i] =  np.mean(np.diagonal(Pmean, offset=(i+self.dinit)))
         return phi
     
-    def getBijsim(self):
+    def get_PiPj_sim_IC(self):
         R"""
         Normalizes the cross term of the Hessian by the number of frames in the simulation for the Ideal Chromosome optimization.
         """
-        return self.Bij/self.Nframes
+        return self.PiPj_IC/self.Nframes
     
-    def getHiCexp(self, filename):
+    def get_HiC_exp(self, filename):
         R"""
         Receives the experimental Hi-C map (Full dense matrix) in a text format and performs the data normalization from Hi-C frequency/counts/reads to probability.
         """
@@ -535,57 +548,64 @@ class CustomMiChroMTraining:
         self.expHiC = r+rd + np.diag(np.ones(len(r)))
         self.expHiC[self.expHiC<self.cutoff] = 0.0
 
-    def calc_exp_phi(self, init=3, dmax=200):
+    def calc_phi_exp_IC(self):
         R"""
         Calculates the contact probability as a function of the genomic distance from the experimental Hi-C for the Ideal Chromosome optimization.
         """
+        dmax = self.dend - self.dinit
         phi = np.zeros(dmax)
         for i in range(dmax):
-             phi[i] =  np.mean(np.diagonal(self.expHiC, offset=(i+init)))
+             phi[i] =  np.mean(np.diagonal(self.expHiC, offset=(i+self.dinit)))
         return phi
     
-    def getlambfromfile(self, filename):
-        R"""
-        Receives the Lagrange multipliers of the Ideal Chromosome optimization from a text file.
-        """
-        aFile = open(filename,'r')
-        pos = aFile.read().splitlines()
-        for t in range(len(pos)):
-            pos[t] = float(pos[t])
-        return np.array(pos)
-    
-    def getLamb(self, dmax=200, exp_map='file.dense'):
+    def get_lambdas_IC(self, exp_map='file.dense', damp=3*10**-7, write_error=True):
         R"""
         Calculates the Lagrange multipliers for the Ideal Chromosome optimization and returns a array containing the energy values for the IC optimization step.
+        Args:
+            exp_map (file, required):
+                The experimental Hi-C map with the .dense file. (Default value: :code:`file.dense`).
+            damp (float):
+                The learning parameter for the new lambda. (Default value = :math:`3*10**-7`).
+            dmax (float):
+                The maximum distance in the sequence separation (Genomic Distance) to be considered for the convergence of the potential interations. (Default value = 200).    
+                The learning parameter for the new lambda. (Default value = :math:`3*10**-7`).
+            write_error (boolean):
+                Flag to write the tolerance and Pearson's correlation values. (Default value: :code:`True`). 
         """    
-        self.getHiCexp(exp_map)
+        
+        dmax = self.dend - self.dinit
 
+        self.get_HiC_exp(exp_map)
         
-        phi_exp = self.calc_exp_phi(init=self.dinit, dmax=dmax)
+        phi_exp = self.calc_phi_exp_IC()
         
-        phi_sim = self.calc_sim_phi(init=self.dinit, dmax=dmax)
+        phi_sim = self.calc_phi_sim_IC()
         
-        gij = -phi_sim + phi_exp   # *1/beta = 1     
+        g = -phi_sim + phi_exp   # *1/beta = 1     
     
-        Res = np.zeros((dmax,dmax))
-        Bijmean = self.getBijsim()
+        B = np.zeros((dmax,dmax))
+        PiPj_mean = self.get_PiPj_sim_IC()
 
         for i, j in itertools.product(range(dmax),range(dmax)):
-            Res[i,j] = Bijmean[i,j] - (phi_sim[i]*phi_sim[j])
+            B[i,j] = PiPj_mean[i,j] - (phi_sim[i]*phi_sim[j])
          
-        invRes = sp.linalg.pinv(Res)
+        invB = sp.linalg.pinv(B)
 
-        erro = np.sum(np.absolute(gij))/np.sum(phi_exp)
-        pear = self.getPearson()
+        self.lambdas_new = np.dot(invB,g)
+        self.lambdas_old = np.genfromtxt(str(self.IClist))
         
-                             
-        with open('error_and_pearsonC_IC','a') as tf:
-            tf.write("Error: %f  Pearson's Correlation: %f\n" % (erro, pear))
+        lambdas_final = self.lambdas_old[:dmax] - damp*self.lambdas_new
+
+        if write_error:
+            self.tolerance = np.sum(np.absolute(g))/np.sum(phi_exp)
+            self.pearson = self.get_Pearson()
+                                            
+            with open('tolerance_and_pearson_IC','a') as tf:
+                tf.write("Tolerance: %f  Pearson's Correlation: %f\n" % (self.tolerance, self.pearson))
         
-        return(np.dot(invRes,gij))
+        return(lambdas_final)
     
-
-    def probCalculation_types(self, state):
+    def prob_calculation_types(self, state):
         R"""
         Calculates the contact probability matrix and the cross term of the Hessian for the type-to-type interactions optimization.
         """    
@@ -612,11 +632,11 @@ class CustomMiChroMTraining:
 
         PiPj = np.outer(vec,vec)
         
-        self.polds_type += p_instant 
-        self.Bij_type += PiPj
+        self.Pold_type += p_instant 
+        self.PiPj_type += PiPj
         self.Nframes += 1  
     
-    def calc_exp_phi_types(self):
+    def calc_phi_exp_types(self):
         R"""
         Calculates the average of the contact probability for each chromatin type (compartment annotation) from the experimental Hi-C for the Types optimization.
         """
@@ -628,7 +648,6 @@ class CustomMiChroMTraining:
         for tt in self.header_types:
             just[tt] = ([i for i, e in enumerate(self.ChromSeq) if e == tt])
 
-
         for pcount,q in enumerate(itertools.combinations_with_replacement(just.keys(), r=2)):
             nt=0
             for i, j in itertools.product(just[q[0]],just[q[1]]):
@@ -639,29 +658,29 @@ class CustomMiChroMTraining:
         return phi
     
     
-    def calc_sim_phi_types(self):
+    def calc_phi_sim_types(self):
         R"""
         Calculates the average of the contact probability for each chromatin type (compartment annotation) from simulation for the Types optimization.
         """
-        return self.polds_type/self.Nframes
+        return self.Pold_type/self.Nframes
     
-    def getPiPjsim_types(self):
+    def get_PiPj_sim_types(self):
         R"""
         Normalizes the cross term of the Hessian by the number of frames in the simulation for the Types optimization.
         """
-        return self.Bij_type/self.Nframes
+        return self.PiPj_type/self.Nframes
     
-    def getHiCSim(self):
+    def get_HiC_sim(self):
         R"""
         Calculates the *in silico* Hi-C map (Full dense matrix).
         """
         return self.Pold/self.Nframes
     
-    def getPearson(self):
+    def get_Pearson(self):
         R"""
         Calculates the Pearson's Correlation between the experimental Hi-C used as a reference for the training and the *in silico* Hi-C obtained from the optimization step.
         """
-        r1 = self.getHiCSim()
+        r1 = self.get_HiC_sim()
         r2 = self.expHiC
 
         r1[np.isinf(r1)]= 0.0
@@ -686,21 +705,20 @@ class CustomMiChroMTraining:
 
         return(pearsonr(a1,a2)[0])
         
-    def getLamb_types(self, exp_map, damp=5*10**-7):
+    def get_lambdas_types(self, exp_map, damp=5*10**-7, write_error=True):
         R"""
         Calculates the Lagrange multipliers of each type-to-type interaction and returns the matrix containing the energy values for the optimization step.
         """
-        self.getHiCexp(exp_map)
+        self.get_HiC_exp(exp_map)
         
-        phi_exp = self.calc_exp_phi_types()
+        phi_exp = self.calc_phi_exp_types()
         
-        phi_sim = self.calc_sim_phi_types()
+        phi_sim = self.calc_phi_sim_types()
         
-        gij = -phi_sim + phi_exp
+        g = -phi_sim + phi_exp
 
-        PiPj_mean = self.getPiPjsim_types()
+        PiPj_mean = self.get_PiPj_sim_types()
         
-
         ind = np.triu_indices(self.n_types)
         phi_sim_linear = []
 
@@ -711,22 +729,23 @@ class CustomMiChroMTraining:
 
         Pi2_mean = np.outer(phi_sim_linear,phi_sim_linear)
 
-        Bij_mean = PiPj_mean - Pi2_mean
+        B = PiPj_mean - Pi2_mean
     
-        invBij_mean = sp.linalg.pinv(Bij_mean)
+        invB = sp.linalg.pinv(B)
 
-        erro = np.sum(np.absolute(gij))/np.sum(phi_exp)
-        pear = self.getPearson()
-           
-        with open('error_and_pearsonC_types','a') as tf:
-            tf.write("Error: %f  Pearson's Correlation: %f\n" % (erro, pear))
+        if write_error:
+            tolerance = np.sum(np.absolute(g))/np.sum(phi_exp)
+            pearson = self.get_Pearson()
+
+            with open('tolerance_and_pearson_types','a') as tf:
+                    tf.write("Tolerance: %f  Pearson's Correlation: %f\n" % (tolerance, pearson))   
         
-        gij_vec = []
+        g_vec = []
         for pcount,q in enumerate(itertools.combinations_with_replacement(range(self.n_types), r=2)):
-            gij_vec.append(gij[ind[0][pcount], ind[1][pcount]])
-        gij_vec = np.array(gij_vec)
+            g_vec.append(g[ind[0][pcount], ind[1][pcount]])
+        g_vec = np.array(g_vec)
         
-        lambdas = np.matmul(invBij_mean, gij_vec)
+        lambdas = np.matmul(invB, g_vec)
         
         self.lambdas_new = np.zeros((self.n_types,self.n_types))
         
