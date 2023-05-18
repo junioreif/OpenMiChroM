@@ -1,9 +1,14 @@
+# Copyright (c) 2020-2023 The Center for Theoretical Biological Physics (CTBP) - Rice University
+# This file is from the Open-MiChroM project, released under the MIT License. 
+
+R"""
+The :class:`~.ActiveBrownianIntegrator` class is a custom Brownian integrator. Just like all Brownian integrators there are no velocities, there are only forces and displacements.
+Here we use the velocities as a proxy to keep track of the active force for each monomer. 
+Hence velocity v of a monomer represents the active force f = gamma * v.
+"""
+
 #import modules
 import openmm as omm
-
-# This is a custom Brownian integrator. Just like all Brownian integrators there are no velocities, there are only forces and displacements.
-# Here we use the velocities as a proxy to keep track of the active force for each monomer. 
-# Hence velocity v of a monomer represents the active force f = gamma * v
 
 class ActiveBrownianIntegrator(omm.CustomIntegrator):
     def __init__(self,

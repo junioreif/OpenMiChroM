@@ -22,12 +22,12 @@ autodoc_mock_imports = ["simtk","h5py","numpy","scipy","itertools","pandas","os"
 # -- Project information -----------------------------------------------------
 
 project = 'OpenMiChroM'
-copyright = '2020-2021 The Center for Theoretical Biological Physics (CTBP) - Rice University'
+copyright = '2020-2023 The Center for Theoretical Biological Physics (CTBP) - Rice University'
 author = 'Antonio B. Oliveira Jr. & Vinícius G. Contessoto'
 
 # The full version, including alpha/beta/rc tags
-version = '1.0.5'
-release = '1.0.5'
+version = '1.0.7'
+release = '1.0.7'
 
 
 # -- General configuration ---------------------------------------------------

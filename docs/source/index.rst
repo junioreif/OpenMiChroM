@@ -23,6 +23,7 @@ Table of Contents
    Tutorials/Tutorial_MiChroM_Optimization
    Tutorials/Tutorial_Full_Inversion_Optimization
    Tutorials/Tutorial_Pulling
+   Tutorials/Tutorial_Active_Polymer
 
 .. toctree::
    :maxdepth: 2
