@@ -151,6 +151,7 @@ class AdamTraining:
             print("Cannot reset Pi; HiC map shape unknown. Load HiC map first!")
         else:              
             self.Pi = np.zeros(self.phi_exp.shape)
+            self.NFrames = 0
 
     def probCalc(self, state):
         R"""
