@@ -1082,7 +1082,9 @@ class MiChroM:
         forceFunction(**args)
 
         # find the new forceDict name
-        newForceDictKey = list(set(oldForceDictKeys)^set(self.forceDict.keys()))[0]
+        newForceDictKey_list = list(set(oldForceDictKeys)^set(self.forceDict.keys()))
+        assert len(newForceDictKey_list)==1, "The force you are adding is already present! Try removing it first and then add"
+        newForceDictKey = newForceDictKey_list[0]
         force = self.forceDict[newForceDictKey]
         
         # exclusion list
