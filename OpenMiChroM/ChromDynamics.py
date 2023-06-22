@@ -360,6 +360,19 @@ class MiChroM:
     ##============================
     ##      FORCES          
     ##============================
+
+    def addCylindricalConfinement(self, r_conf=5.0, z_conf=10.0, kr=30.0):
+        cyl_conf_energy="step(r_xy-r_cyn) * 0.5 * k_cyn * (r_xy-r_cyn)^2 + step(z^2-zconf^2) * 0.5 * k_cyn * (z-zconf)^2; r_xy=sqrt(x*x+y*y)"
+        
+        cyl_conf_fg = self.mm.CustomExternalForce(cyl_conf_energy)
+        cyl_conf_fg.addGlobalParameter('r_cyn', r_conf)
+        cyl_conf_fg.addGlobalParameter('k_cyn', kr)
+        cyl_conf_fg.addGlobalParameter('zconf', z_conf)
+        
+        self.forceDict["CylindricalConfinement"]=cyl_conf_fg
+
+        for i in range(self.N):
+            self.forceDict["CylindricalConfinement"].addParticle(i, [])
     
     def addFlatBottomHarmonic(self, kr=5*10**-3, n_rad=10.0):
         
