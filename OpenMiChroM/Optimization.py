@@ -92,7 +92,7 @@ class AdamTraining:
         self.t += 1
         return w, b
 
-    def getPars(self, HiC, centerRemove=False, centrange=[0,0], cutoff= 0.0, norm=True):
+    def getPars(self, HiC, centerRemove=False, centrange=[0,0], cutoff='deprecate', norm=True, cutoff_low=0.0, cutoff_high=1.0):
         R"""
         Receives the experimental Hi-C map (Full dense matrix) in a text format and performs the data normalization from Hi-C frequency/counts/reads to probability.
         
@@ -135,12 +135,20 @@ class AdamTraining:
             self.expHiC[:,centrome] = 0.0
         
         #remove noise by cutoff    
-        self.expHiC[self.expHiC<cutoff] = 0.0
+        if cutoff!='deprecate':
+            print('Depreaction warning!\nUsing `cutoff` in getPars is deprecated! Use either `cutoff_low` or `cutoff_high`. \nSetting cutoff_low=cutoff! \n')
+            assert type(cutoff)==float, 'Cut off must be a float'
+            cutoff_low = cutoff
+
+        if cutoff_low>0.0:
+            self.expHiC[self.expHiC<cutoff_low] = 0.0
+        
+        if cutoff_high<1.0:
+            self.expHiC[self.expHiC>cutoff_high] = 0.0
 
         self.mask = self.expHiC == 0.0
 
-        self.phi_exp = self.expHiC #np.triu(self.expHiC, k=1)
-        # self.Pi = np.zeros(self.phi_exp.shape)
+        self.phi_exp = self.expHiC
         self.reset_Pi()
     
     def reset_Pi(self):
