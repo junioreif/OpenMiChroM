@@ -11,6 +11,11 @@ Hence velocity v of a monomer represents the active force f = gamma * v.
 import openmm as omm
 
 class ActiveBrownianIntegrator(omm.CustomIntegrator):
+    R"""
+    The :class:`~.ActiveBrownianIntegrator` class is a custom Brownian integrator. Just like all Brownian integrators there are no velocities, there are only forces and displacements.
+    Here we use the velocities as a proxy to keep track of the active force for each monomer. 
+    Hence velocity v of a monomer represents the active force f = gamma * v.
+    """
     def __init__(self,
                 timestep=0.001, 
                 temperature=120.0,
