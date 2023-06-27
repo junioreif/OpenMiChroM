@@ -20,12 +20,13 @@ except:
 import numpy as np
 import random
 from scipy.spatial import distance
-import scipy as sp
+import scipy as sc
 import itertools
 from scipy.stats.stats import pearsonr
 from sklearn.preprocessing import normalize
 import os
 import pandas as pd
+import warnings
 
 class AdamTraining:
     R"""
@@ -92,7 +93,48 @@ class AdamTraining:
         self.t += 1
         return w, b
 
-    def getPars(self, HiC, centerRemove=False, centrange=[0,0], cutoff='deprecate', norm=True, cutoff_low=0.0, cutoff_high=1.0):
+    def knight_ruiz_balance(matrix, tol=1e-5, max_iter=100):
+        R"""
+        Perform the Knight-Ruiz matrix balancing.
+        """
+        A = np.array(matrix, dtype=float)
+        n = A.shape[0]
+        row_scaling = np.ones(n)
+        col_scaling = np.ones(n)
+
+        for _ in range(max_iter):
+            row_scaling = np.sqrt(np.sum(A, axis=1))
+            A /= row_scaling[:, None]
+            col_scaling = np.sqrt(np.sum(A, axis=0))
+            A /= col_scaling
+
+            if np.all(np.abs(row_scaling - 1) < tol) and np.all(np.abs(col_scaling - 1) < tol):
+                break
+
+        return A
+
+
+    def normalize_matrix(matrix):
+        R"""
+        Normalize the matrix for simulation optimization. Here the first neighbor should have the probability of contact P=1.0.
+        """
+        matrix = np.nan_to_num(matrix, nan=0, posinf=0, neginf=0)
+        np.fill_diagonal(matrix,0.0)
+
+        max_values = np.amax(np.triu(matrix), axis=1)
+        
+        # To avoid division by zero, replace zeros with ones
+        max_values[max_values == 0] = 0.0000001
+        
+        normalized_matrix = np.triu(matrix) / max_values[:, np.newaxis]
+        # return normalized_matrix
+        matrix= normalized_matrix + np.triu(normalized_matrix,k=1).T
+        np.fill_diagonal(matrix,1.0)
+
+        return matrix
+
+
+    def getPars(self, HiC, centerRemove=False, centrange=[0,0], cutoff='deprecate', norm=True, cutoff_low=0.0, cutoff_high=1.0, KR=False, neighbors=0):
         R"""
         Receives the experimental Hi-C map (Full dense matrix) in a text format and performs the data normalization from Hi-C frequency/counts/reads to probability.
         
@@ -106,12 +148,21 @@ class AdamTraining:
             cutoff (float, optional):
                 Cutoff value for reducing the noise in the original data. Values lower than the **cutoff** are considered :math:`0.0`.
         """
-        allmap = np.loadtxt(HiC)
+        
+        warnings.warn("getPars is deprecated, use getHiCexp instead", DeprecationWarning)
+        # get the file extension
+        _, file_extension = os.path.splitext(HiC)
+        if file_extension == '.npy':
+            # use np.load if the file is a .npy file
+            allmap = np.load(HiC)
+        else:
+            allmap = np.loadtxt(HiC)
+
+        if KR==True:
+            allmap = knight_ruiz_balance(allmap)
+
         if norm==True:
-            r=np.triu(allmap, k=1)
-            r[np.isinf(r)]= 0.0
-            r[np.isnan(r)]= 0.0
-            r = normalize(r, axis=1, norm='max')
+            r=normalize_matrix(allmap)
 
             for i in range(len(r)-1):
                 maxElem = r[i][i+1]
@@ -145,6 +196,92 @@ class AdamTraining:
         
         if cutoff_high<1.0:
             self.expHiC[self.expHiC>cutoff_high] = 0.0
+
+        # Remove the number of Neighbors to optimize.
+        M=self.expHiC
+        neighbor_mask = np.abs(np.subtract.outer(np.arange(len(M)), np.arange(len(M)))) <= neighbors
+        M[neighbor_mask] = 0.0
+        self.expHiC = M
+
+        self.mask = self.expHiC == 0.0
+
+        self.phi_exp = self.expHiC
+        self.reset_Pi()
+    
+    def reset_Pi(self):
+        R"""
+        Resets Pi matrix to zeros
+        """
+        if not hasattr(self, "phi_exp"):
+            print("Cannot reset Pi; HiC map shape unknown. Load HiC map first!")
+        else:              
+            self.Pi = np.zeros(self.phi_exp.shape)
+            self.NFrames = 0
+
+
+    def getHiCexp(self, HiC, centerRemove=False, centrange=[0,0], norm=True, cutoff_low=0.0, cutoff_high=1.0, KR=False, neighbors=0):
+        R"""
+        Receives the experimental Hi-C map (Full dense matrix) in a text format and performs the data normalization from Hi-C frequency/counts/reads to probability.
+        
+        Args:
+            HiC (file, required):
+                Experimental Hi-C map (Full dense matrix) in a text format.
+            centerRemove (bool, optional):
+                Whether to set the contact probability of the centromeric region to zero. (Default value: :code:`False`).
+            centrange (list, required if **centerRemove** = :code:`True`)):
+                Range of the centromeric region, *i.e.*, :code:`centrange=[i,j]`, where *i* and *j*  are the initial and final beads in the centromere. (Default value = :code:`[0,0]`).
+            cutoff (float, optional):
+                Cutoff value for reducing the noise in the original data. Values lower than the **cutoff** are considered :math:`0.0`.
+        """
+
+        # get the file extension
+        _, file_extension = os.path.splitext(HiC)
+        if file_extension == '.npy':
+            # use np.load if the file is a .npy file
+            allmap = np.load(HiC)
+        else:
+            allmap = np.loadtxt(HiC)
+
+        if KR==True:
+            allmap = knight_ruiz_balance(allmap)
+
+        if norm==True:
+            r=normalize_matrix(allmap)
+
+            for i in range(len(r)-1):
+                maxElem = r[i][i+1]
+                if (maxElem != np.max(r[i])):
+                    for j in range(len(r[i])):
+                        if maxElem != 0.0:
+                            r[i][j] = float(r[i][j] / maxElem)
+                        else:
+                            r[i][j] = 0.0 
+                        if r[i][j] > 1.0:
+                            r[i][j] = 0.5
+
+            rd = np.transpose(r) 
+            self.expHiC = r+rd + np.diag(np.ones(len(r)))
+        else:
+            self.expHiC = allmap
+        
+        if (centerRemove):
+            centrome = range(centrange[0],centrange[1])
+            self.expHiC[centrome,:] = 0.0
+            self.expHiC[:,centrome] = 0.0
+        
+        #remove noise by cutoff 
+
+        if cutoff_low>0.0:
+            self.expHiC[self.expHiC<cutoff_low] = 0.0
+        
+        if cutoff_high<1.0:
+            self.expHiC[self.expHiC>cutoff_high] = 0.0
+
+        # Remove the number of Neighbors to optimize.
+        M=self.expHiC
+        neighbor_mask = np.abs(np.subtract.outer(np.arange(len(M)), np.arange(len(M)))) <= neighbors
+        M[neighbor_mask] = 0.0
+        self.expHiC = M
 
         self.mask = self.expHiC == 0.0
 
@@ -251,7 +388,7 @@ class FullTraining:
         self.cutoff = cutoff
         
         self.getHiCexp(expHiC, centerRemove=False, centrange=[0,0])
-        self.hic_sparse = sp.sparse.csr_matrix(np.triu(self.expHiC, k=2))
+        self.hic_sparse = sc.sparse.csr_matrix(np.triu(self.expHiC, k=2))
         if (reduce):
             self.appCutoff(pair_h, c_h, pair_l, c_l)
        
@@ -289,7 +426,7 @@ class FullTraining:
             if (hic_full[i] > c_h):
                 hic_final[i] = hic_full[i]
 
-        high_cut_number =   sp.sparse.csr_matrix(np.triu(hic_final, k=2)).nnz
+        high_cut_number =   sc.sparse.csr_matrix(np.triu(hic_final, k=2)).nnz
         print('Non-zero interactions after high-resolution cutoff ({}): {}'.format( c_h, high_cut_number ))
 
         values = [n for n in range(1,N,pair_l)]
@@ -297,7 +434,7 @@ class FullTraining:
         for i in index:
             if (hic_full[i] > c_l):
                 hic_final[i] = hic_full[i]
-        self.hic_sparse = sp.sparse.csr_matrix(np.triu(hic_final, k=2))
+        self.hic_sparse = sc.sparse.csr_matrix(np.triu(hic_final, k=2))
         print('Non-zero interactions after low-resolution cutoff ({}): {}'.format(c_l,  (self.hic_sparse.nnz-high_cut_number) ))
         print('Total Non-zero interactions: {}'.format(self.hic_sparse.nnz))
 
@@ -306,7 +443,7 @@ class FullTraining:
         R"""
         Receives non-zero interaction indices, *i.e.*, the loci pair *i* and *j* which interaction will be optimized.
         """
-        index = sp.sparse.find(hic)
+        index = sc.sparse.find(hic)
         self.rows = index[0]
         self.cols = index[1]
         self.values = index[2]
@@ -314,31 +451,6 @@ class FullTraining:
         for i in range(len(index[0])):
             ind.append((self.rows[i], self.cols[i]))
         return(ind)
-        
-    def getHiCexp(self, filename, centerRemove=False, centrange=[0,0]):
-        R"""
-        Receives the experimental Hi-C map (Full dense matrix) in a text format and performs the data normalization from Hi-C frequency/counts/reads to probability.
-        
-        Args:
-            centerRemove (bool, optional):
-                Whether to set the contact probability of the centromeric region to zero. (Default value: :code:`False`).
-            centrange (list, required if **centerRemove** = :code:`True`)):
-                Range of the centromeric region, *i.e.*, :code:`centrange=[i,j]`, where *i* and *j*  are the initial and final beads in the centromere. (Default value = :code:`[0,0]`).
-        """
-        allmap = np.loadtxt(filename)
-
-        r=np.triu(allmap, k=1)
-        r[np.isinf(r)]= 0.0
-        r[np.isnan(r)]= 0.0
-        r = normalize(r, axis=1, norm='max') 
-        rd = np.transpose(r) 
-        self.expHiC = r+rd + np.diag(np.ones(len(r)))
-        
-        if (centerRemove):
-            centrome = range(centrange[0],centrange[1])
-            self.expHiC[centrome,:] = 0.0
-            self.expHiC[:,centrome] = 0.0
-        self.expHiC[self.expHiC<self.cutoff] = 0.0
         
     def probCalc(self, state):
         R"""
@@ -365,7 +477,7 @@ class FullTraining:
         R"""
         Calculates the Pearson's Correlation between the experimental Hi-C used as a reference for the training and the *in silico* Hi-C obtained from the optimization step.
         """
-        r1 = sp.sparse.csr_matrix((self.Pi/self.NFrames,(self.rows,self.cols)), shape=(self.expHiC.shape[0],self.expHiC.shape[0])).todense()
+        r1 = sc.sparse.csr_matrix((self.Pi/self.NFrames,(self.rows,self.cols)), shape=(self.expHiC.shape[0],self.expHiC.shape[0])).todense()
         r2 = self.hic_sparse.todense()
 
         r1[np.isinf(r1)]= 0.0
@@ -416,12 +528,12 @@ class FullTraining:
 
         Bij = PiPj_mean - Pi2_mean
         
-        invBij = sp.linalg.pinvh(Bij)
+        invBij = sc.linalg.pinvh(Bij)
 
         lambdas = np.matmul(invBij, gij)
 
         
-        lamb_matrix = sp.sparse.csr_matrix((lambdas,(self.rows,self.cols)), shape=(self.expHiC.shape[0],self.expHiC.shape[0]))
+        lamb_matrix = sc.sparse.csr_matrix((lambdas,(self.rows,self.cols)), shape=(self.expHiC.shape[0],self.expHiC.shape[0]))
         
         self.error = (np.sum(np.absolute(gij)))/(np.sum(self.phi_exp))
         
@@ -610,7 +722,7 @@ class CustomMiChroMTraining:
         for i, j in itertools.product(range(dmax),range(dmax)):
             B[i,j] = PiPj_mean[i,j] - (phi_sim[i]*phi_sim[j])
          
-        invB = sp.linalg.pinv(B)
+        invB = sc.linalg.pinv(B)
 
         self.lambdas_new = np.dot(invB,g)
         self.lambdas_old = np.genfromtxt(str(self.IClist))
@@ -752,7 +864,7 @@ class CustomMiChroMTraining:
 
         B = PiPj_mean - Pi2_mean
     
-        invB = sp.linalg.pinv(B)
+        invB = sc.linalg.pinv(B)
 
         if write_error:
             tolerance = np.sum(np.absolute(g))/np.sum(phi_exp)
