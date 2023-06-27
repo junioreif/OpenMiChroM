@@ -18,7 +18,7 @@ setup(
     author="Antonio Bento de Oliveira Junior,Vinicius de Godoi Contessoto",
     author_email="antonio.oliveira@rice.edu,contessoto@rice.edu",
     classifiers=[
-        "License :: MIT",
+        "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
         "Topic :: Software Development :: Libraries :: Python Modules",
