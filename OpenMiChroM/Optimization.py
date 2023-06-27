@@ -92,7 +92,7 @@ class AdamTraining:
         self.t += 1
         return w, b
 
-    def getPars(self, HiC, centerRemove=False, centrange=[0,0], cutoff= 0.0):
+    def getPars(self, HiC, centerRemove=False, centrange=[0,0], cutoff='deprecate', norm=True, cutoff_low=0.0, cutoff_high=1.0):
         R"""
         Receives the experimental Hi-C map (Full dense matrix) in a text format and performs the data normalization from Hi-C frequency/counts/reads to probability.
         
@@ -107,25 +107,27 @@ class AdamTraining:
                 Cutoff value for reducing the noise in the original data. Values lower than the **cutoff** are considered :math:`0.0`.
         """
         allmap = np.loadtxt(HiC)
+        if norm==True:
+            r=np.triu(allmap, k=1)
+            r[np.isinf(r)]= 0.0
+            r[np.isnan(r)]= 0.0
+            r = normalize(r, axis=1, norm='max')
 
-        r=np.triu(allmap, k=1)
-        r[np.isinf(r)]= 0.0
-        r[np.isnan(r)]= 0.0
-        r = normalize(r, axis=1, norm='max')
+            for i in range(len(r)-1):
+                maxElem = r[i][i+1]
+                if (maxElem != np.max(r[i])):
+                    for j in range(len(r[i])):
+                        if maxElem != 0.0:
+                            r[i][j] = float(r[i][j] / maxElem)
+                        else:
+                            r[i][j] = 0.0 
+                        if r[i][j] > 1.0:
+                            r[i][j] = 0.5
 
-        for i in range(len(r)-1):
-            maxElem = r[i][i+1]
-            if (maxElem != np.max(r[i])):
-                for j in range(len(r[i])):
-                    if maxElem != 0.0:
-                        r[i][j] = float(r[i][j] / maxElem)
-                    else:
-                        r[i][j] = 0.0 
-                    if r[i][j] > 1.0:
-                        r[i][j] = 0.5
-
-        rd = np.transpose(r) 
-        self.expHiC = r+rd + np.diag(np.ones(len(r)))
+            rd = np.transpose(r) 
+            self.expHiC = r+rd + np.diag(np.ones(len(r)))
+        else:
+            self.expHiC = allmap
         
         if (centerRemove):
             centrome = range(centrange[0],centrange[1])
@@ -133,12 +135,31 @@ class AdamTraining:
             self.expHiC[:,centrome] = 0.0
         
         #remove noise by cutoff    
-        self.expHiC[self.expHiC<cutoff] = 0.0
+        if cutoff!='deprecate':
+            print('Depreaction warning!\nUsing `cutoff` in getPars is deprecated! Use either `cutoff_low` or `cutoff_high`. \nSetting cutoff_low=cutoff! \n')
+            assert type(cutoff)==float, 'Cut off must be a float'
+            cutoff_low = cutoff
+
+        if cutoff_low>0.0:
+            self.expHiC[self.expHiC<cutoff_low] = 0.0
+        
+        if cutoff_high<1.0:
+            self.expHiC[self.expHiC>cutoff_high] = 0.0
 
         self.mask = self.expHiC == 0.0
 
-        self.phi_exp = self.expHiC #np.triu(self.expHiC, k=1)
-        self.Pi = np.zeros(self.phi_exp.shape)
+        self.phi_exp = self.expHiC
+        self.reset_Pi()
+    
+    def reset_Pi(self):
+        R"""
+        Resets Pi matrix to zeros
+        """
+        if not hasattr(self, "phi_exp"):
+            print("Cannot reset Pi; HiC map shape unknown. Load HiC map first!")
+        else:              
+            self.Pi = np.zeros(self.phi_exp.shape)
+            self.NFrames = 0
 
     def probCalc(self, state):
         R"""
