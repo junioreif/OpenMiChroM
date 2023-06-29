@@ -24,6 +24,8 @@ OpenMiChroM
    :target: https://anaconda.org/conda-forge/openmichrom
 .. |GitHub-Stars| image:: https://img.shields.io/github/stars/junioreif/OpenMiChroM.svg?style=social
    :target: https://github.com/junioreif/OpenMiChroM
+.. |Downloads| image:: https://anaconda.org/conda-forge/openmichrom/badges/downloads.svg
+   :target: https://anaconda.org/conda-forge/OpenMiChroM
 
 
 `Documentation <https://open-michrom.readthedocs.io/>`__
