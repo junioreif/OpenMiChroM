@@ -334,6 +334,7 @@ class MiChroM:
         data = data + np.random.randn(*data.shape) * 0.0001
         self.setPositions(data)
         
+
     def getLoops(self, looplists):
         R"""
         Get the loop position (CTFC anchor points) for each chromosome.
@@ -342,8 +343,8 @@ class MiChroM:
 
         Args:
 
-            looplists (text file): 
-                A two-column text file containing the index *i* and *j* of a loci pair that form loop interactions.
+            looplists (list[str]): 
+                List with the names of the files containing loop information. Each file should be a two-column text file containing the index *i* and *j* of the loci pairs that forms the loop anchors.
         """
         self.loopPosition = []
         for file, chain in zip(looplists,self.chains):
@@ -685,10 +686,13 @@ class MiChroM:
                 Parameter in the probability of crosslink function, :math:`f(rc) = 0.5`. (Default value = 1.78).
             X (float, required):
                 Loop interaction parameter. (Default value = -1.612990).
-            looplists (file, optional):
-                A two-column text file containing the index *i* and *j* of a loci pair that form loop interactions. (Default value: :code:`None`).
+            looplists (list[str], required): 
+                List with the names of the files containing loop information. Each file should be a two-column text file containing the index *i* and *j* of the loci pairs that forms the loop anchors. (Default value: :code:`None`).
         """
-            
+        
+        if isinstance(looplists, str):
+            looplists = [looplists]
+
         ELoop = "qsi*0.5*(1. + tanh(mu*(rc - r)))"
                 
         Loop = self.mm.CustomBondForce(ELoop)
