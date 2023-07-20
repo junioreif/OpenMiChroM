@@ -1077,7 +1077,7 @@ class MiChroM:
         self.removeForce(forceName)
 
 
-    def addAdditionalForce(self, forceFunction, **args):
+    def addAdditionalForce(self, forceFunction, *args, **kwargs):
         R"""
         Add an additional force after the system has already been initialized.
 
@@ -1094,21 +1094,26 @@ class MiChroM:
             print("WARNING! Using user defined force function. Make sure to include the new force object in the MiChroM.forceDict dictionary.")
 
         #store old forcedict keys
-        oldForceDictKeys = self.forceDict.keys()
+        oldForceDictKeys = list(self.forceDict.keys())
         
         # call the function --  
         # the force name is added to the forceDict but not yet added to the system
-        forceFunction(**args)
+        forceFunction(*args, **kwargs)
 
         # find the new forceDict name
-        newForceDictKey = [x for x in self.forceDict.keys() if x not in oldForceDictKeys]
-
-        if len(newForceDictKey) == 0:
-            raise Exception("No new force in MiChroM.forceDict! The new force is either already present or was not added properly to the force dictionary.")
-        elif len(newForceDictKey) > 1:
-            raise Exception("Force function added multiple new forces in MiChroM! Please break down the function so each force is added separately.")
+        newKeys = list(set(oldForceDictKeys)^set(self.forceDict.keys()))
         
-        force = self.forceDict[newForceDictKey[0]]
+        try:
+            newForceDictKey = newKeys.pop()
+        except:
+            newForceDictKey = None
+        finally:
+            if newForceDictKey is None:
+                raise ValueError("No new force in MiChroM.forceDict! The new force is either already present or was not added properly to the force dictionary.")
+            if newKeys:
+                raise ValueError("Force function added multiple new forces in MiChroM! Please break down the function so each force is added separately.")
+        
+        force = self.forceDict[newForceDictKey]
         
         # exclusion list
         exc = self.bondsForException
