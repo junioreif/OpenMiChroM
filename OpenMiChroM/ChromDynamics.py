@@ -1089,20 +1089,26 @@ class MiChroM:
                 Arguments of the function to add the force. Consult respective documentation.
         """
         
-        assert isinstance(forceFunction, types.MethodType), f"No function with name {forceFunction}! \
-                                                You can only add functions that are defined as a method of the simulation object"
+        # warning for user defined force function
+        if not isinstance(forceFunction, types.MethodType):
+            print("WARNING! Using user defined force function. Make sure to include the new force object in the MiChroM.forceDict dictionary.")
+
         #store old forcedict keys
-        oldForceDictKeys = list(self.forceDict.keys())
+        oldForceDictKeys = self.forceDict.keys()
         
         # call the function --  
         # the force name is added to the forceDict but not yet added to the system
         forceFunction(**args)
 
         # find the new forceDict name
-        newForceDictKey_list = list(set(oldForceDictKeys)^set(self.forceDict.keys()))
-        assert len(newForceDictKey_list)==1, "The force you are adding is already present! Try removing it first and then add"
-        newForceDictKey = newForceDictKey_list[0]
-        force = self.forceDict[newForceDictKey]
+        newForceDictKey = [x for x in self.forceDict.keys() if x not in oldForceDictKeys]
+
+        if len(newForceDictKey) == 0:
+            raise Exception("No new force in MiChroM.forceDict! The new force is either already present or was not added properly to the force dictionary.")
+        elif len(newForceDictKey) > 1:
+            raise Exception("Force function added multiple new forces in MiChroM! Please break down the function so each force is added separately.")
+        
+        force = self.forceDict[newForceDictKey[0]]
         
         # exclusion list
         exc = self.bondsForException
