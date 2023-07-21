@@ -23,6 +23,7 @@ except:
 
 
 from sys import stdout
+import warnings
 import numpy as np
 from six import string_types
 import os
@@ -1091,7 +1092,7 @@ class MiChroM:
         
         # warning for user defined force function
         if not isinstance(forceFunction, types.MethodType):
-            print("WARNING! Using user defined force function. Make sure to include the new force object in the MiChroM.forceDict dictionary.")
+            warnings.warn("Using user defined force function. Make sure to include the new force object in the MiChroM.forceDict dictionary.")
 
         #store old forcedict keys
         oldForceDictKeys = list(self.forceDict.keys())
