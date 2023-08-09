@@ -447,7 +447,7 @@ class cndbTools:
         return (num_density, bin_mids)
 
         
-    def compute_RDP(self, xyz, radius=20.0, bins=200):
+    def compute_RDP(self, xyz, beadSelection=None, radius=20.0, bins=200):
         R"""
         Calculates the RDP - Radial Distribution Probability. Details can be found in the following publications: 
         
@@ -455,8 +455,10 @@ class cndbTools:
             - Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173.
         
         Args:
-            xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray`, required):
-                Array of the 3D position of the selected beads for different frames extracted by using the :code: `xyz()` function. 
+            xyz (:math:`(frames, XYZ)` :class:`numpy.ndarray`, required):
+                Array of the 3D position of the frames extracted by using the :code: `xyz()` function. 
+            beadSelection (:math:`(beadSelection)` :class:`numpy.ndarray`):
+                The index of the beads to be sliced from `xyz` that you want to compute RDP. Usualy, you can use the internal selection using the :code: `dictChromSeq['types']` with 'types' been the selection that you want. 
             radius (float, required):
                 Radius of the sphere in units of :math:`\sigma` to be considered in the calculations. The radius value should be modified depending on your simulated chromosome length. (Default value = 20.0).
             bins (int, required):
@@ -505,7 +507,7 @@ class cndbTools:
             frame = xyz[i]
             centroide = np.mean(frame, axis=0)[None,:][0]
             n_frames += 1
-            g_rdf += calc_gr(centroide, frame, R_nucleus, deltaR)
+            g_rdf += calc_gr(centroide, frame[beadSelection], R_nucleus, deltaR)
         
         Rx = []   
         for i in np.arange(0, int(R_nucleus+deltaR), deltaR):
