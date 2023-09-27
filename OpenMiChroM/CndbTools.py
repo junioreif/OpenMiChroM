@@ -32,7 +32,7 @@ class cndbTools:
 
         self.cndb = h5py.File(filename, 'r')
         
-        self.ChromSeq = list(self.cndb['types'].asstr())
+        self.ChromSeq = list(self.cndb['types'])
         self.uniqueChromSeq = set(self.ChromSeq)
         
         self.dictChromSeq = {}
