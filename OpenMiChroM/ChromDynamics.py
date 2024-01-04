@@ -23,6 +23,7 @@ except:
 
 
 from sys import stdout
+import warnings
 import numpy as np
 from six import string_types
 import os
@@ -334,6 +335,7 @@ class MiChroM:
         data = data + np.random.randn(*data.shape) * 0.0001
         self.setPositions(data)
         
+
     def getLoops(self, looplists):
         R"""
         Get the loop position (CTFC anchor points) for each chromosome.
@@ -342,8 +344,8 @@ class MiChroM:
 
         Args:
 
-            looplists (text file): 
-                A two-column text file containing the index *i* and *j* of a loci pair that form loop interactions.
+            looplists (list[str]): 
+                List with the names of the files containing loop information. Each file should be a two-column text file containing the index *i* and *j* of the loci pairs that forms the loop anchors.
         """
         self.loopPosition = []
         for file, chain in zip(looplists,self.chains):
@@ -685,10 +687,13 @@ class MiChroM:
                 Parameter in the probability of crosslink function, :math:`f(rc) = 0.5`. (Default value = 1.78).
             X (float, required):
                 Loop interaction parameter. (Default value = -1.612990).
-            looplists (file, optional):
-                A two-column text file containing the index *i* and *j* of a loci pair that form loop interactions. (Default value: :code:`None`).
+            looplists (list[str], required): 
+                List with the names of the files containing loop information. Each file should be a two-column text file containing the index *i* and *j* of the loci pairs that forms the loop anchors. (Default value: :code:`None`).
         """
-            
+        
+        if isinstance(looplists, str):
+            looplists = [looplists]
+
         ELoop = "qsi*0.5*(1. + tanh(mu*(rc - r)))"
                 
         Loop = self.mm.CustomBondForce(ELoop)
@@ -1073,7 +1078,7 @@ class MiChroM:
         self.removeForce(forceName)
 
 
-    def addAdditionalForce(self, forceFunction, **args):
+    def addAdditionalForce(self, forceFunction, *args, **kwargs):
         R"""
         Add an additional force after the system has already been initialized.
 
@@ -1085,19 +1090,30 @@ class MiChroM:
                 Arguments of the function to add the force. Consult respective documentation.
         """
         
-        assert isinstance(forceFunction, types.MethodType), f"No function with name {forceFunction}! \
-                                                You can only add functions that are defined as a method of the simulation object"
+        # warning for user defined force function
+        if not isinstance(forceFunction, types.MethodType):
+            warnings.warn("Using user defined force function. Make sure to include the new force object in the MiChroM.forceDict dictionary.")
+
         #store old forcedict keys
         oldForceDictKeys = list(self.forceDict.keys())
         
         # call the function --  
         # the force name is added to the forceDict but not yet added to the system
-        forceFunction(**args)
+        forceFunction(*args, **kwargs)
 
         # find the new forceDict name
-        newForceDictKey_list = list(set(oldForceDictKeys)^set(self.forceDict.keys()))
-        assert len(newForceDictKey_list)==1, "The force you are adding is already present! Try removing it first and then add"
-        newForceDictKey = newForceDictKey_list[0]
+        newKeys = list(set(oldForceDictKeys)^set(self.forceDict.keys()))
+        
+        try:
+            newForceDictKey = newKeys.pop()
+        except:
+            newForceDictKey = None
+        finally:
+            if newForceDictKey is None:
+                raise ValueError("No new force in MiChroM.forceDict! The new force is either already present or was not added properly to the force dictionary.")
+            if newKeys:
+                raise ValueError("Force function added multiple new forces in MiChroM! Please break down the function so each force is added separately.")
+        
         force = self.forceDict[newForceDictKey]
         
         # exclusion list
