@@ -666,20 +666,115 @@ class CustomMiChroMTraining:
         Normalizes the cross term of the Hessian by the number of frames in the simulation for the Ideal Chromosome optimization.
         """
         return self.PiPj_IC/self.Nframes
-    
-    def get_HiC_exp(self, filename):
+
+    def knight_ruiz_balance(self,matrix, tol=1e-5, max_iter=100):
+        R"""
+        Perform the Knight-Ruiz matrix balancing.
+        """
+        A = np.array(matrix, dtype=float)
+        n = A.shape[0]
+        row_scaling = np.ones(n)
+        col_scaling = np.ones(n)
+
+        for _ in range(max_iter):
+            row_scaling = np.sqrt(np.sum(A, axis=1))
+            A /= row_scaling[:, None]
+            col_scaling = np.sqrt(np.sum(A, axis=0))
+            A /= col_scaling
+
+            if np.all(np.abs(row_scaling - 1) < tol) and np.all(np.abs(col_scaling - 1) < tol):
+                break
+
+        return A
+
+
+    def normalize_matrix(self,matrix):
+        R"""
+        Normalize the matrix for simulation optimization. Here the first neighbor should have the probability of contact P=1.0.
+        """
+        matrix = np.nan_to_num(matrix, nan=0, posinf=0, neginf=0)
+        np.fill_diagonal(matrix,0.0)
+
+        max_values = np.amax(np.triu(matrix), axis=1)
+        
+        # To avoid division by zero, replace zeros with ones
+        max_values[max_values == 0] = 0.0000001
+        
+        normalized_matrix = np.triu(matrix) / max_values[:, np.newaxis]
+        # return normalized_matrix
+        matrix= normalized_matrix + np.triu(normalized_matrix,k=1).T
+        np.fill_diagonal(matrix,1.0)
+
+        return matrix
+
+
+    def get_HiC_exp(self, HiC, centerRemove=False, centrange=[0,0], norm=False, cutoff_low=0.0, cutoff_high=1.0, KR=False, neighbors=0):
         R"""
         Receives the experimental Hi-C map (Full dense matrix) in a text format and performs the data normalization from Hi-C frequency/counts/reads to probability.
+        
+        Args:
+            HiC (file, required):
+                Experimental Hi-C map (Full dense matrix) in a text format.
+            centerRemove (bool, optional):
+                Whether to set the contact probability of the centromeric region to zero. (Default value: :code:`False`).
+            centrange (list, required if **centerRemove** = :code:`True`)):
+                Range of the centromeric region, *i.e.*, :code:`centrange=[i,j]`, where *i* and *j*  are the initial and final beads in the centromere. (Default value = :code:`[0,0]`).
+            cutoff (float, optional):
+                Cutoff value for reducing the noise in the original data. Values lower than the **cutoff** are considered :math:`0.0`.
         """
-        allmap = np.loadtxt(filename)
 
-        r=np.triu(allmap, k=1)
-        r[np.isinf(r)]= 0.0
-        r[np.isnan(r)]= 0.0
-        r = normalize(r, axis=1, norm='max')
-        rd = np.transpose(r)
-        self.expHiC = r+rd + np.diag(np.ones(len(r)))
-        self.expHiC[self.expHiC<self.cutoff] = 0.0
+        # get the file extension
+        _, file_extension = os.path.splitext(HiC)
+        if file_extension == '.npy':
+            # use np.load if the file is a .npy file
+            allmap = np.load(HiC)
+        else:
+            allmap = np.loadtxt(HiC)
+
+        if KR==True:
+            allmap = knight_ruiz_balance(allmap)
+
+        if norm==True:
+            r=normalize_matrix(allmap)
+
+            for i in range(len(r)-1):
+                maxElem = r[i][i+1]
+                if (maxElem != np.max(r[i])):
+                    for j in range(len(r[i])):
+                        if maxElem != 0.0:
+                            r[i][j] = float(r[i][j] / maxElem)
+                        else:
+                            r[i][j] = 0.0 
+                        if r[i][j] > 1.0:
+                            r[i][j] = 0.5
+
+            rd = np.transpose(r) 
+            self.expHiC = r+rd + np.diag(np.ones(len(r)))
+        else:
+            self.expHiC = allmap
+        
+        if (centerRemove):
+            centrome = range(centrange[0],centrange[1])
+            self.expHiC[centrome,:] = 0.0
+            self.expHiC[:,centrome] = 0.0
+        
+        #remove noise by cutoff 
+
+        if cutoff_low>0.0:
+            self.expHiC[self.expHiC<cutoff_low] = 0.0
+        
+        if cutoff_high<1.0:
+            self.expHiC[self.expHiC>cutoff_high] = 0.0
+
+        # Remove the number of Neighbors to optimize.
+        M=self.expHiC
+        neighbor_mask = np.abs(np.subtract.outer(np.arange(len(M)), np.arange(len(M)))) <= neighbors
+        M[neighbor_mask] = 0.0
+        self.expHiC = M
+
+        self.mask = self.expHiC == 0.0
+
+        self.phi_exp = self.expHiC
 
     def calc_phi_exp_IC(self):
         R"""
