@@ -2238,7 +2238,7 @@ class MiChroM:
 
     def printHeader(self):
         print('{:^96s}'.format("***************************************************************************************"))
-        print('{:^96s}'.format("**** **** *** *** *** *** *** *** OpenMiChroM-1.0.7 *** *** *** *** *** *** **** ****"))
+        print('{:^96s}'.format("**** **** *** *** *** *** *** *** OpenMiChroM-1.0.8 *** *** *** *** *** *** **** ****"))
         print('')
         print('{:^96s}'.format("OpenMiChroM is a Python library for performing chromatin dynamics simulations."))
         print('{:^96s}'.format("OpenMiChroM uses the OpenMM Python API,"))
@@ -2257,7 +2257,7 @@ class MiChroM:
         print('{:^96s}'.format("Chromosome Modeling on Downsampled Hi-C Maps Enhances the Compartmentalization Signal."))
         print('{:^96s}'.format("J. Phys. Chem. B, doi:10.1021/acs.jpcb.1c04174."))
         print('')
-        print('{:^96s}'.format("Copyright (c) 2023, The OpenMiChroM development team at"))
+        print('{:^96s}'.format("Copyright (c) 2024, The OpenMiChroM development team at"))
         print('{:^96s}'.format("Rice University"))
         print('{:^96s}'.format("***************************************************************************************"))
         stdout.flush()
