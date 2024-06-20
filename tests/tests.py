@@ -4,8 +4,12 @@ sys.path.append('../OpenMiChroM')
 
 
 from ChromDynamics import MiChroM
-from Optimization import FullTraining, CustomMiChroMTraining
+from Optimization import FullTraining, CustomMiChroMTraining, AdamTraining
 from CndbTools import cndbTools
+import h5py
+import numpy as np
+import pandas as pd
+
 
 
 
@@ -75,10 +79,24 @@ class testMichrom():
         dense = cndbt.traj2HiC(alldata)
         
         print('Finished')
+        
+    def testAdamTraining(self):
+        opt = AdamTraining(mu=3.22, rc = 1.78, eta=0.01, it=1)
+        opt.getPars(HiC="AdamTraining/input/chr19_50k.dense")
+        with h5py.File("AdamTraining/input/Pi_0.h5", 'r') as hf:
+            opt.Pi += hf['Pi'][:]
+            opt.NFrames += int(np.loadtxt("AdamTraining/input/Nframes_0"))
+        lamb_new = opt.getLamb(Lambdas="AdamTraining/input/lambda_0")
+
+        lamb_new.to_csv("AdamTraining/output/lambda_1", index=False)
+
+        ff_new = pd.read_csv("AdamTraining/output/lambda_1")
+
 
 
 run = testMichrom()
 
-run.runDefault()
-run.testCustomMiChroM()
-run.testCndbTools()
+# run.runDefault()
+# run.testCustomMiChroM()
+# run.testCndbTools()
+run.testAdamTraining()
