@@ -63,7 +63,7 @@ class AdamTraining:
         self.adamStorage = storageName
         self.m_dw, self.v_dw = 0, 0
         self.t = it
-        self._getParams(self.adamStorage) #! FINISH AND UPLOAD
+        self._getParams(self.adamStorage) 
 
         # constants
         self.beta1 = beta1
@@ -81,12 +81,17 @@ class AdamTraining:
         
         
         
-    def _saveParams(iteration, moment, velocity, filename):
-        with open(f"{os.getcwd()}/{filename}", "w") as storage:
-            storage.write(f"{iteration} {moment} {velocity}") 
+    def _saveParams(self, iteration, moment, velocity, filename):
+        with open(f"{os.path.join(os.getcwd(), filename)}", 'w') as storage:
+            try:
+                storage.write(f"{iteration} {moment} {velocity}") 
+            except:
+                print(f"Could not open file: {self.adamStorage}")
+                
+                
         
     def _getParams(self, filename):
-        with open(f"{os.getcwd()}/{filename}", "r") as storage:
+        with open(f"{os.path.join(os.getcwd(), filename)}", "r") as storage:
             #iteration, self.m_dw, self.v_dw
             string = storage.readline().split()
             self.t = string.split()[0]
