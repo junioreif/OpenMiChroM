@@ -108,13 +108,14 @@ class AdamTraining:
         self.v_dw = self.beta2*self.v_dw + (1-self.beta2)*(dw**2)
         
 
-        ## bias correction
+        ## weight correction
         m_dw_corr = self.m_dw/(1-self.beta1**self.t)
         v_dw_corr = self.v_dw/(1-self.beta2**self.t)
 
         ## update weights and biases 
         w = w - self.eta*(m_dw_corr/(np.sqrt(v_dw_corr)+self.epsilon))
-        # w_update = self.eta * ((1 - self.v_1) * dw + self.v_1 * m_dw_corr) / (np.sqrt((1 - self.v_2) * np.power(dw, 2) + self.v_2 * v_dw_corr) + self.epsilon)
+        
+        #!try later w_update = self.eta * ((1 - self.v_1) * dw + self.v_1 * m_dw_corr) / (np.sqrt((1 - self.v_2) * np.power(dw, 2) + self.v_2 * v_dw_corr) + self.epsilon)
         
         self.t += 1
         
