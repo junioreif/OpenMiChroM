@@ -27,7 +27,7 @@ from sklearn.preprocessing import normalize
 import os
 import pandas as pd
 import warnings
-import helper
+import util
 
 class AdamTraining:
     R"""
@@ -50,12 +50,22 @@ class AdamTraining:
         beta2 (float, required):
             The hyper-parameter of Adam are initial decay rates used when estimating the first and second moments of the gradient. (Default value = 0.999).
         it (int, required)
-            The iteration step      
+            The iteration step
+        v_1 (float, required):
+            immediate discount factor
+        v_2 (float, required):
+            immediate discount factor      
         
     """
-    def __init__(self, mu=2.0, rc = 2.0, eta=0.01, beta1=0.9, beta2=0.999, epsilon=1e-8, it=1):
+    
+    # Remove biases and hold a data storage for velocity and momentum changes phi
+    def __init__(self, storageName, mu=2.0, rc = 2.0, eta=0.01, beta1=0.9, beta2=0.999, epsilon=1e-8, it=1, v_1 =0.7, v_2 = 1.0):
+        self.adamStorage = storageName
         self.m_dw, self.v_dw = 0, 0
-        self.m_db, self.v_db = 1, 1
+        self.t = it
+        self._getParams(self.adamStorage) 
+
+        # constants
         self.beta1 = beta1
         self.beta2 = beta2
         self.epsilon = epsilon
@@ -63,9 +73,33 @@ class AdamTraining:
         self.mu = mu
         self.rc = rc
         self.NFrames = 0
-        self.t = it
-
-    def _update(self, w, b, dw, db):
+      
+        #HQ ADAM
+        self.v_1 = v_1
+        self.v_2 = v_2
+    
+        
+        
+        
+    def _saveParams(self, iteration, moment, velocity, filename):
+        with open(f"{os.path.join(os.getcwd(), filename)}", 'w') as storage:
+            try:
+                storage.write(f"{iteration} {moment} {velocity}") 
+            except:
+                print(f"Could not open file: {self.adamStorage}")
+                
+                
+        
+    def _getParams(self, filename):
+        with open(f"{os.path.join(os.getcwd(), filename)}", "r") as storage:
+            #iteration, self.m_dw, self.v_dw
+            string = storage.readline().split()
+            self.t = string.split()[0]
+            self.m_dw = string.split()[1]
+            self.v_dw = string.split()[2]
+            
+        
+    def _update(self, w, dw):
         R"""Adam optimization step. This function updates weights and biases for each step.
         """
 
@@ -73,26 +107,25 @@ class AdamTraining:
         ## momentum beta 1
         # *** weights *** #
         self.m_dw = self.beta1*self.m_dw + (1-self.beta1)*dw
-        # *** biases *** #
-        self.m_db = self.beta1*self.m_db + (1-self.beta1)*db
 
         ## rms beta 2
         # *** weights *** #
         self.v_dw = self.beta2*self.v_dw + (1-self.beta2)*(dw**2)
-        # *** biases *** #
-        self.v_db = self.beta2*self.v_db + (1-self.beta2)*(db)
+        
 
-        ## bias correction
+        ## weight correction
         m_dw_corr = self.m_dw/(1-self.beta1**self.t)
-        m_db_corr = self.m_db/(1-self.beta1**self.t)
         v_dw_corr = self.v_dw/(1-self.beta2**self.t)
-        v_db_corr = self.v_db/(1-self.beta2**self.t)
 
-        ## update weights and biases
+        ## update weights and biases 
         w = w - self.eta*(m_dw_corr/(np.sqrt(v_dw_corr)+self.epsilon))
-        b = b - self.eta*(m_db_corr/(np.sqrt(v_db_corr)+self.epsilon))
+        
+        #!try later w_update = self.eta * ((1 - self.v_1) * dw + self.v_1 * m_dw_corr) / (np.sqrt((1 - self.v_2) * np.power(dw, 2) + self.v_2 * v_dw_corr) + self.epsilon)
+        
         self.t += 1
-        return w, b
+        
+        self._saveParams(self.t, self.m_dw, self.v_dw, self.adamStorage)
+        return w 
 
 
     def getPars(self, HiC, centerRemove=False, centrange=[0,0], cutoff='deprecate', norm=True, cutoff_low=0.0, cutoff_high=1.0, KR=False, neighbors=0):
@@ -120,10 +153,10 @@ class AdamTraining:
             allmap = np.loadtxt(HiC)
 
         if KR==True:
-            allmap = helper.knight_ruiz_balance(allmap)
+            allmap = util.knight_ruiz_balance(allmap)
 
         if norm==True:
-            r=helper.normalize_matrix(allmap)
+            r=util.normalize_matrix(allmap)
 
             for i in range(len(r)-1):
                 maxElem = r[i][i+1]
@@ -204,10 +237,10 @@ class AdamTraining:
             allmap = np.loadtxt(HiC)
 
         if KR==True:
-            allmap = helper.knight_ruiz_balance(allmap)
+            allmap = util.knight_ruiz_balance(allmap)
 
         if norm==True:
-            r=helper.normalize_matrix(allmap)
+            r=util.normalize_matrix(allmap)
 
             for i in range(len(r)-1):
                 maxElem = r[i][i+1]
@@ -295,9 +328,9 @@ class AdamTraining:
         grad = self._getGrad()
 
         self.lambdas = pd.read_csv(Lambdas, sep=None, engine='python')
-        newlamb_values, newbias_values = self._update(self.lambdas.values, self.lambdas.values, grad, grad)
+        newlamb_values = self._update(self.lambdas.values, grad)
 
-        self.bias = newbias_values
+
 
         if fixedPoints == None:
             lamb  = pd.DataFrame(newlamb_values,columns=list(self.lambdas.columns.values))
@@ -368,7 +401,7 @@ class FullTraining:
             lambdas[i] = initialGuess
         lambdas = np.triu(lambdas) + np.triu(lambdas).T
 
-        helper.saveLambdas(sequenceFile=sequenceFile, data=lambdas, outputPath=outputPath, name="lambda_0")
+        util.saveLambdas(sequenceFile=sequenceFile, data=lambdas, outputPath=outputPath, name="lambda_0")
 
     def appCutoff(self, pair_h, c_h, pair_l, c_l):
         R"""
@@ -526,7 +559,7 @@ class CustomMiChroMTraining:
     """
    
     def __init__(self, ChromSeq="chr_beads.txt", TypesTable=None, mu=3.22, rc=1.78, cutoff=0.0, IClist=None, dinit=3, dend=200): 
-        self.ChromSeq = helper.get_chrom_seq(ChromSeq)
+        self.ChromSeq = util.get_chrom_seq(ChromSeq)
         self.size = len(self.ChromSeq)
         self.P=np.zeros((self.size,self.size))
         self.Pold=np.zeros((self.size,self.size))
@@ -602,9 +635,6 @@ class CustomMiChroMTraining:
         return self.PiPj_IC/self.Nframes
 
 
-      
-
-
 
     def get_HiC_exp(self, HiC, centerRemove=False, centrange=[0,0], norm=False, cutoff_low=0.0, cutoff_high=1.0, KR=False, neighbors=0):
         R"""
@@ -630,10 +660,10 @@ class CustomMiChroMTraining:
             allmap = np.loadtxt(HiC)
 
         if KR==True:
-            allmap = helper.knight_ruiz_balance(allmap)
+            allmap = util.knight_ruiz_balance(allmap)
 
         if norm==True:
-            r=helper.normalize_matrix(allmap)
+            r=util.normalize_matrix(allmap)
 
             for i in range(len(r)-1):
                 maxElem = r[i][i+1]

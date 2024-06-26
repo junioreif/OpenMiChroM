@@ -10,6 +10,7 @@ import h5py
 import numpy as np
 import os
 from scipy.spatial import distance
+import util
 
 class cndbTools:
 
@@ -28,7 +29,7 @@ class cndbTools:
         f_name, file_extension = os.path.splitext(filename)
         
         if file_extension == ".ndb":
-            filename = self.ndb2cndb(f_name)   
+            filename = util.ndb2cndb(f_name)   
 
         self.cndb = h5py.File(filename, 'r')
         
@@ -75,84 +76,7 @@ class cndbTools:
             frame_list.append(np.take(np.take(np.array(self.cndb[str(i)]), selection, axis=0), XYZ, axis=1))
         return(np.array(frame_list))
     
-    def ndb2cndb(self, filename):
-        R"""
-        Converts an **ndb** file format to **cndb**.
-        
-        Args:
-            filename (path, required):
-                 Path to the ndb file to be converted to cndb.
-        """
-        Main_chrom      = ['ChrA','ChrB','ChrU'] # Type A B and Unknow
-        Chrom_types     = ['ZA','OA','FB','SB','TB','LB','UN']
-        Chrom_types_NDB = ['A1','A2','B1','B2','B3','B4','UN']
-        Res_types_PDB   = ['ASP', 'GLU', 'ARG', 'LYS', 'HIS', 'HIS', 'GLY']
-        Type_conversion = {'A1': 0,'A2' : 1,'B1' : 2,'B2' : 3,'B3' : 4,'B4' : 5,'UN' : 6}
-        title_options = ['HEADER','OBSLTE','TITLE ','SPLT  ','CAVEAT','COMPND','SOURCE','KEYWDS','EXPDTA','NUMMDL','MDLTYP','AUTHOR','REVDAT','SPRSDE','JRNL  ','REMARK']
-        model          = "MODEL     {0:4d}"
-        atom           = "ATOM  {0:5d} {1:^4s}{2:1s}{3:3s} {4:1s}{5:4d}{6:1s}   {7:8.3f}{8:8.3f}{9:8.3f}{10:6.2f}{11:6.2f}          {12:>2s}{13:2s}"
-        ter            = "TER   {0:5d}      {1:3s} {2:1s}{3:4d}{4:1s}"
-
-        file_ndb = filename + str(".ndb")
-        name     = filename + str(".cndb")
-
-        cndbf = h5py.File(name, 'w')
-        
-        ndbfile = open(file_ndb, "r")
-        
-        loop = 0
-        types = []
-        types_bool = True
-        loop_list = []
-        x = []
-        y = [] 
-        z = []
-
-        frame = 0
-
-        for line in ndbfile:
     
-            entry = line[0:6]
-
-            info = line.split()
-
-
-            if 'MODEL' in entry:
-                frame += 1
-
-                inModel = True
-
-            elif 'CHROM' in entry:
-
-                subtype = line[16:18]
-
-                types.append(subtype)
-                x.append(float(line[40:48]))
-                y.append(float(line[49:57]))
-                z.append(float(line[58:66]))
-
-            elif 'ENDMDL' in entry:
-                if types_bool:
-                    typelist = [Type_conversion[x] for x in types]
-                    cndbf['types'] = typelist
-                    types_bool = False
-
-                positions = np.vstack([x,y,z]).T
-                cndbf[str(frame)] = positions
-                x = []
-                y = []
-                z = []
-
-            elif 'LOOPS' in entry:
-                loop_list.append([int(info[1]), int(info[2])])
-                loop += 1
-        
-        if loop > 0:
-            cndbf['loops'] = loop_list
-
-        cndbf.close()
-        return(name)
-
     
 #########################################################################################
 #### Analysis start here!
