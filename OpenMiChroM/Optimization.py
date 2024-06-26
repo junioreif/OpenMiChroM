@@ -27,7 +27,6 @@ from sklearn.preprocessing import normalize
 import os
 import pandas as pd
 import warnings
-import util
 
 class AdamTraining:
     R"""
@@ -59,11 +58,10 @@ class AdamTraining:
     """
     
     # Remove biases and hold a data storage for velocity and momentum changes phi
-    def __init__(self, storageName, mu=2.0, rc = 2.0, eta=0.01, beta1=0.9, beta2=0.999, epsilon=1e-8, it=1, v_1 =0.7, v_2 = 1.0):
-        self.adamStorage = storageName
-        self.m_dw, self.v_dw = 0, 0
+    def __init__(self, mu=2.0, rc = 2.0, eta=0.01, beta1=0.9, beta2=0.999, epsilon=1e-8, it=1, v_1 =0.7, v_2 = 1.0, updateNeeded=False, update_storagePath=''):
+        self.m_dw, self.v_dw = None, None
         self.t = it
-        self._getParams(self.adamStorage) 
+        
 
         # constants
         self.beta1 = beta1
@@ -77,32 +75,66 @@ class AdamTraining:
         #HQ ADAM
         self.v_1 = v_1
         self.v_2 = v_2
+        
+        # to store the updating parameters
+        if update_storagePath != '':
+            self.adamStorage = os.path.join(os.getcwd(), update_storagePath)
+        else:
+            self.adamStorage = os.path.join(os.getcwd(), 'Adam')
+        
+        os.makedirs(self.adamStorage, exist_ok=True)
+        self.updateNeeded = updateNeeded
+        
+        #this is done after to overwrite the already set values if updateNeeded was set to True
+        self._getParams() 
+
+
+        
+    def _saveParams(self, iteration, moment, velocity):
+        if self.updateNeeded == False:
+            return
     
-        
-        
-        
-    def _saveParams(self, iteration, moment, velocity, filename):
-        with open(f"{os.path.join(os.getcwd(), filename)}", 'w') as storage:
+        with open(f'{self.adamStorage}/iteration.txt', 'w') as f:
+            f.write(str(iteration))
+        np.savetxt(f'{self.adamStorage}/moment.txt', moment)
+        np.savetxt(f'{self.adamStorage}/velocity.txt', velocity)
+
+
+                
+    def _getParams(self):
+        if self.updateNeeded == False:
+            print('Adam Parameter Updating was not needed updateNeeded set to False')
+            return
+
+        iteration_file = f'{self.adamStorage}/iteration.txt'
+        if not os.path.exists(iteration_file) or os.stat(iteration_file).st_size == 0:
+            print(f'Warning: {iteration_file} does not exist or is empty. Starting from iteration 1.')
+            self.t = 1
+            return
+
+        with open(iteration_file, 'r') as f:
             try:
-                storage.write(f"{iteration} {moment} {velocity}") 
-            except:
-                print(f"Could not open file: {self.adamStorage}")
-                
-                
-        
-    def _getParams(self, filename):
-        with open(f"{os.path.join(os.getcwd(), filename)}", "r") as storage:
-            #iteration, self.m_dw, self.v_dw
-            string = storage.readline().split()
-            self.t = string.split()[0]
-            self.m_dw = string.split()[1]
-            self.v_dw = string.split()[2]
+                self.t = int(f.read().strip())
+            except ValueError:
+                print(f'Warning: {iteration_file} contains invalid data. Starting from iteration 1.')
+                self.t = 1
+
+        if self.t == 1:
+            return
+
+        self.m_dw = np.loadtxt(f'{self.adamStorage}/moment.txt')
+        self.v_dw = np.loadtxt(f'{self.adamStorage}/velocity.txt')
             
         
     def _update(self, w, dw):
         R"""Adam optimization step. This function updates weights and biases for each step.
         """
 
+
+        if self.m_dw is None:
+            self.m_dw = np.zeros(np.shape(dw))
+            self.v_dw = np.zeros(np.shape(dw))
+            
         ## dw, db are from current minibatch
         ## momentum beta 1
         # *** weights *** #
@@ -118,15 +150,14 @@ class AdamTraining:
         v_dw_corr = self.v_dw/(1-self.beta2**self.t)
 
         ## update weights and biases 
-        w = w - self.eta*(m_dw_corr/(np.sqrt(v_dw_corr)+self.epsilon))
+        # w = w - self.eta*(m_dw_corr/(np.sqrt(v_dw_corr)+self.epsilon))
         
-        #!try later w_update = self.eta * ((1 - self.v_1) * dw + self.v_1 * m_dw_corr) / (np.sqrt((1 - self.v_2) * np.power(dw, 2) + self.v_2 * v_dw_corr) + self.epsilon)
+        w_update = self.eta * ((1 - self.v_1) * dw + self.v_1 * m_dw_corr) / (np.sqrt((1 - self.v_2) * np.power(dw, 2) + self.v_2 * v_dw_corr) + self.epsilon)
         
         self.t += 1
         
-        self._saveParams(self.t, self.m_dw, self.v_dw, self.adamStorage)
-        return w 
-
+        self._saveParams(self.t, self.m_dw, self.v_dw)
+        return w - w_update
 
     def getPars(self, HiC, centerRemove=False, centrange=[0,0], cutoff='deprecate', norm=True, cutoff_low=0.0, cutoff_high=1.0, KR=False, neighbors=0):
         R"""
@@ -153,10 +184,10 @@ class AdamTraining:
             allmap = np.loadtxt(HiC)
 
         if KR==True:
-            allmap = util.knight_ruiz_balance(allmap)
+            allmap = self.knight_ruiz_balance(allmap)
 
         if norm==True:
-            r=util.normalize_matrix(allmap)
+            r=self.normalize_matrix(allmap)
 
             for i in range(len(r)-1):
                 maxElem = r[i][i+1]
@@ -201,6 +232,47 @@ class AdamTraining:
 
         self.phi_exp = self.expHiC
         self.reset_Pi()
+            
+    def normalize_matrix(self, matrix):
+        R"""
+        Normalize the matrix for simulation optimization. Here the first neighbor should have the probability of contact P=1.0.
+        """
+        matrix = np.nan_to_num(matrix, nan=0, posinf=0, neginf=0)
+        np.fill_diagonal(matrix,0.0)
+
+        max_values = np.amax(np.triu(matrix), axis=1)
+        
+        # To avoid division by zero, replace zeros with ones
+        max_values[max_values == 0] = 0.0000001
+        
+        normalized_matrix = np.triu(matrix) / max_values[:, np.newaxis]
+        # return normalized_matrix
+        matrix= normalized_matrix + np.triu(normalized_matrix,k=1).T
+        np.fill_diagonal(matrix,1.0)
+
+        return matrix
+
+
+    def knight_ruiz_balance(self, matrix, tol=1e-5, max_iter=100):
+        R"""
+        Perform the Knight-Ruiz matrix balancing.
+        """
+        A = np.array(matrix, dtype=float)
+        n = A.shape[0]
+        row_scaling = np.ones(n)
+        col_scaling = np.ones(n)
+        for _ in range(max_iter):
+            row_scaling = np.sqrt(np.sum(A, axis=1))
+            A /= row_scaling[:, None]
+            col_scaling = np.sqrt(np.sum(A, axis=0))
+            A /= col_scaling
+
+            if np.all(np.abs(row_scaling - 1) < tol) and np.all(np.abs(col_scaling - 1) < tol):
+                break
+
+        return A
+
+    
     
     def reset_Pi(self):
         R"""
@@ -237,10 +309,10 @@ class AdamTraining:
             allmap = np.loadtxt(HiC)
 
         if KR==True:
-            allmap = util.knight_ruiz_balance(allmap)
+            allmap = self.knight_ruiz_balance(allmap)
 
         if norm==True:
-            r=util.normalize_matrix(allmap)
+            r=self.normalize_matrix(allmap)
 
             for i in range(len(r)-1):
                 maxElem = r[i][i+1]
@@ -400,8 +472,15 @@ class FullTraining:
         for i in self.ind:
             lambdas[i] = initialGuess
         lambdas = np.triu(lambdas) + np.triu(lambdas).T
+        
+    def saveLambdas(self, sequenceFile, data, outputPath, name):
+        seq = np.loadtxt(sequenceFile, dtype=str)[:,1]
 
-        util.saveLambdas(sequenceFile=sequenceFile, data=lambdas, outputPath=outputPath, name="lambda_0")
+        lamb = pd.DataFrame(data,columns=seq)
+        lamb.to_csv(os.path.join(outputPath, name), index=False)
+        print("{} file save in {}".format(name, outputPath))
+
+        self.saveLambdas(sequenceFile=sequenceFile, data=lambdas, outputPath=outputPath, name="lambda_0")
 
     def appCutoff(self, pair_h, c_h, pair_l, c_l):
         R"""
@@ -559,7 +638,7 @@ class CustomMiChroMTraining:
     """
    
     def __init__(self, ChromSeq="chr_beads.txt", TypesTable=None, mu=3.22, rc=1.78, cutoff=0.0, IClist=None, dinit=3, dend=200): 
-        self.ChromSeq = util.get_chrom_seq(ChromSeq)
+        self.ChromSeq = self.get_chrom_seq(ChromSeq)
         self.size = len(self.ChromSeq)
         self.P=np.zeros((self.size,self.size))
         self.Pold=np.zeros((self.size,self.size))
@@ -596,6 +675,28 @@ class CustomMiChroMTraining:
                 self.IClist = IClist
             except IOError:
                 print("Error in opening the file containing the Ideal Chromosome interactions!")
+
+    def get_chrom_seq(self, filename):
+        R"""Reads the chromatin sequence as letters of the types/compartments.
+        
+        Args:
+
+            filename (file, required):
+                Chromatin sequence of types file. The first column should contain the locus index. The second column should have the locus type annotation. A template of the chromatin sequence of types file can be found at the `Nucleome Data Bank (NDB) <https://ndb.rice.edu/static/text/chr10_beads.txt>`_.
+                
+        Returns:
+            :math:`(N,1)` :class:`numpy.ndarray`:
+                Returns an array of the sequence of chromatin types.
+
+        """
+        my_list = []
+        af = open(filename,'r')
+        pos = af.read().splitlines()
+        for t in range(len(pos)):
+            pos[t] = pos[t].split()
+            my_list.append(pos[t][1])
+
+        return np.array(my_list)
 
    
     def prob_calculation_IC(self, state):
@@ -660,10 +761,10 @@ class CustomMiChroMTraining:
             allmap = np.loadtxt(HiC)
 
         if KR==True:
-            allmap = util.knight_ruiz_balance(allmap)
+            allmap = self.knight_ruiz_balance(allmap)
 
         if norm==True:
-            r=util.normalize_matrix(allmap)
+            r=self.normalize_matrix(allmap)
 
             for i in range(len(r)-1):
                 maxElem = r[i][i+1]
