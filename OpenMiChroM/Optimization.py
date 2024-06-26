@@ -58,11 +58,10 @@ class AdamTraining:
     """
     
     # Remove biases and hold a data storage for velocity and momentum changes phi
-    def __init__(self, storageName='', mu=2.0, rc = 2.0, eta=0.01, beta1=0.9, beta2=0.999, epsilon=1e-8, it=1, v_1 =0.7, v_2 = 1.0):
-        self.adamStorage = storageName
-        self.m_dw, self.v_dw = 0, 0
+    def __init__(self, mu=2.0, rc = 2.0, eta=0.01, beta1=0.9, beta2=0.999, epsilon=1e-8, it=1, v_1 =0.7, v_2 = 1.0, updateNeeded=False, update_storagePath=''):
+        self.m_dw, self.v_dw = None, None
         self.t = it
-        self._getParams(self.adamStorage) 
+        
 
         # constants
         self.beta1 = beta1
@@ -76,39 +75,66 @@ class AdamTraining:
         #HQ ADAM
         self.v_1 = v_1
         self.v_2 = v_2
+        
+        # to store the updating parameters
+        if update_storagePath != '':
+            self.adamStorage = os.path.join(os.getcwd(), update_storagePath)
+        else:
+            self.adamStorage = os.path.join(os.getcwd(), 'Adam')
+        
+        os.makedirs(self.adamStorage, exist_ok=True)
+        self.updateNeeded = updateNeeded
+        
+        #this is done after to overwrite the already set values if updateNeeded was set to True
+        self._getParams() 
+
+
+        
+    def _saveParams(self, iteration, moment, velocity):
+        if self.updateNeeded == False:
+            return
     
-        
-        
-        
-    def _saveParams(self, iteration, moment, velocity, filename):
-        if filename == '':
-            print('filename for storing params was not specified reverting to manual param updating')
+        with open(f'{self.adamStorage}/iteration.txt', 'w') as f:
+            f.write(str(iteration))
+        np.savetxt(f'{self.adamStorage}/moment.txt', moment)
+        np.savetxt(f'{self.adamStorage}/velocity.txt', velocity)
+
+
+                
+    def _getParams(self):
+        if self.updateNeeded == False:
+            print('Adam Parameter Updating was not needed updateNeeded set to False')
             return
-        with open(f"{os.path.join(os.getcwd(), filename)}", 'w') as storage:
+
+        iteration_file = f'{self.adamStorage}/iteration.txt'
+        if not os.path.exists(iteration_file) or os.stat(iteration_file).st_size == 0:
+            print(f'Warning: {iteration_file} does not exist or is empty. Starting from iteration 1.')
+            self.t = 1
+            return
+
+        with open(iteration_file, 'r') as f:
             try:
-                storage.write(f"{iteration} {moment} {velocity}") 
-            except:
-                print(f"Could not open file: {self.adamStorage}")
+                self.t = int(f.read().strip())
+            except ValueError:
+                print(f'Warning: {iteration_file} contains invalid data. Starting from iteration 1.')
+                self.t = 1
 
-                
-                
-        
-    def _getParams(self, filename):
-        if filename == '':
+        if self.t == 1:
             return
-        with open(f"{os.path.join(os.getcwd(), filename)}", "r") as storage:
-            # Read the line and split it into components
-            components = storage.readline().split()
-            self.t = int(components[0])
-            self.m_dw = float(components[1])
-            self.v_dw = float(components[2])
 
+        self.m_dw = np.loadtxt(f'{self.adamStorage}/moment.txt')
+        self.v_dw = np.loadtxt(f'{self.adamStorage}/velocity.txt')
             
         
     def _update(self, w, dw):
         R"""Adam optimization step. This function updates weights and biases for each step.
         """
 
+
+        if self.m_dw is None:
+            self.m_dw = np.zeros(np.shape(dw))
+            self.v_dw = np.zeros(np.shape(dw))
+            
         ## dw, db are from current minibatch
         ## momentum beta 1
         # *** weights *** #
@@ -124,15 +150,14 @@ class AdamTraining:
         v_dw_corr = self.v_dw/(1-self.beta2**self.t)
 
         ## update weights and biases 
-        w = w - self.eta*(m_dw_corr/(np.sqrt(v_dw_corr)+self.epsilon))
+        # w = w - self.eta*(m_dw_corr/(np.sqrt(v_dw_corr)+self.epsilon))
         
-        #!try later w_update = self.eta * ((1 - self.v_1) * dw + self.v_1 * m_dw_corr) / (np.sqrt((1 - self.v_2) * np.power(dw, 2) + self.v_2 * v_dw_corr) + self.epsilon)
+        w_update = self.eta * ((1 - self.v_1) * dw + self.v_1 * m_dw_corr) / (np.sqrt((1 - self.v_2) * np.power(dw, 2) + self.v_2 * v_dw_corr) + self.epsilon)
         
         self.t += 1
         
-        self._saveParams(self.t, self.m_dw, self.v_dw, self.adamStorage)
-        return w 
-
+        self._saveParams(self.t, self.m_dw, self.v_dw)
+        return w - w_update
 
     def getPars(self, HiC, centerRemove=False, centrange=[0,0], cutoff='deprecate', norm=True, cutoff_low=0.0, cutoff_high=1.0, KR=False, neighbors=0):
         R"""
