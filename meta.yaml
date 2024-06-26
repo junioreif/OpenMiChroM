@@ -30,6 +30,8 @@ requirements:
     - scipy
     - six
     - openmm
+    - sklearn
+    - seaborn
 
 test:
   imports:

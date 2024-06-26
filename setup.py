@@ -26,7 +26,7 @@ setup(
     ],
     include_package_data=True,
     packages=find_packages(),
-    install_requires=['numpy', 'scipy', 'scikit-learn', 'six', 'h5py', 'pandas', 'seaborn', 'sklearn'],
+    install_requires=['numpy', 'scipy', 'scikit-learn', 'six', 'h5py', 'pandas', 'seaborn'],
     entry_points={"console_scripts": ["CLINAME=OpenMiChroM._cli:main"]},
     zip_safe=True,
     long_description=long_description,
