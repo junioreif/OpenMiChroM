@@ -4,4 +4,4 @@ from .ChromDynamics import MiChroM
 from .Optimization import FullTraining, CustomMiChroMTraining
 from .CndbTools import cndbTools
 from .Integrators import ActiveBrownianIntegrator
-# from .Analyze import Ana
+from .AnalysisTools import Ana
