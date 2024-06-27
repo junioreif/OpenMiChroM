@@ -53,12 +53,15 @@ class AdamTraining:
         v_1 (float, required):
             immediate discount factor
         v_2 (float, required):
-            immediate discount factor      
+            immediate discount factor    
+        mothod (str, required):
+            'classic':  Adam
+            'qh': quassi-hyperbolic momentum Adam  
         
     """
     
     # Remove biases and hold a data storage for velocity and momentum changes phi
-    def __init__(self, mu=2.0, rc = 2.0, eta=0.01, beta1=0.9, beta2=0.999, epsilon=1e-8, it=1, v_1 =0.7, v_2 = 1.0, updateNeeded=False, update_storagePath=''):
+    def __init__(self, mu=2.0, rc = 2.0, eta=0.01, beta1=0.9, beta2=0.999, epsilon=1e-8, it=1, updateNeeded=False, update_storagePath='', method='classic'):
         self.m_dw, self.v_dw = None, None
         self.t = it
         
@@ -71,10 +74,12 @@ class AdamTraining:
         self.mu = mu
         self.rc = rc
         self.NFrames = 0
+        self.method = method
+
       
         #HQ ADAM
-        self.v_1 = v_1
-        self.v_2 = v_2
+        self.v_1 = 0.7
+        self.v_2 = 1.0
         
         # to store the updating parameters
         if update_storagePath != '':
@@ -149,16 +154,18 @@ class AdamTraining:
         m_dw_corr = self.m_dw/(1-self.beta1**self.t)
         v_dw_corr = self.v_dw/(1-self.beta2**self.t)
 
-        ## update weights and biases 
-        # w = w - self.eta*(m_dw_corr/(np.sqrt(v_dw_corr)+self.epsilon))
-        
-        #QH Adam
-        w_update = self.eta * ((1 - self.v_1) * dw + self.v_1 * m_dw_corr) / (np.sqrt((1 - self.v_2) * np.power(dw, 2) + self.v_2 * v_dw_corr) + self.epsilon)
+        ## update weights
+        if self.method == 'qh':
+            #QH Adam
+            w = w - (self.eta * ((1 - self.v_1) * dw + self.v_1 * m_dw_corr) / (np.sqrt((1 - self.v_2) * np.power(dw, 2) + self.v_2 * v_dw_corr) + self.epsilon))
+        else: # else just in case theres a type error it would go to the default adam weight calculation
+            # Adam
+             w = w - self.eta*(m_dw_corr/(np.sqrt(v_dw_corr)+self.epsilon))
         
         self.t += 1
         
         self._saveParams(self.t, self.m_dw, self.v_dw)
-        return w - w_update
+        return w
 
     def getPars(self, HiC, centerRemove=False, centrange=[0,0], cutoff='deprecate', norm=True, cutoff_low=0.0, cutoff_high=1.0, KR=False, neighbors=0):
         R"""
