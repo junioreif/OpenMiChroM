@@ -49,12 +49,8 @@ class AdamTraining:
         beta2 (float, required):
             The hyper-parameter of Adam are initial decay rates used when estimating the first and second moments of the gradient. (Default value = 0.999).
         it (int, required)
-            The iteration step
-        v_1 (float, required):
-            immediate discount factor
-        v_2 (float, required):
-            immediate discount factor    
-        mothod (str, required):
+            The iteration step  
+        method (str, required):
             'classic':  Adam
             'qh': quassi-hyperbolic momentum Adam  
         
