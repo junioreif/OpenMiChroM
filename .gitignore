@@ -130,3 +130,10 @@ dmypy.json
 Tutorials/output_chr10/Chromosome_0_block0.ndb
 Tutorials/output_chr10/platform_info.dat
 Tutorials/output_chr10/traj_chr10_0.cndb
+
+
+## ANA
+tests/AnalysisTools
+tests/AnaTest.ipynb
+OpenMiChroM/AnalysisTools.py
+OpenMiChroM/__pycache__
