@@ -93,8 +93,6 @@ class testMichrom():
 
         ff_new = pd.read_csv("AdamTraining/output/lambda_1")
     
-    def testAna(self):
-        pass
     
 
 
@@ -105,4 +103,3 @@ run.runDefault()
 run.testCustomMiChroM()
 run.testCndbTools()
 run.testAdamTraining()
-run.testAna()

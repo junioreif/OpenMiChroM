@@ -7,21 +7,30 @@ from scipy.spatial.distance import cdist, pdist, squareform
 from scipy.cluster.hierarchy import dendrogram, linkage, fcluster
 from sklearn.preprocessing import normalize
 from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 from sklearn.cluster import KMeans
+from sklearn.utils import resample
 import seaborn as sns
 
 from OpenMiChroM.CndbTools import cndbTools
 
 
 class Ana:
-    def __init__(self):
+    def __init__(self, outputFolderPath=None):
         """
         Initializes the Ana class with a base folder for data storage.
         """
+        # To not overcompute the linkage_matrix, flattened_distance_array of a set of objects if it already has them 
+        self.cache = {} # holds a sorted tuple and the linkage (Z), dist array (X)
         self.datasets = {}
         self.cndbTools = cndbTools()
-        self.outPath = os.path.join(os.getcwd(), 'Analysis')
-        os.makedirs(f'{os.path.join(os.getcwd(), 'Analysis')}', exist_ok=True)
+        
+        if outputFolderPath == None:
+            self.outPath = os.path.join(os.getcwd(), 'Analysis')
+            os.makedirs(f'{os.path.join(os.getcwd(), 'Analysis')}', exist_ok=True) # make analysis folder to store plots data etc.
+        else:
+            self.outPath = os.path.join(os.getcwd(), outputFolderPath)
+            os.makedirs(f'{os.path.join(os.getcwd(), outputFolderPath)}', exist_ok=True) # make folder at custom path to store plots data etc.
 
     def add_dataset(self, label, folder):
         """
@@ -215,19 +224,18 @@ class Ana:
         
     """====================================================================== CLUSTERING ===================================================================================="""
 
-    def create_dendogram(self, *args, outputPlotName='dendogram.png', show=True, _clusterOnly=False, k_offset=500, metric='euclidean', plot=None):
+    def create_dendogram(self, *args, outputPlotName='dendogram.png', show=True, metric='euclidean', method='weighted', plot_params=None):
         """
         Args:
             show (boolean, required): whether to show the dendogram
             outputPlotName (filepath, optional): name to save plot as
-            k_offset (int, required): the offset parameter for flattening the distance matrices. Defaults to 500.
-            metric (str, required): the distance metric to use for computing pairwise distances. Defaults to 'euclidean'.
-            _clusterOnly (boolean, dont use): used by cluster function to get the cluster threshold
+            metric (str/function, required): the distance metric to use for computing pairwise distances. Defaults to 'euclidean'.
+            method (str, required): Defaults to weighted
             plot (dict, optional): overwrite plot parameters such as title, figsize, label, etc.
             *args: (strings, required): the labels to create the dendogram for
             
         Usage Example: create_dendrogram(
-                                    outputPlotName='dendrogram.png', show=True, k_offset=500, metric='euclidean',
+                                    outputPlotName='dendrogram.png', show=True, k_offset=500, metric='euclidean', method='weighted',
                                     plot={'figsize': (10, 4), 'title': 'My Dendrogram', 'label': 'dka'},
                                     'compartment', 'subcompartment', 'homopolymer')
         """
@@ -236,45 +244,16 @@ class Ana:
             print("No arguments given")
             return
         
-        flat_euclid_dist_map = {}
-        
-        for label in args:
-            print(f'processing {label}')
-            trajectories = self.datasets[label]['trajectories']
-            if trajectories is None or len(trajectories) == 0:
-                print(f"Trajectories not yet loaded for {label}. Load them first")
-                return
-            # Compute pairwise Euclidean distances
-            dist = [cdist(val, val, 'euclidean') for val in trajectories]
-            dist = np.array(dist)
-            print(f"{label} has dist shape {dist.shape}")
-            
-            # Store in datasets label 
-            self.datasets[label]["distance_array"] = dist
-            flat_euclid_dist_map[label] = dist
-        
-        # Flatten the distance arrays
-        flat_euclid_dist_map = {label: [flat_euclid_dist_map[label][val][np.triu_indices_from(flat_euclid_dist_map[label][val], k=k_offset)].flatten()
-                                        for val in range(len(flat_euclid_dist_map[label]))]
-                                for label in args}
-        
-        # Make it into a 1D vertical array
-        X = np.vstack([item for sublist in flat_euclid_dist_map.values() for item in sublist])
-        print(f"Flattened distance array has shape: {X.shape}")
-        
-        # Create the linkage matrix
-        Z = linkage(X, method="weighted", metric=metric)
-        
-        if _clusterOnly:
-            return X, Z
+        X, Z = self.calc_XZ(*args, methodd=method, metricc=metric)
+        del X
         
         default_plot_params = {
             'figsize': (10, 7),
             'title': 'Dendogram'
         }
         
-        if plot is not None:
-            default_plot_params.update(plot)
+        if plot_params is not None:
+            default_plot_params.update(plot_params)
             
         
         plt.figure(figsize=default_plot_params['figsize'])
@@ -287,19 +266,19 @@ class Ana:
             plt.show()
 
         
-    def create_euclidian_dist_map(self, label, show=True, outputFileName="euclid_dist.png", cmap='viridis_r', plot=None):
+    def create_euclidian_dist_map(self, label, show=True, outputFileName="euclid_dist.png", cmap='viridis_r', plot_params=None):
         """
         Args:
             label (string): label of the dataset to create the euclidian_dist_plot
             show (boolean, optional): whether to show the dendogram
             outputFileName (filepath, optional): name to save plot as'
-            plot (dict, optional): overwrite plot parameters such as title, figsize, label, etc.
+            plot_params (dict, optional): overwrite plot parameters such as title, figsize, label, etc.
 
         """
         # if not already defined compute the distance
         trajectories = self.datasets[label]['trajectories']
 
-        if len(trajectories) == 0:
+        if trajectories.all() == None:
                 print(f"Trajectories not yet loaded for {label}. Load them first")
                 return
             
@@ -319,8 +298,8 @@ class Ana:
             'title': f'Euclidian Distance Map {label}'
         }
         
-        if plot != None:
-            def_plt_params.update(plot)
+        if plot_params != None:
+            def_plt_params.update(plot_params)
 
         
         fig, ax = plt.subplots(1, 1, figsize=def_plt_params['figsize'])
@@ -337,7 +316,7 @@ class Ana:
         if show:
             plt.show()
         
-    def PCA_plot(self, *args, outputFileName="PCA", outputPlotName='dendogram.png', show=True, combined_pca=None, separated_pca=None):
+    def PCA_plot(self, *args, outputFileName="PCA", outputPlotName='dendogram.png', show=True, combined_pca=None, separated_pca=None, method='weighted', metric='euclidean'):
         """
         Args:
             show (boolean, optional): Whether to show the cluster plot. Defaults to True.
@@ -345,89 +324,220 @@ class Ana:
             outputFileName (str, required): Name to save data as.
             combined_pca (dict, optional): Parameters for the combined PCA plot.
             separated_pca (dict, optional): Parameters for the separated PCA plot.
-            *args: (strings, required): The dataset labels to create the cluster from.
+            *args: (strings, required): The labels to create the cluster from.
 
         Usage Example:
-            combined_pca={'figsize': (8, 8), 'cmap': 'plasma', 'marker_size': 50, 'title': 'Custom Combined PCA Plot'},
-            separated_pca={'figsize': (8, 8), 'colors': ['tab:blue', 'tab:orange', 'tab:green'], 'marker_size': 50, 'title': 'Custom Separated PCA Plot'})
-        
-            PCA_plot('compartment', 'subcompartment', 'homopolymer', outputFileName='output.csv', show=True,
-                    combined_pca=combined_pca,
-                    separated_pca=seperated_pca)
-                    
+            combined_pca_plot_params = {'figsize': (8, 8), 'cmap': 'plasma', 'marker_size': 50, 'title': 'Custom Combined PCA Plot'}
+            separated_pca_plot_params = {'figsize': (8, 8), 'colors': ['tab:blue', 'tab:orange', 'tab:green'], 'marker_size': 50, 'title': 'Custom Separated PCA Plot'} 
+             
+            PCA_plot('compartment', 'subcompartment', 'homopolymer', outputFileName='output', show=True,
+                    combined_pca=combined_pca_plot_params,
+                    separated_pca= separated_pca_plot_params)
         """
-        num_clusters = len(args)
-        flattened_distance_array, linkage_matrix = self.create_dendogram(show=False, _clusterOnly=True, *args)
-        
-        threshold = linkage_matrix[-num_clusters, 2]
-        print(f"Threshold for {num_clusters} clusters: {threshold}")
-        fclust = fcluster(linkage_matrix, t=threshold, criterion='distance')
-        print(f"Cluster assignments: {fclust}")
-        np.savetxt(os.path.join(self.outPath, f"fclust_{outputFileName}.txt"), fclust)
-        
-        pca = PCA(n_components=2)
-        principalComponents = pca.fit_transform(flattened_distance_array)
-        principalDF = pd.DataFrame(data=principalComponents, columns=['PC1', 'PC2'])
-        principalDF.to_csv(os.path.join(self.outPath, f'balance_pca_{outputFileName}.csv'))
-        print(f"PCA explained variance ratio: {pca.explained_variance_ratio_}")
-        
-        # Default parameters for combined PCA plot
         default_combined_pca = {
-            'figsize': (10, 10),
+            'n_components': 2,
+            'figsize': (10, 7),
+            'alpha': 0.5,
             'cmap': 'viridis',
-            'marker_size': 100,
-            'title': 'Combined PCA Plot'
+            'marker_size': 50,
+            'title': f'Combined PCA {args}'
         }
-        
-        # Default parameters for separated PCA plot
         default_separated_pca = {
-            'figsize': (10, 10),
+            'n_components': 2,
+            'figsize': (10, 7),
+            'alpha': 0.5,
             'colors': ['tab:orange', 'tab:green', 'tab:red'],
-            'marker_size': 100,
-            'title': 'Separated PCA Plot'
+            'marker_size': 50,
+            'title': f'Separated PCA {args}'
         }
-        
-        # Update default parameters with provided ones
+
         if combined_pca is not None:
             default_combined_pca.update(combined_pca)
         if separated_pca is not None:
             default_separated_pca.update(separated_pca)
-        
+
+        num_clusters = len(args)
+        flattened_distance_array, linkage_matrix = self.calc_XZ(*args, methodd=method, metricc=metric)
+
+        threshold = linkage_matrix[-num_clusters, 2]
+        print(f"Threshold for {num_clusters} clusters: {threshold}")
+        fclust = fcluster(linkage_matrix, t=threshold, criterion='distance')
+        np.savetxt(os.path.join(self.outPath, f"fclust_{outputFileName}.txt"), fclust)
+
+        pca = PCA(n_components=default_combined_pca['n_components'])
+        principalComponents = pca.fit_transform(flattened_distance_array)
+        principalDF = pd.DataFrame(data=principalComponents, columns=[f'PC{i+1}' for i in range(default_combined_pca['n_components'])])
+        principalDF.to_csv(os.path.join(self.outPath, f'balance_{outputFileName}.csv'))
+        print(f"PCA explained variance ratio: {pca.explained_variance_ratio_}")
+
         # Plot the combined PCA results
-        fig, ax = plt.subplots(1, 1, figsize=default_combined_pca['figsize'])
-        scatter = ax.scatter(principalDF["PC1"], principalDF["PC2"], c=fclust, alpha=0.5, cmap=default_combined_pca['cmap'], s=default_combined_pca['marker_size'])
-        ax.set_xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.2f})')
-        ax.set_ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.2f})')
-        ax.set_title(default_combined_pca['title'])
-        cbar = plt.colorbar(scatter)
-        ticks = np.arange(1, num_clusters + 1)
-        cbar.set_ticks(ticks)
-        plt.savefig(os.path.join(self.outPath, f'PCAs_{outputPlotName}'))
-        if show:
-            plt.show()
-        plt.close()
+        if default_combined_pca['n_components'] == 2:
+            fig, ax = plt.subplots(1, 1, figsize=default_combined_pca['figsize'])
+            scatter = ax.scatter(principalDF["PC1"], principalDF["PC2"], c=fclust, alpha=default_combined_pca['alpha'], cmap=default_combined_pca['cmap'], s=default_combined_pca['marker_size'])
+            ax.set_xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.2f})', fontsize=8)
+            ax.set_ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.2f})', fontsize=8)
+            ax.set_title(default_combined_pca['title'])
+            cbar = plt.colorbar(scatter)
+            ticks = np.arange(1, num_clusters + 1)
+            cbar.set_ticks(ticks)
+            plt.savefig(os.path.join(self.outPath, f'PCAs_{outputPlotName}'))
+            if show:
+                plt.show()
+            plt.close()
         
+        if default_combined_pca['n_components'] == 3:
+            from mpl_toolkits.mplot3d import Axes3D
+            fig = plt.figure(figsize=default_combined_pca['figsize'])
+            ax = fig.add_subplot(111, projection='3d')
+            scatter = ax.scatter(principalDF["PC1"], principalDF["PC2"], principalDF["PC3"], c=fclust, alpha=default_combined_pca['alpha'], cmap=default_combined_pca['cmap'], s=default_combined_pca['marker_size'])
+            ax.set_xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.2f})', fontsize=8)
+            ax.set_ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.2f})', fontsize=8)
+            ax.set_zlabel(f'PC3 ({pca.explained_variance_ratio_[2]:.2f})', fontsize=8)
+            ax.set_title(default_combined_pca['title'])
+
+            cbar = plt.colorbar(scatter)
+            ticks = np.arange(1, num_clusters + 1)
+            cbar.set_ticks(ticks)
+            plt.savefig(os.path.join(self.outPath, f'PCAs_{outputPlotName}'))
+            if show:
+                plt.show()
+            plt.close()
+
         # Plot the separated PCA results
-        sizes = {label: self.datasets[label]['distance_array'].shape[0] for label in args}
+        if default_separated_pca['n_components'] == 2:
+            sizes = {label: self.datasets[label]['distance_array'].shape[0] for label in args}
+            
+            fig, ax = plt.subplots(1, 1, figsize=default_separated_pca['figsize'])
+            start = 0
+            for idx, label in enumerate(args):
+                end = start + sizes[label]
+                scatter = ax.scatter(principalDF["PC1"][start:end], principalDF["PC2"][start:end], alpha=default_separated_pca['alpha'], c=default_separated_pca['colors'][idx], label=label, s=default_separated_pca['marker_size'])
+                start = end
+            ax.set_xlabel(f"PC 1 ({pca.explained_variance_ratio_[0]:.2f})", fontsize=8)
+            ax.set_ylabel(f"PC 2 ({pca.explained_variance_ratio_[1]:.2f})", fontsize=8)
+            ax.set_title(default_separated_pca['title'])
+            ax.legend(loc='lower left', fontsize=8, ncol=2)
+            cbar = plt.colorbar(scatter)
+            plt.savefig(os.path.join(self.outPath, f'PCAs_per_ensemble_{outputPlotName}'))
+            if show:
+                plt.show()
+            plt.close()
+
+        if default_separated_pca['n_components'] == 3:
+            sizes = {label: self.datasets[label]['distance_array'].shape[0] for label in args}
+            
+            fig = plt.figure(figsize=default_separated_pca['figsize'])
+            ax = fig.add_subplot(111, projection='3d')
+            start = 0
+            for idx, label in enumerate(args):
+                end = start + sizes[label]
+                scatter = ax.scatter(principalDF["PC1"][start:end], principalDF["PC2"][start:end], principalDF["PC3"][start:end], alpha=default_separated_pca['alpha'], c=default_separated_pca['colors'][idx], label=label, s=default_separated_pca['marker_size'])
+                start = end
+            ax.set_xlabel(f"PC 1 ({pca.explained_variance_ratio_[0]:.2f})", fontsize=8)
+            ax.set_ylabel(f"PC 2 ({pca.explained_variance_ratio_[1]:.2f})", fontsize=8)
+            ax.set_zlabel(f"PC 3 ({pca.explained_variance_ratio_[2]:.2f})", fontsize=8)
+            cbar = plt.colorbar(scatter)
+
+            ax.set_title(default_separated_pca['title'])
+            ax.legend(loc='upper left', fontsize=8, ncol=2)
+            plt.savefig(os.path.join(self.outPath, f'PCAs_per_ensemble_{outputPlotName}'))
+            if show:
+                plt.show()
+            plt.close()
         
-        fig, ax = plt.subplots(1, 1, figsize=default_separated_pca['figsize'])
-        start = 0
-        for idx, label in enumerate(args):
-            end = start + sizes[label]
-            ax.scatter(principalDF["PC1"][start:end], principalDF["PC2"][start:end], alpha=0.5, c=default_separated_pca['colors'][idx], label=label, s=default_separated_pca['marker_size'])
-            start = end
-        ax.set_xlim(-1500, 1500)
-        ax.set_ylim(-1500, 1500)
-        ax.set_xlabel(f"PC 1 ({pca.explained_variance_ratio_[0]:.2f})", fontsize=16)
-        ax.set_ylabel(f"PC 2 ({pca.explained_variance_ratio_[1]:.2f})", fontsize=16)
-        ax.set_title(default_separated_pca['title'])
-        ax.legend(loc='lower left', fontsize=14, ncol=2)
-        plt.savefig(os.path.join(self.outPath, f'PCAs_per_ensemble_{outputPlotName}'))
-        if show:
-            plt.show()
-        plt.close()
         
-        #* ======================================================= UTILITIES  ============================================================== *#
+
+    def tsne_plot(self, *args, show=True, outplotName='TSNE.png', tsneParams=None, plotParams=None, sample_size=5000, num_clusters=None, method='weighted'):
+        if num_clusters is None:
+            num_clusters = len(args)
+            
+        default_tsne_params = {
+            'n_components': 2,
+            'verbose': 1,
+            'max_iter': 800,
+            'metric': 'euclidean',
+        }
+        
+        default_plot_params = {
+            'figsize': (6, 4),
+            'cmap': 'viridis',
+            'x_label': 't-SNE1',
+            'y_label': 't-SNE2',
+            'z_label': 't-SNE3',
+            'size':50,
+            'title':f'TSNE {args}'
+        }
+        
+        if tsneParams is not None:
+            default_tsne_params.update(tsneParams)
+        if plotParams is not None:
+            default_plot_params.update(plotParams)
+        
+        # Obtain the flattened distance array and linkage matrix from the cache if available
+        X, Z = self.calc_XZ(*args, methodd=method, metricc=default_tsne_params['metric'])
+        
+        # Downsample the data to make it more manageable
+        if X.shape[0] > sample_size:
+            X = resample(X, n_samples=sample_size, random_state=42)
+            
+        # Dynamically set perplexity based on the number of samples
+        n_samples = X.shape[0]
+        perplexity = min(30, max(5, n_samples // 10))
+        
+        # add perplexity to default_tsne_params
+        default_tsne_params['perplexity'] = perplexity  
+             
+        threshold = Z[-num_clusters, 2]
+        print(f"Threshold for {num_clusters} clusters: {threshold}")
+        fclust = fcluster(Z, t=threshold, criterion='distance')
+        del Z  # Free up memory
+        
+
+        # Apply t-SNE 
+        tsne = TSNE(**default_tsne_params)
+        tsne_res = tsne.fit_transform(X)
+
+        # Save results to a DataFrame and CSV
+        tsneDf = pd.DataFrame(data=tsne_res, columns=[f't-SNE{i+1}' for i in range(default_tsne_params['n_components'])])
+        tsneDf.to_csv(f'{self.outPath}/tnse_results.csv', index=False)
+
+        # Plot the results
+        if default_tsne_params['n_components'] == 2:
+            fig, ax = plt.subplots(1, 1, figsize=default_plot_params['figsize'])
+            scatter = ax.scatter(tsne_res[:, 0], tsne_res[:, 1], c=fclust, alpha=0.5, s=default_plot_params['size'], cmap=default_plot_params['cmap'])
+            ax.set_xlabel(default_plot_params['x_label'])
+            ax.set_ylabel(default_plot_params['y_label'])
+            ticks = np.arange(1, num_clusters + 1)
+            cbar = plt.colorbar(scatter)
+            plt.title(default_plot_params['title'])
+            cbar.set_ticks(ticks)
+            fig.savefig(f'{self.outPath}/{outplotName}')
+            if show:
+                plt.show()
+            plt.close()
+        
+
+        if default_tsne_params['n_components'] == 3:
+            from mpl_toolkits.mplot3d import Axes3D
+            fig = plt.figure(figsize=(8, 6))
+            ax = fig.add_subplot(111, projection='3d')
+            scatter = ax.scatter(tsne_res[:, 0], tsne_res[:, 1], tsne_res[:, 2], c=fclust, alpha=0.5, cmap=default_plot_params['cmap'], s=default_plot_params['size'])
+            ax.set_xlabel(default_plot_params['x_label'])
+            ax.set_ylabel(default_plot_params['y_label'])
+            ax.set_zlabel(default_plot_params['z_label'])
+            ticks = np.arange(1, num_clusters + 1)
+            cbar = plt.colorbar(scatter)
+            cbar.set_ticks(ticks)
+            fig.savefig(f'{self.outPath}/{outplotName}')
+            plt.title(default_plot_params['title'])
+            if show:
+                plt.show()
+            plt.close()
+
+
+
+            
+    """====================================================================== UTILITIES ===================================================================================="""
 
     
     def getHiCData_simulation(self,filepath):
@@ -523,7 +633,54 @@ class Ana:
                         continue
         # return np.array(errors_log), np.array(lr_log), mode_for_learningRate[-1]
         return np.array(errors_log), np.array(lr_log)
-                
+    
+    def calc_XZ(self, *args, methodd='weighted', metricc='euclidean'):
+        key = tuple(sorted(args))
+        key = key + (methodd, metricc)
+        if key in self.cache:
+            return self.cache[key]['X'], self.cache[key]['Z']
+        
+        flat_euclid_dist_map = {}
+        
+        for label in args:
+            print(f'processing {label}')
+            trajectories = self.datasets[label]['trajectories']
+            if trajectories is None or len(trajectories) == 0:
+                print(f"Trajectories not yet loaded for {label}. Load them first")
+                return
+            
+            # Compute pairwise Euclidean distances
+            dist = [cdist(val, val, 'euclidean') for val in trajectories]
+            dist = np.array(dist)
+            print(f"{label} has dist shape {dist.shape}")
+            
+            # Store in datasets label 
+            self.datasets[label]["distance_array"] = dist
+            flat_euclid_dist_map[label] = dist
+        
+        # Flatten the distance arrays
+        flat_euclid_dist_map = {label: [flat_euclid_dist_map[label][val][np.triu_indices_from(flat_euclid_dist_map[label][val], k=1)].flatten()
+                                        for val in range(len(flat_euclid_dist_map[label]))]
+                                for label in args}
+        
+        # Make it into a 1D vertical array
+        X = np.vstack([item for sublist in flat_euclid_dist_map.values() for item in sublist])
+        print(f"Flattened distance array has shape: {X.shape}")
+        
+        def calcQ(r1, r2):
+            shape = X.shape
+            sigma = 2 * np.ones(shape=shape[1])
+            return np.exp(-(r1 - r2) ** 2 / (sigma ** 2)).mean()
+        
+        functionPTR={'calcQ':calcQ, 'euclidean':'euclidean'}        
+        
+        # Create the linkage matrix
+        Z = linkage(X, method=methodd, metric=functionPTR[metricc])
+        
+        self.cache[key] = {'X':X, 'Z': Z}
+        
+        
+        return X, Z 
 
 
                 
