@@ -69,6 +69,8 @@ Citation
 When using **OpenMiChroM** to perform chromatin dynamics simulations or analyses, please `use this citation
 <https://open-michrom.readthedocs.io/en/latest/Reference/citing.html>`__.
 
+We also thank the `polychrom <https://github.com/open2c/polychrom>` where part of this code was inspired. You can use this `citation <https://zenodo.org/records/3579473>` 
+
 
 Installation
 ============
