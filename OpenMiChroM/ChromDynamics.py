@@ -2256,6 +2256,8 @@ class MiChroM:
         print('{:^96s}'.format("Oliveira Junior, A. B. et al."))
         print('{:^96s}'.format("Chromosome Modeling on Downsampled Hi-C Maps Enhances the Compartmentalization Signal."))
         print('{:^96s}'.format("J. Phys. Chem. B, doi:10.1021/acs.jpcb.1c04174."))
+        print('{:^96s}'.format("Polychrom - Open2C polymer simulation library"))
+        print('{:^96s}'.format("10.5281/zenodo.3579472."))
         print('')
         print('{:^96s}'.format("Copyright (c) 2024, The OpenMiChroM development team at"))
         print('{:^96s}'.format("Rice University"))
