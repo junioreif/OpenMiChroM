@@ -11,6 +11,8 @@ import numpy as np
 import os
 from scipy.spatial import distance
 
+
+
 class cndbTools:
 
     def __init__(self):
@@ -28,7 +30,7 @@ class cndbTools:
         f_name, file_extension = os.path.splitext(filename)
         
         if file_extension == ".ndb":
-            filename = self.ndb2cndb(f_name)   
+            filename = Chrom_utils.ndb2cndb(f_name)   
 
         self.cndb = h5py.File(filename, 'r')
         
@@ -46,42 +48,14 @@ class cndbTools:
         return(self)
     
     
-    def xyz(self, frames=[1,None,1], beadSelection=None, XYZ=[0,1,2]):
-        R"""
-        Get the selected beads' 3D position from a **cndb** or **ndb** for multiple frames.
-        
-        Args:
-            frames (list, required):
-                Define the range of frames that the position of the bead will get extracted. The range list is defined by :code:`frames=[initial, final, step]`. (Default value: :code: `[1,None,1]`, all frames)
-            beadSelection (list of ints, required):
-                List of beads to extract the 3D position for each frame. The list is defined by :code: `beadSelection=[0,1,2,...,N-1]`. (Default value: :code: `None`, all beads) 
-            XYZ (list, required):
-                List of the axis in the Cartesian coordinate system that the position of the bead will get extracted for each frame. The list is defined by :code: `XYZ=[0,1,2]`. where 0, 1 and 2 are the axis X, Y and Z, respectively. (Default value: :code: `XYZ=[0,1,2]`) 
-    
-        Returns:
-            (:math:`N_{frames}`, :math:`N_{beads}`, 3) :class:`numpy.ndarray`: Returns an array of the 3D position of the selected beads for different frames.
-        """
-        frame_list = []
-        
-        if beadSelection == None:
-            selection = np.arange(self.Nbeads)
-        else:
-            selection = np.array(beadSelection)
-            
-        if frames[1] == None:
-            frames[1] = self.Nframes
-        
-        for i in range(frames[0],frames[1],frames[2]):
-            frame_list.append(np.take(np.take(np.array(self.cndb[str(i)]), selection, axis=0), XYZ, axis=1))
-        return(np.array(frame_list))
-    
+
     def ndb2cndb(self, filename):
         R"""
         Converts an **ndb** file format to **cndb**.
         
         Args:
             filename (path, required):
-                 Path to the ndb file to be converted to cndb.
+                    Path to the ndb file to be converted to cndb.
         """
         Main_chrom      = ['ChrA','ChrB','ChrU'] # Type A B and Unknow
         Chrom_types     = ['ZA','OA','FB','SB','TB','LB','UN']
@@ -111,7 +85,7 @@ class cndbTools:
         frame = 0
 
         for line in ndbfile:
-    
+
             entry = line[0:6]
 
             info = line.split()
@@ -152,7 +126,37 @@ class cndbTools:
 
         cndbf.close()
         return(name)
-
+    
+    def xyz(self, frames=[1,None,1], beadSelection=None, XYZ=[0,1,2]):
+        R"""
+        Get the selected beads' 3D position from a **cndb** or **ndb** for multiple frames.
+        
+        Args:
+            frames (list, required):
+                Define the range of frames that the position of the bead will get extracted. The range list is defined by :code:`frames=[initial, final, step]`. (Default value: :code: `[1,None,1]`, all frames)
+            beadSelection (list of ints, required):
+                List of beads to extract the 3D position for each frame. The list is defined by :code: `beadSelection=[0,1,2,...,N-1]`. (Default value: :code: `None`, all beads) 
+            XYZ (list, required):
+                List of the axis in the Cartesian coordinate system that the position of the bead will get extracted for each frame. The list is defined by :code: `XYZ=[0,1,2]`. where 0, 1 and 2 are the axis X, Y and Z, respectively. (Default value: :code: `XYZ=[0,1,2]`) 
+    
+        Returns:
+            (:math:`N_{frames}`, :math:`N_{beads}`, 3) :class:`numpy.ndarray`: Returns an array of the 3D position of the selected beads for different frames.
+        """
+        frame_list = []
+        
+        if beadSelection == None:
+            selection = np.arange(self.Nbeads)
+        else:
+            selection = np.array(beadSelection)
+            
+        if frames[1] == None:
+            frames[1] = self.Nframes
+        
+        for i in range(frames[0],frames[1],frames[2]):
+            frame_list.append(np.take(np.take(np.array(self.cndb[str(i)]), selection, axis=0), XYZ, axis=1))
+        return(np.array(frame_list))
+    
+    
     
 #########################################################################################
 #### Analysis start here!

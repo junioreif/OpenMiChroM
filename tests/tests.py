@@ -6,6 +6,7 @@ sys.path.append('../OpenMiChroM')
 from ChromDynamics import MiChroM
 from Optimization import FullTraining, CustomMiChroMTraining, AdamTraining
 from CndbTools import cndbTools
+from Analyze import Ana
 import h5py
 import numpy as np
 import pandas as pd
@@ -91,12 +92,14 @@ class testMichrom():
         lamb_new.to_csv("AdamTraining/output/lambda_1", index=False)
 
         ff_new = pd.read_csv("AdamTraining/output/lambda_1")
+    
+    
 
 
 
 run = testMichrom()
 
-# run.runDefault()
-# run.testCustomMiChroM()
-# run.testCndbTools()
+run.runDefault()
+run.testCustomMiChroM()
+run.testCndbTools()
 run.testAdamTraining()
