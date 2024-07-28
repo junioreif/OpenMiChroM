@@ -605,7 +605,7 @@ class CustomMiChroMTraining:
             try:
                 f = open(str(IClist),"r")
                 self.IClist = IClist
-                self.PiPj_IC = np.zeros((dend-dinit,dend-dinit))
+                self.PiPj_IC = np.zeros((dend-dinit, dend-dinit))
                 self.dinit = dinit
                 self.dend = dend
             except IOError:
