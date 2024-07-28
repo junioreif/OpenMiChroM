@@ -758,7 +758,7 @@ class MiChroM:
         
         self.forceDict["CustomIC"] = IC
 
-    def addCustomMultiChainIC(self, mu=3.22, rc = 1.78, dinit=3, dend=500, chainIndex=None, IClist=None, CutoffDistance=3.0):
+    def addCustomMultiChainIC(self, mu=3.22, rc = 1.78, dinit=3, dend=1000, chainIndex=None, IClist=None, CutoffDistance=3.0):
 
         energyIC = ("step(d-dinit)*ic(d)*step(dend-d)*f;"
                    "f=0.5*(1. + tanh(mu*(rc - r)));"
