@@ -757,6 +757,44 @@ class MiChroM:
                 IC.addParticle([i])
         
         self.forceDict["CustomIC"] = IC
+
+    def addCustomMultiChainIC(self, mu=3.22, rc = 1.78, dinit=3, dend=500, chainIndex=None, IClist=None, CutoffDistance=3.0):
+
+        energyIC = ("step(d-dinit)*ic(d)*step(dend-d)*f;"
+                   "f=0.5*(1. + tanh(mu*(rc - r)));"
+                   "d=abs(idx1-idx2)")
+        
+        IC = self.mm.CustomNonbondedForce(energyIC)
+
+        IClist_listfromfile = np.loadtxt(IClist)
+        IClist = np.zeros(self.N)
+        for d, value in enumerate(IClist_listfromfile, start=dinit):
+            IClist[d] = value
+                
+        tabIClist = self.mm.Discrete1DFunction(IClist)
+        IC.addTabulatedFunction('ic', tabIClist)
+
+        IC.addGlobalParameter('dinit', dinit)
+        IC.addGlobalParameter('dend', dend)
+      
+        IC.addGlobalParameter('mu', mu)  
+        IC.addGlobalParameter('rc', rc) 
+        
+        IC.setCutoffDistance(CutoffDistance)
+        
+        chain = self.chains[chainIndex]
+
+        groupList = list(range(chain[0],chain[1]+1))
+        
+        IC.addInteractionGroup(groupList,groupList)
+        
+        IC.addPerParticleParameter("idx")
+
+        for i in range(self.N):
+            IC.addParticle([i])
+
+
+        self.forceDict["CustomIC_chain_"+str(chainIndex)] = IC
         
     def addIdealChromosome(self, mu=3.22, rc = 1.78, Gamma1=-0.030,Gamma2=-0.351,
                            Gamma3=-3.727, dinit=3, dend=500,CutoffDistance=3.0):
@@ -2256,8 +2294,6 @@ class MiChroM:
         print('{:^96s}'.format("Oliveira Junior, A. B. et al."))
         print('{:^96s}'.format("Chromosome Modeling on Downsampled Hi-C Maps Enhances the Compartmentalization Signal."))
         print('{:^96s}'.format("J. Phys. Chem. B, doi:10.1021/acs.jpcb.1c04174."))
-        print('{:^96s}'.format("Polychrom - Open2C polymer simulation library"))
-        print('{:^96s}'.format("10.5281/zenodo.3579472."))
         print('')
         print('{:^96s}'.format("Copyright (c) 2024, The OpenMiChroM development team at"))
         print('{:^96s}'.format("Rice University"))
