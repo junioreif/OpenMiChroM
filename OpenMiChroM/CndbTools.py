@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023 The Center for Theoretical Biological Physics (CTBP) - Rice University
+# Copyright (c) 2020-2024 The Center for Theoretical Biological Physics (CTBP) - Rice University
 # This file is from the Open-MiChroM project, released under the MIT License.
 
 R"""
