@@ -39,7 +39,7 @@ class MiChroM:
     R"""
     The :class:`~.MiChroM` class performs chromatin dynamics employing the default MiChroM energy function parameters for the type-to-type and Ideal Chromosome interactions.
     
-    Details about the MiChroM (Minimal Chromatin Model) energy function and the default parameters are decribed in "Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173."
+    Details about the MiChroM (Minimal Chromatin Model) energy function and the default parameters are described in "Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173."
     
     
     The :class:`~.MiChroM` sets the environment to start the chromatin dynamics simulations.
