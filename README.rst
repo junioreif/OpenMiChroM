@@ -105,6 +105,7 @@ The code below will install **OpenMiChroM** from `PyPI <https://pypi.org/project
 .. note::
 
 The **OpenMiChroM** library uses `OpenMM <http://openmm.org/>`_ API to run the chromatin dynamics simulations.
+
 These requirements can be met by installing the OpenMM package from the `conda-forge channel <https://conda-forge.org/>`__:
 
 .. code-block:: bash
