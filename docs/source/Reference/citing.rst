@@ -15,6 +15,8 @@ Please acknowledge the use of this software within the body of your publication 
   Pulling Simulations - [4] Ruben, Benjamin S., et al. “Structural Reorganization and Relaxation Dynamics of Axially Stressed Chromosomes.” Biophysical Journal, Mar. 2023.
 
 
+We also thank the polychrom <https://github.com/open2c/polychrom>, where part of this code was inspired. You can use this citation <https://zenodo.org/records/3579473>
+
 The paper are available online at:
 
 [1] `Journal of Molecular Biology (JMB) <https://www.sciencedirect.com/science/article/pii/S0022283620306185>`_.
