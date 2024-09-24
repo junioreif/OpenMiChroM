@@ -37,51 +37,36 @@ import types
 
 class MiChroM:
     R"""
-    The :class:`~.MiChroM` class performs chromatin dynamics employing the default MiChroM energy function parameters for the type-to-type and Ideal Chromosome interactions.
-    
-    Details about the MiChroM (Minimal Chromatin Model) energy function and the default parameters are described in "Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173."
-    
-    
-    The :class:`~.MiChroM` sets the environment to start the chromatin dynamics simulations.
-    
+    The `MiChroM` class performs chromatin dynamics simulations using the default MiChroM energy function parameters for type-to-type and Ideal Chromosome interactions.
+
+    Details about the MiChroM (Minimal Chromatin Model) energy function and the default parameters are described in:
+    Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G., & Onuchic, J.N. (2016). Transferable model for chromosome architecture. *Proceedings of the National Academy of Sciences*, 113(43), 12168-12173.
+
+    The `MiChroM` class sets up the environment to start chromatin dynamics simulations.
+
     Args:
-        time_step (float, required):
-            Simulation time step in units of :math:`\tau`. (Default value = 0.01).
-        collision_rate (float, required):
-            Friction/Damping constant in units of reciprocal time (:math:`1/\tau`). (Default value = 0.1).
-        temperature (float, required):
-            Temperature in reduced units. (Default value = 1.0).
-        verbose (bool, optional):
-            Whether to output the information in the screen during the simulation. (Default value: :code:`False`). 
-        velocity_reinitialize (bool, optional):
-            Reset/Reinitialize velocities if :math:`E_{kin}` is greater than 5.0. (Default value: :code:`True`). 
-        name (str):
-            Name used in the output files. (Default value: *Chromosome*). 
-        length_scale (float, required):
-            Length scale used in the distances of the system in units of reduced length :math:`\sigma`. (Default value = 1.0).
+        name (str, optional): 
+            Name used in the output files. Defaults to "OpenMichrom".
+        timeStep (float, optional): 
+            Simulation time step in units of τ. Defaults to 0.01.
+        collisionRate (float, optional): 
+            Friction/damping constant in units of reciprocal time (1/τ). Defaults to 0.1.
+        temperature (float, optional): 
+            Temperature in reduced units. Defaults to 1.0.
     """
-    def __init__(
-        self, time_step=0.01, collision_rate=0.1, temperature=1.0,
-        verbose=False,
-        velocity_reinitialize=True,
-        name="Chromosome",
-        length_scale=1.0):
-            self.name = name
-            self.timestep = time_step
-            self.collisionRate = collision_rate
-            self.temperature = temperature / 0.008314
-            self.verbose = verbose
-            self.velocityReinitialize = velocity_reinitialize
-            self.loaded = False
-            self.forcesApplied = False
-            self.folder = "."
-            self.metadata = {}
-            self.length_scale = length_scale
-            self.eKcritical = 50000000
-            self.nm = units.meter * 1e-9
-            self.Sigma = 1.0
-            self.Epsilon = 1.0
-            self.printHeader()
+    def __init__(self, name="OpenMichrom", timeStep=0.01, collisionRate=0.1, temperature=1.0):
+        self.name = name
+        self.timeStep = timeStep
+        self.collisionRate = collisionRate
+        self.temperature = temperature / 0.008314
+        self.loaded = False
+        self.forcesApplied = False
+        self.folder = "."
+        self.nm = units.meter * 1e-9
+        self.sigma = 1.0
+        self.epsilon = 1.0
+        self.printHeader()
+
             
     def setup(self, platform="CUDA", gpu="default",
             integrator="langevin", precision="mixed", deviceIndex="0"):
@@ -161,7 +146,7 @@ class MiChroM:
             integrator_name = integrator.lower()
             if integrator_name == "langevin":
                 self.integrator = self.mm.LangevinIntegrator(
-                    self.temperature, self.collisionRate, self.timestep)
+                    self.temperature, self.collisionRate, self.timeStep)
                 self.integrator_type = "Langevin"
             else:
                 raise ValueError(f"Unknown integrator '{integrator}'.")
@@ -412,7 +397,6 @@ class MiChroM:
                 self.addBond(start, end, distance=1, kfb=kfb)
                 self.bondsForException.append((start, end ))
 
-        self.metadata["FENEBond"] = repr({"kfb": kfb})
         
 
     def _initFENEBond(self, kfb=30):
@@ -449,9 +433,9 @@ class MiChroM:
         if (i >= self.N) or (j >= self.N):
             raise ValueError("\n Cannot add a bond between beads  %d,%d that are beyond the chromosome length %d" % (i, j, self.N))
         if distance is None:
-            distance = self.length_scale
+            distance = 1.0
         else:
-            distance = self.length_scale * distance
+            distance = 1.0 * distance
         distance = float(distance)
 
         self._initFENEBond(kfb=kfb)
@@ -486,7 +470,6 @@ class MiChroM:
                 angles.addAngle(end - 1, end , start, [ka[end]])
                 angles.addAngle(end , start, start + 1, [ka[start]])
 
-        self.metadata["AngleForce"] = repr({"stiffness": ka})
         self.forceDict["AngleForce"] = angles
         
         
@@ -542,8 +525,6 @@ class MiChroM:
                 Parameter in the probability of crosslink function, :math:`f(rc) = 0.5`. (Default value = 1.78).
         """
 
-        self.metadata["TypetoType"] = repr({"mu": mu})
-
         path = "share/MiChroM.ff"
         pt = os.path.dirname(os.path.realpath(__file__))
         filepath = os.path.join(pt,path)
@@ -581,7 +562,6 @@ class MiChroM:
 
         """
 
-        self.metadata["CrossLink"] = repr({"mu": mu})
         if not hasattr(self, "type_list_letter"):
             raise ValueError("Chromatin sequence not defined!")
 
@@ -944,8 +924,6 @@ class MiChroM:
 
             if isRing:
                 self.addHarmonicBond_ij(start, end, kfb=kfb, r0=r0)
-
-        self.metadata["HarmonicBond"] = repr({"kfb": kfb})
         
 
     def _initHarmonicBond(self, kfb=30,r0=1.0):
@@ -1916,11 +1894,8 @@ class MiChroM:
         
         """
         if self.forcesApplied == False:
-            if self.verbose:
-                print("applying forces")
-                stdout.flush()
-        self._applyForces()
-        self.forcesApplied = True
+            self._applyForces()
+            self.forcesApplied = True
     
         
     def runSimBlock(self, steps=None, increment=True, num=None):
@@ -1948,16 +1923,13 @@ class MiChroM:
         for attempt in range(6):
             print("bl=%d" % (self.step), end=' ')
             stdout.flush()
-            if self.verbose:
-                print()
-                stdout.flush()
+
 
             if num is None:
                 num = steps // 5 + 1
             a = time.time()
             for _ in range(steps // num):
-                if self.verbose:
-                    print("performing integration")
+
                 self.integrator.step(num)  # integrate!
                 stdout.flush()
             if (steps % num) > 0:
@@ -1974,14 +1946,13 @@ class MiChroM:
             eP = self.state.getPotentialEnergy() / self.N / units.kilojoule_per_mole
 
 
-            if self.velocityReinitialize:
-                if eK > 5.0:
-                    print("(i)", end=' ')
-                    self.initVelocities()
+            if eK > 5.0:
+                print("(i)", end=' ')
+                self.initVelocities()
             print("pos[1]=[%.1lf %.1lf %.1lf]" % tuple(newcoords[0]), end=' ')
 
 
-            if ((np.isnan(newcoords).any()) or (eK > self.eKcritical) or
+            if ((np.isnan(newcoords).any()) or (eK > 5000) or
                 (np.isnan(eK)) or (np.isnan(eP))):
 
                 self.context.setPositions(self.data)
