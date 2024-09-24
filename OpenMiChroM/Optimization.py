@@ -484,7 +484,7 @@ class FullTraining:
         lamb.to_csv(os.path.join(outputPath, name), index=False)
         print("{} file save in {}".format(name, outputPath))
 
-        self.saveLambdas(sequenceFile=sequenceFile, data=lambdas, outputPath=outputPath, name="lambda_0")
+        #self.saveLambdas(sequenceFile=sequenceFile, data=lambdas, outputPath=outputPath, name="lambda_0")
 
     def appCutoff(self, pair_h, c_h, pair_l, c_l):
         R"""
