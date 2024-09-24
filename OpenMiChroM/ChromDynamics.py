@@ -59,16 +59,13 @@ class MiChroM:
             Name used in the output files. (Default value: *Chromosome*). 
         length_scale (float, required):
             Length scale used in the distances of the system in units of reduced length :math:`\sigma`. (Default value = 1.0).
-        mass_scale (float, required):
-            Mass scale used in units of :math:`\mu`. (Default value = 1.0).
     """
     def __init__(
         self, time_step=0.01, collision_rate=0.1, temperature=1.0,
         verbose=False,
         velocity_reinitialize=True,
         name="Chromosome",
-        length_scale=1.0,
-        mass_scale=1.0):
+        length_scale=1.0):
             self.name = name
             self.timestep = time_step
             self.collisionRate = collision_rate
@@ -80,7 +77,6 @@ class MiChroM:
             self.folder = "."
             self.metadata = {}
             self.length_scale = length_scale
-            self.mass_scale = mass_scale
             self.eKcritical = 50000000
             self.nm = units.meter * 1e-9
             self.Sigma = 1.0
@@ -136,7 +132,7 @@ class MiChroM:
 
         self.kB = units.BOLTZMANN_CONSTANT_kB * units.AVOGADRO_CONSTANT_NA  
         self.kT = self.kB * self.temperature  
-        self.mass = 10.0 * units.amu * self.mass_scale
+        self.mass = 10.0 * units.amu
         self.bondsForException = []
         self.mm = openmm
         self.system = self.mm.System()
@@ -228,44 +224,39 @@ class MiChroM:
             os.mkdir(folder)
         self.folder = folder
         
-    def loadStructure(self, filename,center=True,masses=None):
- 
-        R"""Loads the 3D position of each bead of the chromosome polymer in the OpenMM system platform.
+    def loadStructure(self, data, center=True, massList=None):
+        """Loads the 3D positions of each bead of the chromosome polymer into the OpenMM system.
 
         Args:
+            data (array-like): The initial positions of the beads. Should be an array of shape (N, 3) or (3, N).
+            center (bool, optional): If True, centers the chromosome's center of mass at [0, 0, 0]. Defaults to True.
+            massList (array-like, optional): Masses of each chromosome bead in units of μ. If None, all masses are set to 1.0. Defaults to None.
 
-            center (bool, optional):
-                Whether to move the center of mass of the chromosome to the 3D position ``[0, 0, 0]`` before starting the simulation. (Default value: :code:`True`).
-            masses (array, optional):
-                Masses of each chromosome bead measured in units of :math:`\mu`. (Default value: :code:`None`).
+        Raises:
+            ValueError: If the input data is not in the correct format or contains NaN values.
         """
-    
-        data = filename
+        data = np.asarray(data, dtype=float)
 
-        data = np.asarray(data, float)
+        if data.shape[1] != 3:
+            raise ValueError("Input data must have shape (N, 3).")
 
-        if len(data) == 3:
-            data = np.transpose(data)
-        if len(data[0]) != 3:
-            self._exitProgram("Wrong file format")
         if np.isnan(data).any():
-            self._exitProgram("\n!!!! The file contains NAN's !!!!\n")
+            raise ValueError("Input data contains NaN values.")
 
-        if center is True:
-            av = np.mean(data, 0)
-            data -= av
-
-        if center == "zero":
-            minvalue = np.min(data, 0)
-            data -= minvalue
+        if center:
+            data -= np.mean(data, axis=0)
 
         self.setPositions(data)
-       
-        if masses == None:
-            self.masses = [1. for _ in range(self.N)]
+
+        if massList is None:
+            self.masses = np.ones(self.N)
         else:
-            self.masses = masses
-            
+            massList = np.asarray(massList, dtype=float)
+
+            if len(massList) != self.N:
+                raise ValueError(f"Mass list length {len(massList)} does not match number of beads {self.N}.")
+            self.masses = massList
+
         if not hasattr(self, "chains"):
             self.setChains()
             
@@ -1204,8 +1195,6 @@ class MiChroM:
         if not self.loaded:
             for mass in self.masses:
                 self.system.addParticle(self.mass * mass)
-            if self.verbose == True:
-                print("%d particles loaded" % self.N)
             self.loaded = True
             
 
@@ -1950,6 +1939,19 @@ class MiChroM:
                         ndbf.append(loops_string.format("LOOPS",p[0],p[1]))
                     
                 np.savetxt(filename,ndbf,fmt="%s")
+
+    def createSimulation(self):
+        R"""
+        Create the simulation context
+        
+        """
+        if self.forcesApplied == False:
+            if self.verbose:
+                print("applying forces")
+                stdout.flush()
+        self._applyForces()
+        self.forcesApplied = True
+    
         
     def runSimBlock(self, steps=None, increment=True, num=None):
         R"""
@@ -1965,12 +1967,7 @@ class MiChroM:
                  The number of subblocks to split the steps of the primary block. (Default value: :code:`None`).                
         """
 
-        if self.forcesApplied == False:
-            if self.verbose:
-                print("applying forces")
-                stdout.flush()
-            self._applyForces()
-            self.forcesApplied = True
+
         if increment == True:
             self.step += 1
         if steps is None:
