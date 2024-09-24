@@ -81,147 +81,104 @@ class MiChroM:
             self.nm = units.meter * 1e-9
             self.Sigma = 1.0
             self.Epsilon = 1.0
-            #####################        A1         A2        B1        B2        B3        B4       NA   
-            self.inter_Chrom_types =[-0.268028,-0.274604,-0.262513,-0.258880,-0.266760,-0.266760,-0.225646, #A1
-                                     -0.274604,-0.299261,-0.286952,-0.281154,-0.301320,-0.301320,-0.245080, #A2
-                                     -0.262513,-0.286952,-0.342020,-0.321726,-0.336630,-0.336630,-0.209919, #B1
-                                     -0.258880,-0.281154,-0.321726,-0.330443,-0.329350,-0.329350,-0.282536, #B2
-                                     -0.266760,-0.301320,-0.336630,-0.329350,-0.341230,-0.341230,-0.349490, #B3
-                                     -0.266760,-0.301320,-0.336630,-0.329350,-0.341230,-0.341230,-0.349490, #B4
-                                     -0.225646,-0.245080,-0.209919,-0.282536,-0.349490,-0.349490,-0.255994] #NA
             self.printHeader()
             
+    def setup(self, platform="CUDA", gpu="default",
+            integrator="langevin", precision="mixed", deviceIndex="0"):
+        """Sets up the simulation environment.
 
-    def setup(self, platform="CUDA", PBC=False, PBCbox=None, GPU="default",
-              integrator="langevin", errorTol=None, precision="mixed",deviceIndex="0"):
-        
-        R"""Sets up the parameters of the simulation OpenMM platform.
+        Tries to select the computational platform in the following priority order:
+        the specified platform, then 'CUDA', 'HIP', 'OpenCL', and 'CPU'. If the
+        preferred platform is not available, it will attempt to use the next
+        available platform in the list and print an informational message.
 
         Args:
+            platform (str, optional): The preferred computation platform to use.
+                Defaults to 'CUDA'.
+            gpu (str, optional): GPU device index or 'default'. Defaults to 'default'.
+            integrator (str or OpenMM Integrator, optional): The integrator to use for the simulation.
+                Can be a string (e.g., 'langevin') or an OpenMM Integrator object.
+                Defaults to 'langevin'.
+            precision (str, optional): The floating point precision to use ('mixed', 'single', or 'double').
+                Defaults to 'mixed'.
+            deviceIndex (str, optional): The device index to use if specifying a GPU device.
+                Defaults to '0'.
 
-            platform (str, optional):
-                Platform to use in the simulations. Opitions are *CUDA*, *OpenCL*, *HIP*, *CPU*, *Reference*. (Default value: *CUDA*). 
-
-            PBC (bool, optional)
-                Whether to use periodic boundary conditions. (Default value: :code:`False`). 
-
-            PBCbox ([float,float,float], optional):
-                Define size of the bounding box for PBC. (Default value: :code:`None`).
-
-            GPU ( :math:`0` or :math:`1`, optional):
-                Switch to another GPU. Machines with one GPU automatically select the right GPU. Machines with two or more GPUs select GPU that is less used.
-
-            integrator (str):
-                Integrator to use in the simulations. Options are *langevin*,  *variableLangevin*, *verlet*, *variableVerlet* and, *brownian*. (Default value: *langevin*).
-            verbose (bool, optional):
-                Whether to output the information in the screen during the simulation. (Default value: :code:`False`).
-            deviceIndex (str, optional):
-                Set of Platform device index IDs. Ex: 0,1,2 for the system to use the devices 0, 1 and 2. (Use only when GPU != default)
-
-            errorTol (float, required if **integrator** = *variableLangevin*):
-                Error tolerance parameter for *variableLangevin* integrator.
+        Raises:
+            ValueError: If an unknown integrator or precision is specified.
+            Exception: If no suitable computational platform is available.
         """
-
-        self.step = 0
-        if PBC == True:
-            self.metadata["PBC"] = True
-
         precision = precision.lower()
         if precision not in ["mixed", "single", "double"]:
-            raise ValueError("Precision must be mixed, single or double")
+            raise ValueError("Precision must be 'mixed', 'single', or 'double'.")
 
-        self.kB = units.BOLTZMANN_CONSTANT_kB * units.AVOGADRO_CONSTANT_NA  
-        self.kT = self.kB * self.temperature  
+        self.kB = units.BOLTZMANN_CONSTANT_kB * units.AVOGADRO_CONSTANT_NA
+        self.kT = self.kB * self.temperature
         self.mass = 10.0 * units.amu
         self.bondsForException = []
         self.mm = openmm
         self.system = self.mm.System()
-        self.PBC = PBC
+        self.step = 0
+        self.gpu = str(gpu)
 
-        if self.PBC == True:  
-            if PBCbox is None:  
-                data = self.getPositions()
-                data -= np.min(data, axis=0)
+        # Define the platform priority order
+        default_platforms = ['CUDA', 'HIP', 'OpenCL', 'CPU']
 
-                datasize = 1.1 * (2 + (np.max(self.getPositions(), axis=0) - np.min(self.getPositions(), axis=0)))
+        # Rearrange the platform priority so that the specified platform is first
+        preferred_platform = platform.upper()
+        platform_priority = [preferred_platform] + [p for p in default_platforms if p != preferred_platform]
 
-                self.SolventGridSize = (datasize / 1.1) - 2
-                print("density is ", self.N / (datasize[0]
-                    * datasize[1] * datasize[2]))
-            else:
-                PBCbox = np.array(PBCbox)
-                datasize = PBCbox
+        # Dictionary to map platform names to their specific property names
+        property_names = {
+            'CUDA': {'DeviceIndex': 'CudaDeviceIndex', 'Precision': 'CudaPrecision'},
+            'HIP': {'DeviceIndex': 'HipDeviceIndex', 'Precision': 'HipPrecision'},
+            'OPENCL': {'DeviceIndex': 'OpenCLDeviceIndex', 'Precision': 'OpenCLPrecision'},
+            'CPU': {}
+        }
 
-            self.metadata["PBCbox"] = PBCbox
-            self.system.setDefaultPeriodicBoxVectors([datasize[0], 0.,
-                0.], [0., datasize[1], 0.], [0., 0., datasize[2]])
-            self.BoxSizeReal = datasize
+        # Attempt to set up the platform
+        for plat_name in platform_priority:
+            try:
+                self.platform = self.mm.Platform.getPlatformByName(plat_name)
+                print(f"Using platform: {plat_name}")
 
-        self.GPU = str(GPU)
-        properties = {}
-        if self.GPU.lower() != "default":
-            properties["DeviceIndex"] = deviceIndex
-            properties["Precision"] = precision
-        self.properties = properties
-
-        if platform.lower() == "opencl":
-            platformObject = self.mm.Platform.getPlatformByName('OpenCL')
-
-        elif platform.lower() == "reference":
-            platformObject = self.mm.Platform.getPlatformByName('Reference')
-
-        elif platform.lower() == "cuda":
-            platformObject = self.mm.Platform.getPlatformByName('CUDA')
-
-        elif platform.lower() == "cpu":
-            platformObject = self.mm.Platform.getPlatformByName('CPU')
-
-        elif platform.lower() == "hip":
-            platformObject = self.mm.Platform.getPlatformByName('HIP')
-
+                # Set platform-specific properties
+                properties = {}
+                if plat_name != 'CPU':
+                    if self.gpu.lower() != "default":
+                        properties[property_names[plat_name]['DeviceIndex']] = deviceIndex
+                    properties[property_names[plat_name]['Precision']] = precision
+                self.properties = properties
+                break
+            except Exception as e:
+                print(f"Platform '{plat_name}' is not available: {e}")
         else:
-            self.exit("\n!!!! Unknown platform !!!!\n")
-        self.platform = platformObject
+            raise Exception("No suitable computational platform is available.")
 
         self.forceDict = {}
 
-        self.integrator_type = integrator
-        if isinstance(integrator, string_types):
-            integrator = str(integrator)
-            if integrator.lower() == "langevin":
-                self.integrator = self.mm.LangevinIntegrator(self.temperature,
-                    self.collisionRate, self.timestep)
-            elif integrator.lower() == "variablelangevin":
-                self.integrator = self.mm.VariableLangevinIntegrator(self.temperature,
-                    self.collisionRate, errorTol)
-            elif integrator.lower() == "verlet":
-                self.integrator = self.mm.VariableVerletIntegrator(self.timestep)
-            elif integrator.lower() == "variableverlet":
-                self.integrator = self.mm.VariableVerletIntegrator(errorTol)
-
-            elif integrator.lower() == 'brownian':
-                self.integrator = self.mm.BrownianIntegrator(self.temperature,
-                    self.collisionRate, self.timestep)
+        if isinstance(integrator, str):
+            integrator_name = integrator.lower()
+            if integrator_name == "langevin":
+                self.integrator = self.mm.LangevinIntegrator(
+                    self.temperature, self.collisionRate, self.timestep)
+                self.integrator_type = "Langevin"
             else:
-                print ('please select from "langevin", "variablelangevin", '
-                       '"verlet", "variableVerlet", '
-                       '"brownian" or provide an integrator object')
+                raise ValueError(f"Unknown integrator '{integrator}'.")
         else:
             self.integrator = integrator
             self.integrator_type = "UserDefined"
             
-    def saveFolder(self, folder):
-        R"""Sets the folder path to save data.
+    def saveFolder(self, folderPath):
+        """Sets the folder path to save data.
 
         Args:
-
-            folder (str, optional):
-                Folder path to save the simulation data. If the folder path does not exist, the function will create the directory.
+            folderPath (str): The folder path where simulation data will be saved.
+                If the folder does not exist, it will be created.
         """
-    
-        if os.path.exists(folder) == False:
-            os.mkdir(folder)
-        self.folder = folder
+        os.makedirs(folderPath, exist_ok=True)
+        self.folder = folderPath
+
         
     def loadStructure(self, data, center=True, massList=None):
         """Loads the 3D positions of each bead of the chromosome polymer into the OpenMM system.
