@@ -211,7 +211,6 @@ class MiChroM:
             self.integrator_type = "UserDefined"
             
     def saveFolder(self, folder):
-        
         R"""Sets the folder path to save data.
 
         Args:
@@ -259,21 +258,35 @@ class MiChroM:
 
         if not hasattr(self, "chains"):
             self.setChains()
-            
-    def setChains(self, chains=[(0, None, 0)]):
-        
-        R"""Sets configuration of the chains in the system. This information is later used for adding Bonds and Angles of the Homopolymer potential.
+
+    def setChains(self, chains=None):
+        """Sets the configuration of the chains in the system.
+
+        This information is used later for adding bonds and angles in the homopolymer potential.
 
         Args:
-
-            chains (list of tuples, optional):
-                The list of chains in the format [(start, end, isRing)]. isRing is a boolean whether the chromosome chain is circular or not (Used to simulate bacteria genome, for example). The particle range should be semi-open, i.e., a chain  :math:`(0,3,0)` links the particles :math:`0`, :math:`1`, and :math:`2`. If :code:`bool(isRing)` is :code:`True` , the first and last particles of the chain are linked, forming a ring. The default value links all particles of the system into one chain. (Default value: :code:`[(0, None, 0)]`).
+            chains (list of tuples, optional): A list of chains in the format `[(start, end, isRing)]`.
+                `isRing` is a boolean indicating whether the chromosome chain is circular or not (used to
+                simulate bacterial genomes, for example). The particle range should be semi-open; for
+                example, a chain `(0, 3, False)` links the particles `0`, `1`, and `2`. If `isRing` is
+                `True`, the first and last particles of the chain are linked, forming a ring. Defaults to
+                `[(0, None, False)]`, which links all particles of the system into one chain.
         """
+        if chains is None:
+            chains = [(0, None, False)]
+        else:
+            # Validate and process the chains
+            validated_chains = []
+            for chain in chains:
+                start, end, isRing = chain
 
-        self.chains = [i for i in chains]  
-        for i in range(len(self.chains)):
-            start, end, isRing = self.chains[i]
-            self.chains[i] = (start, end, isRing)
+                isRing = bool(isRing)
+                validated_chains.append((start, end, isRing))
+
+            chains = validated_chains
+
+        self.chains = chains.copy()
+
             
     def setPositions(self, beadsPos , random_offset = 1e-5):
         
