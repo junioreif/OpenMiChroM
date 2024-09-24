@@ -1753,7 +1753,7 @@ class MiChroM:
                 raise ValueError("Mode '{:}' not supported!".format(mode))
 
 
-    def initStorage(self, filename, mode="w"):
+    def initStorage(self, filename):
         
         R"""
         Initializes the *.cndb* files to store the chromosome structures. 
@@ -1770,29 +1770,12 @@ class MiChroM:
         
         self.storage = []
 
-        if mode not in ['w', 'w-', 'r+']:
-            raise ValueError("Wrong mode to open file."
-                             " Only 'w','w-' and 'r+' are supported")
-        if (mode == "w-") and os.path.exists(filename):
-            raise IOError("Cannot create file... file already exists."                          " Use mode ='w' to override")
         for k, chain in zip(range(len(self.chains)),self.chains):
             fname = os.path.join(self.folder, filename + '_' +str(k) + '.cndb')
-            self.storage.append(h5py.File(fname, mode))    
+            self.storage.append(h5py.File(fname, "w"))    
             self.storage[k]['types'] = self.type_list_letter[chain[0]:chain[1]+1]
-
-        if mode == "r+":
-            myKeys = []
-            for i in list(self.storage.keys()):
-                try:
-                    myKeys.append(int(i))
-                except:
-                    pass
-            maxkey = max(myKeys) if myKeys else 1
-            self.step = maxkey - 1
-            self.setPositions(self.storage[str(maxkey - 1)])
-
                     
-    def saveStructure(self, filename=None, mode="auto", h5dictKey="1", pdbGroups=None):
+    def saveStructure(self, filename=None, mode="auto"):
         R"""
         Save the 3D position of each bead of the chromosome polymer over the chromatin dynamics simulations.
         
@@ -1822,13 +1805,11 @@ class MiChroM:
         
         if mode == "auto":
             if hasattr(self, "storage"):
-                mode = "h5dict"
+                mode = "cndb"
             else:
                 mode = 'ndb'
 
-        if mode == "h5dict":
-            if not hasattr(self, "storage"):
-                raise Exception("Cannot save to h5dict!"                                    " Initialize storage first!")
+        if mode == "cndb":
             for k, chain in zip(range(len(self.chains)),self.chains):
                 self.storage[k][str(self.step)] = data[chain[0]:chain[1]+1]
             return
