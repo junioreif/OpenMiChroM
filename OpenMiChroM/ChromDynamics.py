@@ -1,26 +1,33 @@
-# Copyright (c) 2020-2023 The Center for Theoretical Biological Physics (CTBP) - Rice University
-# This file is from the Open-MiChroM project, released under the MIT License. 
+# Copyright (c) 2020-2024 The Center for Theoretical Biological Physics (CTBP)
+# Rice University
+# This file is from the Open-MiChroM project, released under the MIT License.
 
-R"""  
-The :class:`~.ChromDynamics` classes perform chromatin dynamics based on the compartment annotations sequence of chromosomes. The simulations can be performed either using the default parameters of MiChroM (Minimal Chromatin Model) or using custom values for the type-to-type and Ideal Chromosome parameters..
+R"""
+The `ChromDynamics` classes perform chromatin dynamics based on the compartment
+annotation sequences of chromosomes. Simulations can be performed either using
+the default parameters of MiChroM (Minimal Chromatin Model) or using custom
+values for the type-to-type and Ideal Chromosome parameters.
+
+Details about the MiChroM energy function and default parameters are described in:
+Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G., & Onuchic, J.N. (2016).
+Transferable model for chromosome architecture. *Proceedings of the National Academy of Sciences*, 113(43), 12168-12173.
 """
 
-# with OpenMM 7.7.0, the import calls have changed. So, try both, if needed
+# Import OpenMM, handling compatibility with different versions
 try:
+    # For OpenMM versions >= 7.7.0
+    from openmm.app import *
+    import openmm
+    import openmm.unit as units
+except ImportError:
+    # Fallback for earlier versions
+    print("Unable to load OpenMM as 'openmm'. Trying 'simtk.openmm'...")
     try:
-        # >=7.7.0
-        from openmm.app import *
-        import openmm as openmm
-        import openmm.unit as units
-    except:
-        # earlier
-        print('Unable to load OpenMM as \'openmm\'. Will try the older way \'simtk.openmm\'')
         from simtk.openmm.app import *
         import simtk.openmm as openmm
-        import simtk.unit as units  
-except:
-    print('Failed to load OpenMM. Check your configuration.')
-
+        import simtk.unit as units
+    except ImportError:
+        raise ImportError("Failed to load OpenMM. Please check your installation and configuration.")
 
 from sys import stdout
 import warnings
