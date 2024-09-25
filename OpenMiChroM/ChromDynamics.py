@@ -237,22 +237,23 @@ class MiChroM:
         self.chains = chains.copy()
 
             
-    def setPositions(self, beadsPos , random_offset = 1e-5):
-        
-        R"""Sets the 3D position of each bead of the chromosome polymer in the OpenMM system platform.
+    def setPositions(self, beadsPos, randomize=False, randomOffset=1e-5):
+        """Sets the 3D positions of each bead of the chromosome polymer in the OpenMM system.
 
         Args:
-
-            beadsPos (:math:`(N, 3)` :class:`numpy.ndarray`):
+            beadsPos (numpy.ndarray of shape (N, 3)):
                 Array of XYZ positions for each bead (locus) in the polymer model.
-            random_offset (float, optional):
-                A small increment in the positions to avoid numeral instability and guarantee that a *float* parameter will be used. (Default value = 1e-5).       
+            randomize (bool, optional):
+                If True, adds a small random offset to the positions to avoid numerical instability.
+                Defaults to False.
+            randomOffset (float, optional):
+                The magnitude of the random offset to be added if randomize is True.
+                Defaults to 1e-5.
         """
-        
-        data = np.asarray(beadsPos, dtype="float")
-        if random_offset:
-            data = data + (np.random.random(data.shape) * 2 - 1) * random_offset
-        
+        data = np.asarray(beadsPos, dtype=float)
+        if randomize:
+            data += (np.random.random(data.shape) * 2 - 1) * randomOffset
+
         self.data = units.Quantity(data, self.nm)
         self.N = len(self.data)
         if hasattr(self, "context"):
@@ -273,21 +274,10 @@ class MiChroM:
             :math:`(N, 3)` :class:`numpy.ndarray`:
                 Returns an array of velocities.
         """
-
         state = self.context.getState(getVelocities=True)
         vel = state.getVelocities()
 
-        return np.asarray(vel / (self.nm / units.picosecond ), dtype=np.float32)
-
-        
-    def randomizePositions(self):
-        R"""
-        Runs automatically to offset the positions if it is an integer (int) variable.
-        """
-        data = self.getPositions()
-        data = data + np.random.randn(*data.shape) * 0.0001
-        self.setPositions(data)
-        
+        return np.asarray(vel / (self.nm / units.picosecond ), dtype=np.float32)      
 
     def getLoops(self, looplists):
         R"""
