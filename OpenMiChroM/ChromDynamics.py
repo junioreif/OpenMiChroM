@@ -2034,7 +2034,6 @@ class MiChroM:
                  The number of subblocks to split the steps of the primary block. (Default value: :code:`None`).                
         """
 
-
         if increment == True:
             self.step += 1
         if steps is None:
@@ -2200,95 +2199,18 @@ class MiChroM:
             return positions
         
     def chromRG(self):
-        R"""
+        """
         Calculates the Radius of Gyration of a chromosome chain.
-        
+
         Returns:
-                Returns the Radius of Gyration in units of :math:`\sigma`
+            float: The Radius of Gyration in units of σ (sigma).
         """
-        data = self.getScaledData()
-        data = data - np.mean(data, axis=0)[None,:]
-        return np.sqrt(np.sum(np.var(np.array(data), 0)))
-    
-    def getScaledData(self):
-        R"""
-        Internal function for keeping the system in the simulation box if PBC is employed.
-        """
-        if self.PBC != True:
-            return self.getPositions()
-        alldata = self.getPositions()
-        boxsize = np.array(self.BoxSizeReal)
-        mults = np.floor(alldata / boxsize[None, :])
-        toRet = alldata - mults * boxsize[None, :]
-        assert toRet.min() >= 0
-        return toRet
-        
-    def printStats(self):
-        R"""
-        Prints some statistical information of a system.
-        """
-        state = self.context.getState(getPositions=True,
-            getVelocities=True, getEnergy=True)
-
-        eP = state.getPotentialEnergy()
-        pos = np.array(state.getPositions() / (units.meter * 1e-9))
-        bonds = np.sqrt(np.sum(np.diff(pos, axis=0) ** 2, axis=1))
-        
-        # delete "bonds" from different chains
-        indexInDifferentChains = [x[1] for x in self.chains]
-        bonds = np.delete(bonds, indexInDifferentChains[:-1])
-
-        sbonds = np.sort(bonds)
-        vel = state.getVelocities()
-        mass = self.system.getParticleMass(1)
-        vkT = np.array(vel / units.sqrt(self.Epsilon*units.kilojoule_per_mole / mass), dtype=float)
-        self.velocs = vkT
-        EkPerParticle = 0.5 * np.sum(vkT ** 2, axis=1)
-
-        cm = np.mean(pos, axis=0)
-        centredPos = pos - cm[None, :]
-        dists = np.sqrt(np.sum(centredPos ** 2, axis=1))
-        per95 = np.percentile(dists, 95)
-        den = (0.95 * self.N) / ((4. * np.pi * per95 ** 3) / 3)
-        per5 = np.percentile(dists, 5)
-        den5 = (0.05 * self.N) / ((4. * np.pi * per5 ** 3) / 3)
-        x, y, z = pos[:, 0], pos[:, 1], pos[:, 2]
-        minmedmax = lambda x: (x.min(), np.median(x), x.mean(), x.max())
-
-        print()
-        print("Statistics for the simulation %s, number of particles: %d, "        " number of chains: %d" % (
-            self.name, self.N, len(self.chains)))
-        print()
-        print("Statistics for particle position")
-        print("     mean position is: ", np.mean(
-            pos, axis=0), "  Rg = ", self.chromRG())
-        print("     median bond size is ", np.median(bonds))
-        print("     three shortest/longest (<10)/ bonds are ", sbonds[
-            :3], "  ", sbonds[sbonds < 10][-3:])
-        if (sbonds > 10).sum() > 0:
-            print("longest 10 bonds are", sbonds[-10:])
-
-        print("     95 percentile of distance to center is:   ", per95)
-        print("     density of closest 95% monomers is:   ", den)
-        print("     density of the core monomers is:   ", den5)
-        print("     min/median/mean/max coordinates are: ")
-        print("     x: %.2lf, %.2lf, %.2lf, %.2lf" % minmedmax(x))
-        print("     y: %.2lf, %.2lf, %.2lf, %.2lf" % minmedmax(y))
-        print("     z: %.2lf, %.2lf, %.2lf, %.2lf" % minmedmax(z))
-        print()
-        print("Statistics for velocities:")
-        print("     mean kinetic energy is: ", np.mean(
-            EkPerParticle), "should be:", 1.5)
-        print("     fastest particles are (in kT): ", np.sort(
-            EkPerParticle)[-5:])
-
-        print()
-        print("Statistics for the system:")
-        print("     Forces are: ", list(self.forceDict.keys()))
-        print("     Number of exceptions:  ", len(self.bondsForException))
-        print()
-        print("Potential Energy Ep = ", eP / self.N / units.kilojoule_per_mole)
-        
+        data = self.getPositions()
+        data -= np.mean(data, axis=0)
+        squared_distances = np.sum(data**2, axis=1)
+        rg_squared = np.mean(squared_distances)
+        return np.sqrt(rg_squared)
+   
     def printForces(self):
         R"""
         Prints the energy values for each force applied in the system.
