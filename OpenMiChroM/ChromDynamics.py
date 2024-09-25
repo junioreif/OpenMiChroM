@@ -73,6 +73,7 @@ class MiChroM:
         self.sigma = 1.0
         self.epsilon = 1.0
         self.printHeader()
+        print("TEST VERSION")
 
             
     def setup(self, platform="CUDA", gpu="default",
