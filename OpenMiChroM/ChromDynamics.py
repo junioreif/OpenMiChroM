@@ -67,7 +67,7 @@ class MiChroM:
         self.collisionRate = collisionRate
         self.temperature = temperature / 0.008314
         self.loaded = False
-        self.forcesApplied = False
+        self.contexted = False
         self.folder = "."
         self.nm = units.meter * 1e-9
         self.sigma = 1.0
@@ -1232,74 +1232,110 @@ class MiChroM:
 
 
     def _loadParticles(self):
-        R"""
-        Internal function that loads the chromosome beads into the simulations system.
+        """
+        Internal function that loads the chromosome beads into the simulation system.
         """
         if not hasattr(self, "system"):
             return
         if not self.loaded:
-            for mass in self.masses:
-                self.system.addParticle(self.mass * mass)
+            for beadMass in self.masses:
+                self.system.addParticle(self.mass * beadMass)
             self.loaded = True
-            
 
-    def _applyForces(self):
-        R"""Internal function that adds all loci to the system and applies all the forces present in the forcedict."""
+    def createSimulation(self):
+        """
+        Initializes the simulation context and adds forces to the system.
 
-        if self.forcesApplied == True:
+        This function checks if the simulation context has already been created. If not, it loads the particles,
+        processes any exceptions (bonds that should not be included in nonbonded interactions), adds
+        forces to the system, and sets up the simulation context.
+        """
+        if getattr(self, 'contexted', False):
             return
+
         self._loadParticles()
 
-        exc = self.bondsForException
-        print("Number of exceptions:", len(exc))
+        exceptions = self.bondsForException
+        if exceptions:
+            # Ensure each bond is a tuple with sorted indices to avoid duplicates like (i, j) and (j, i)
+            exceptions = [tuple(sorted(bond)) for bond in exceptions]
+            # Remove duplicate bonds by converting the list to a set, then back to a list
+            exceptions = list(set(exceptions))
 
-        if len(exc) > 0:
-            exc = np.array(exc)
-            exc = np.sort(exc, axis=1)
-            exc = [tuple(i) for i in exc]
-            exc = list(set(exc)) 
-
-        for i in list(self.forceDict.keys()): 
-            force = self.forceDict[i]
+        for forceName, force in self.forceDict.items():
             if hasattr(force, "addException"):
-                print('Add exceptions for {0} force'.format(i))
-                for pair in exc:
-                    force.addException(int(pair[0]),
-                        int(pair[1]), 0, 0, 0, True)
+                print(f"Adding exceptions for '{forceName}' force")
+                for pair in exceptions:
+                    force.addException(int(pair[0]), int(pair[1]), 0.0, 0.0, 0.0, True)
             elif hasattr(force, "addExclusion"):
-                print('Add exclusions for {0} force'.format(i))
-                for pair in exc:
+                print(f"Adding exclusions for '{forceName}' force")
+                for pair in exceptions:
                     force.addExclusion(int(pair[0]), int(pair[1]))
 
-            if hasattr(force, "CutoffNonPeriodic") and hasattr(
-                                                    force, "CutoffPeriodic"):
-                if self.PBC:
-                    force.setNonbondedMethod(force.CutoffPeriodic)
-                    print("Using periodic boundary conditions!!!!")
-                else:
-                    force.setNonbondedMethod(force.CutoffNonPeriodic)
-            print("adding force ", i, self.system.addForce(self.forceDict[i]))
-        
-        ForceGroupIndex = 0
-        for i,name in enumerate(self.forceDict):
-            if "IdealChromosomeChain" in name:
-                self.forceDict[name].setForceGroup(31) 
+            if hasattr(force, "CutoffNonPeriodic") and hasattr(force, "CutoffPeriodic"):
+                force.setNonbondedMethod(force.CutoffNonPeriodic)
+
+            self.system.addForce(force)
+            print(f"{forceName} force as added")
+
+        forceGroupIndex = 0
+        for forceName, force in self.forceDict.items():
+            if "IdealChromosomeChain" in forceName:
+                force.setForceGroup(31)
             else:
-                self.forceDict[name].setForceGroup(ForceGroupIndex)
-                ForceGroupIndex+= 1
-            
-        self.context = self.mm.Context(self.system, self.integrator, self.platform, self.properties)
+                force.setForceGroup(forceGroupIndex)
+                forceGroupIndex += 1
+
+        self.context = self.mm.Context(
+            self.system, self.integrator, self.platform, self.properties)
         self.initPositions()
         self.initVelocities()
-        self.forcesApplied = True
-     
-        with open(str(Path(self.folder))+'/platform_info.dat', 'w') as f:
-                print('Name: ', self.platform.getName(), file=f)
-                print('Speed: ',self.platform.getSpeed(), file=f)
-                print('Property names: ',self.platform.getPropertyNames(), file=f)
-                for name in self.platform.getPropertyNames():
-                     print(name,' value: ',self.platform.getPropertyValue(self.context, name), file=f) 
+        self.contexted = True
+        print('Context created!')
 
+        simulationInfo = (
+                f"Simulation {self.name} information: "
+                f"number of beads: {self.N}, number of chains: {len(self.chains)}"
+            )
+            
+        # Get the state of the simulation
+        state = self.context.getState(getPositions=True, getEnergy=True, getVelocities=True)
+        
+        # Calculate energies per bead
+        eKin = state.getKineticEnergy() / self.N / units.kilojoule_per_mole
+        ePot = state.getPotentialEnergy() / self.N / units.kilojoule_per_mole
+        
+        # Prepare energy information
+        energyInfo = (
+            f"Potential energy: {ePot:.5f}, "
+            f"Kinetic Energy: {eKin:.5f} at temperature: {self.temperature}"
+        )
+        
+        # Gather platform information
+        platformName = self.platform.getName()
+        platformSpeed = self.platform.getSpeed()
+        propertyNames = self.platform.getPropertyNames()
+        
+        platformInfo = [
+            f"Platform Name: {platformName}",
+            f"Platform Speed: {platformSpeed}",
+            f"Platform Property Names: {propertyNames}",
+        ]
+        
+        for name in propertyNames:
+            value = self.platform.getPropertyValue(self.context, name)
+            platformInfo.append(f"{name} Value: {value}")
+        
+        # Print information to console
+        print(simulationInfo)
+        print(energyInfo)
+        
+        filePath = Path(self.folder) / 'Initial_Statistics.txt'
+        with open(filePath, 'w') as f:
+            for info in platformInfo:
+                print(info, file=f)
+            print(simulationInfo, file=f)
+            print(energyInfo, file=f)
     
     def loadNDB(self, NDBfiles=None):
         R"""
@@ -1429,8 +1465,7 @@ class MiChroM:
         if len(typesLetter) != len(x):
             raise ValueError("Sequence length is different from coordinates length!")
 
-        print("Chains: ", chains)
-
+        
         self.diff_types = set(typesLetter)
 
         self.type_list_letter = typesLetter
@@ -1984,17 +2019,7 @@ class MiChroM:
                         ndbf.append(loops_string.format("LOOPS",p[0],p[1]))
                     
                 np.savetxt(filename,ndbf,fmt="%s")
-
-    def createSimulation(self):
-        R"""
-        Create the simulation context
-        
-        """
-        if self.forcesApplied == False:
-            self._applyForces()
-            self.forcesApplied = True
-    
-        
+   
     def runSimBlock(self, steps=None, increment=True, num=None):
         R"""
         Performs a block of simulation steps.
@@ -2079,44 +2104,36 @@ class MiChroM:
         
         
     def initPositions(self):
-        
-        R"""
-        Internal function that sends the locus coordinates to OpenMM system. 
         """
+        Internal function that sets the locus coordinates in the OpenMM system.
+        
+        Raises:
+            ValueError: If the simulation context has not been initialized.
+        """
+        if not hasattr(self, 'context'):
+            raise ValueError("No context; cannot set positions. Initialize the context before calling initPositions.")
 
-        print("Positions... ")
-        try:
-            self.context
-        except:
-            raise ValueError("No context, cannot set velocs."                             " Initialize context before that")
-
+        print("Setting positions...", end='', flush=True)
         self.context.setPositions(self.data)
         print(" loaded!")
-        state = self.context.getState(getPositions=True, getEnergy=True)
-        
-        eP = state.getPotentialEnergy() / self.N / units.kilojoule_per_mole
-        print("potential energy is %lf" % eP)
-        
-    def initVelocities(self, mult=1.0):
-        R"""
-        Internal function that set the locus velocity to OpenMM system. 
-        
-        Args:
 
-            mult (float, optional):
-                 Rescale initial velocities. (Default value = 1.0). 
+        
+    def initVelocities(self):
         """
-        try:
-            self.context
-        except:
-            raise ValueError("No context, cannot set velocs."                             "Initialize context before that")
+        Internal function that sets the initial velocities of the loci in the OpenMM system.
+        
+        Raises:
+            ValueError: If the simulation context has not been initialized.
+        """
+        if not hasattr(self, 'context'):
+            raise ValueError("No context; cannot set velocities. Initialize the context before calling initVelocities.")
+        
+        print("Setting velocities...", end='', flush=True)
+        # Set velocities using OpenMM's built-in method
+        temperature = self.temperature * units.kelvin
+        self.context.setVelocitiesToTemperature(temperature)
+        print(" loaded!")
 
-        sigma = units.sqrt(self.Epsilon*units.kilojoule_per_mole / self.system.getParticleMass(
-            1)) 
-        velocs = units.Quantity(mult * np.random.normal(
-            size=(self.N, 3)), units.meter) * (sigma / units.meter)
-
-        self.context.setVelocities(velocs) 
         
     def setFibPosition(self, positions, returnCM=False, factor=1.0):
         R"""
@@ -2288,7 +2305,7 @@ class MiChroM:
         forceValues.append(self.context.getState(getEnergy=True).getPotentialEnergy().value_in_unit(units.kilojoules_per_mole)/self.N)
         df = pd.DataFrame(forceValues,forceNames)
         df.columns = ['Values']
-        print(df)
+        return(df)
 
     def printHeader(self):
         print('{:^96s}'.format("***************************************************************************************"))
