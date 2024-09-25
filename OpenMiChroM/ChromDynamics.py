@@ -306,207 +306,307 @@ class MiChroM:
     ##      FORCES          
     ##============================
 
-    def addCylindricalConfinement(self, r_conf=5.0, z_conf=10.0, kr=30.0):
-        cyl_conf_energy="step(r_xy-r_cyn) * 0.5 * k_cyn * (r_xy-r_cyn)^2 + step(z^2-zconf^2) * 0.5 * k_cyn * (z-zconf)^2; r_xy=sqrt(x*x+y*y)"
-        
-        cyl_conf_fg = self.mm.CustomExternalForce(cyl_conf_energy)
-        cyl_conf_fg.addGlobalParameter('r_cyn', r_conf)
-        cyl_conf_fg.addGlobalParameter('k_cyn', kr)
-        cyl_conf_fg.addGlobalParameter('zconf', z_conf)
-        
-        self.forceDict["CylindricalConfinement"]=cyl_conf_fg
+    def addCylindricalConfinement(self, rConf=5.0, zConf=10.0, kConf=30.0):
+        """Adds a cylindrical confinement potential to the system.
+
+        This potential confines particles within a cylinder of radius `rConf` and height `2 * zConf`.
+        Particles outside this cylinder experience a harmonic restoring force pushing them back inside.
+
+        Args:
+            rConf (float, optional): Radius of the cylindrical confinement in nanometers. Defaults to 5.0.
+            zConf (float, optional): Half-height of the cylindrical confinement along the z-axis in nanometers. Defaults to 10.0.
+            kConf (float, optional): Force constant (stiffness) of the confinement potential. Defaults to 30.0.
+        """
+        cylConfEnergy = (
+            "step(r_xy - r_cyn) * 0.5 * k_cyn * (r_xy - r_cyn)^2 + "
+            "step(abs(z) - zconf) * 0.5 * k_cyn * (abs(z) - zconf)^2;"
+            "r_xy = sqrt(x^2 + y^2)"
+        )
+        cylConfForce = self.mm.CustomExternalForce(cylConfEnergy)
+        cylConfForce.addGlobalParameter('r_cyn', rConf)
+        cylConfForce.addGlobalParameter('k_cyn', kConf)
+        cylConfForce.addGlobalParameter('zconf', zConf)
+
+        self.forceDict["CylindricalConfinement"] = cylConfForce
 
         for i in range(self.N):
             self.forceDict["CylindricalConfinement"].addParticle(i, [])
+
     
-    def addFlatBottomHarmonic(self, kr=5*10**-3, n_rad=10.0):
-        
-        R"""
-        Sets a Flat-Bottom Harmonic potential to collapse the chromosome chain inside the nucleus wall. The potential is defined as: :math:`step(r-r0) * (kr/2)*(r-r0)^2`.
+    def addFlatBottomHarmonic(self, kR=5e-3, nRad=10.0):
+        """
+        Adds a flat-bottom harmonic potential to confine the chromosome chain inside the nucleus wall.
+
+        The potential is defined as:
+            V(r) = step(r - r0) * (kR / 2) * (r - r0)^2
+
+        where:
+            - `r` is the distance from the origin (center of the nucleus)
+            - `r0` (nRad) is the nucleus radius
+            - `kR` is the spring constant of the potential
+
+        This potential applies no force when particles are inside the nucleus (r ≤ r0) and applies a harmonic restoring force when particles are outside the nucleus (r > r0).
 
         Args:
-
-            kr (float, required):
-                Spring constant. (Default value = 5e-3). 
-            n_rad (float, required):
-                Nucleus wall radius in units of :math:`\sigma`. (Default value = 10.0).  
+            kR (float, optional):
+                Spring constant of the harmonic potential. Defaults to 5e-3.
+            nRad (float, optional):
+                Nucleus radius in units of σ. Defaults to 10.0.
         """
+        # Define the energy expression for the flat-bottom harmonic potential
+        energyExpression = (
+            "step(r - rRes) * 0.5 * kR * (r - rRes)^2;"
+            "r = sqrt(x^2 + y^2 + z^2)"
+        )
 
-        restraintForce = self.mm.CustomExternalForce("step(r-r_res) * 0.5 * kr * (r-r_res)^2; r=sqrt(x*x+y*y+z*z)")
-        restraintForce.addGlobalParameter('r_res', n_rad)
-        restraintForce.addGlobalParameter('kr', kr)
-        
+        # Create the custom external force using the energy expression
+        restraintForce = self.mm.CustomExternalForce(energyExpression)
+        restraintForce.addGlobalParameter('rRes', nRad)
+        restraintForce.addGlobalParameter('kR', kR)
+
+        # Apply the force to all particles in the system
         for i in range(self.N):
             restraintForce.addParticle(i, [])
-            
+
+        # Add the force to the force dictionary
         self.forceDict["FlatBottomHarmonic"] = restraintForce
-    
-    def addSphericalConfinementLJ(self, r="density", density=0.1):
-                                
-        R"""
-        Sets the nucleus wall potential according to MiChroM Energy function. The confinement potential describes the interaction between the chromosome and a spherical wall.
+
+    def addSphericalConfinementLJ(self, radius="density", density=0.1):
+        """
+        Adds a spherical confinement potential to the system according to the MiChroM energy function.
+
+        This potential describes the interaction between the chromosome and a spherical wall,
+        effectively confining the particles within a sphere of specified radius.
 
         Args:
+            radius (float or str, optional):
+                Radius of the spherical confinement. If set to "density", the radius is calculated
+                based on the specified density. Defaults to "density".
+            density (float, optional):
+                Density of the chromosome beads inside the nucleus. Required if `radius` is "density".
+                Defaults to 0.1.
 
-            r (float or str="density", optional):
-                Radius of the nucleus wall. If **r="density"** requires a **density** value.
-            density (float, required if **r="density"**):
-                Density of the chromosome beads inside the nucleus. (Default value = 0.1).  
-        """        
+        Notes:
+            - If `radius` is "density", the radius is calculated using the formula:
 
-        spherForce = self.mm.CustomExternalForce("(4 * GROSe * ((GROSs/r)^12 - (GROSs/r)^6) + GROSe) * step(GROScut - r);"
-                                                 "r= R - sqrt(x^2 + y^2 + z^2) ")
-            
-        self.forceDict["SphericalConfinementLJ"] = spherForce
+            radius = (3 * N / (4 * π * density)) ** (1/3)
 
+            where N is the number of particles in the system.
+            - The confinement potential is modeled using a shifted Lennard-Jones potential.
+        """
+        # Define the energy expression for the spherical confinement using a shifted Lennard-Jones potential
+        energyExpression = (
+            "(4 * epsilon * ((sigma/deltaR)^12 - (sigma/deltaR)^6) + epsilon) * step(cutoff - deltaR);"
+            "deltaR = R - sqrt(x^2 + y^2 + z^2)"
+        )
+
+        # Create the custom external force using the energy expression
+        sphericalForce = self.mm.CustomExternalForce(energyExpression)
+
+        # Calculate radius if set to "density"
+        if radius == "density":
+            radius = (3 * self.N / (4 * 3.141592653589793 * density)) ** (1 / 3.)
+
+        self.sphericalConfinementRadius = radius
+
+        # Add global parameters to the force
+        sphericalForce.addGlobalParameter('R', radius)
+        sphericalForce.addGlobalParameter('epsilon', 1.0)
+        sphericalForce.addGlobalParameter('sigma', 1.0)
+        sphericalForce.addGlobalParameter('cutoff', 2.0 ** (1.0 / 6.0))
+
+        # Apply the force to all particles in the system
         for i in range(self.N):
-            spherForce.addParticle(i, [])
-        if r == "density":
-            r = (3 * self.N / (4 * 3.141592 * density)) ** (1 / 3.)
+            sphericalForce.addParticle(i, [])
 
-        self.sphericalConfinementRadius = r
-
-        spherForce.addGlobalParameter('R', r)
-        spherForce.addGlobalParameter('GROSe', 1.0)
-        spherForce.addGlobalParameter('GROSs', 1.0)
-        spherForce.addGlobalParameter("GROScut", 2.**(1./6.))
-        
-        return r
+        # Add the force to the force dictionary
+        self.forceDict["SphericalConfinementLJ"] = sphericalForce
 
         
-    def addFENEBonds(self, kfb=30.0):
-        
-        R"""
-        Adds FENE (Finite Extensible Nonlinear Elastic) bonds between neighbor loci :math:`i` and :math:`i+1` according to "Halverson, J.D., Lee, W.B., Grest, G.S., Grosberg, A.Y. and Kremer, K., 2011. Molecular dynamics simulation study of nonconcatenated ring polymers in a melt. I. Statics. The Journal of chemical physics, 134(20), p.204904".
-
-        Args:
-
-            kfb (float, required):
-                Bond coefficient. (Default value = 30.0).
-          """
-
-        for start, end, isRing in self.chains:
-            for j in range(start, end):
-                self.addBond(j, j + 1, kfb=kfb)
-                self.bondsForException.append((j, j + 1))
-
-            if isRing:
-                self.addBond(start, end, distance=1, kfb=kfb)
-                self.bondsForException.append((start, end ))
-
-        
-
-    def _initFENEBond(self, kfb=30):
-        R"""
-        Internal function that inits FENE bond force.
+    def addFENEBonds(self, kFb=30.0, bonds=None):
         """
-        if "FENEBond" not in list(self.forceDict.keys()):
-            force = ("- 0.5 * kfb * r0 * r0 * log(1-(r/r0)*(r/r0)) + (4 * e * ((s/r)^12 - (s/r)^6) + e) * step(cut - r)")
-            bondforceGr = self.mm.CustomBondForce(force)
-            bondforceGr.addGlobalParameter("kfb", kfb)
-            bondforceGr.addGlobalParameter("r0", 1.5) 
-            bondforceGr.addGlobalParameter('e', 1.0)
-            bondforceGr.addGlobalParameter('s', 1.0)
-            bondforceGr.addGlobalParameter("cut", 2.**(1./6.))
-                
-            self.forceDict["FENEBond"] = bondforceGr
-        
+        Adds FENE (Finite Extensible Nonlinear Elastic) bonds to the system.
 
-    def addBond(self, i, j, distance=None, kfb=30):
-        
-        R"""
-        Adds bonds between loci :math:`i` and :math:`j` 
+        This function initializes the FENE bond force if it has not been added yet, and adds bonds between specified pairs of loci.
+        By default, if no bonds are specified, it will add bonds between neighboring loci in each chain according to the chain definitions.
+        If a chain is specified as a ring, it will also add a bond between the first and last loci of that chain.
+
+        The FENE bonds are defined according to the method described in:
+        Halverson, J.D., Lee, W.B., Grest, G.S., Grosberg, A.Y., & Kremer, K. (2011).
+        Molecular dynamics simulation study of nonconcatenated ring polymers in a melt. I. Statics.
+        The Journal of Chemical Physics, 134(20), 204904.
 
         Args:
+            kFb (float, optional):
+                Bond coefficient (force constant) for the FENE bonds. Defaults to 30.0.
+            bonds (list of tuples, optional):
+                A list of tuples specifying the pairs of loci to bond. Each tuple is (i, j).
+                If None, bonds between neighboring loci in the chains will be added. Defaults to None.
 
-            kfb (float, required):
-                Bond coefficient. (Default value = 30.0).
-            i (int, required):
-                Locus index **i**.
-            j (int, required):
-                Locus index **j**
-          """
+        Raises:
+            ValueError: If any of the loci indices are out of bounds.
+        """
+        # Initialize the FENE bond force if not already done
+        if "FENEBond" not in self.forceDict:
+            # Define the FENE bond potential
+            feneEnergy = (
+                "-0.5 * kFb * r0^2 * log(1 - (r / r0)^2) + "
+                "(4 * epsilon * ((sigma / r)^12 - (sigma / r)^6) + epsilon) * step(cutoff - r)"
+            )
+            feneBondForce = self.mm.CustomBondForce(feneEnergy)
+            feneBondForce.addGlobalParameter("kFb", kFb)
+            feneBondForce.addGlobalParameter("r0", 1.5)
+            feneBondForce.addGlobalParameter("epsilon", 1.0)
+            feneBondForce.addGlobalParameter("sigma", 1.0)
+            feneBondForce.addGlobalParameter("cutoff", 2.0 ** (1.0 / 6.0))
+            self.forceDict["FENEBond"] = feneBondForce
 
-        if (i >= self.N) or (j >= self.N):
-            raise ValueError("\n Cannot add a bond between beads  %d,%d that are beyond the chromosome length %d" % (i, j, self.N))
-        if distance is None:
-            distance = 1.0
+        if bonds is None:
+            # Add bonds between neighboring loci in the chains
+            for start, end, isRing in self.chains:
+                for j in range(start, end):
+                    i1, i2 = j, j + 1
+                    if i1 >= self.N or i2 >= self.N:
+                        raise ValueError(
+                            f"Cannot add a bond between beads {i1} and {i2}; indices are out of bounds for chromosome length {self.N}."
+                        )
+                    self.forceDict["FENEBond"].addBond(int(i1), int(i2), [])
+                    self.bondsForException.append((i1, i2))
+                if isRing:
+                    i1, i2 = start, end
+                    if i1 >= self.N or i2 >= self.N:
+                        raise ValueError(
+                            f"Cannot add a bond between beads {i1} and {i2}; indices are out of bounds for chromosome length {self.N}."
+                        )
+                    self.forceDict["FENEBond"].addBond(int(i1), int(i2), [])
+                    self.bondsForException.append((i1, i2))
         else:
-            distance = 1.0 * distance
-        distance = float(distance)
+            # Add specified bonds
+            for (i, j) in bonds:
+                if i >= self.N or j >= self.N:
+                    raise ValueError(
+                        f"Cannot add a bond between beads {i} and {j}; indices are out of bounds for chromosome length {self.N}."
+                    )
+                self.forceDict["FENEBond"].addBond(int(i), int(j), [])
+                self.bondsForException.append((i, j))
 
-        self._initFENEBond(kfb=kfb)
-        self.forceDict["FENEBond"].addBond(int(i), int(j), [])
-
-            
-    def addAngles(self, ka=2.0):
-        
-        R"""
-        Adds an angular potential between bonds connecting beads :math:`i − 1, i` and :math:`i, i + 1` according to "Halverson, J.D., Lee, W.B., Grest, G.S., Grosberg, A.Y. and Kremer, K., 2011. Molecular dynamics simulation study of nonconcatenated ring polymers in a melt. I. Statics. The Journal of chemical physics, 134(20), p.204904".
-        
-        Args:
-
-            ka (float, required):
-                Angle potential coefficient. (Default value = 2.0).
+    def addAngles(self, kA=2.0):
         """
-        
-        try:
-            ka[0]
-        except:
-            ka = np.zeros(self.N, float) + ka
-        angles = self.mm.CustomAngleForce(
-            "ka *  (1 - cos(theta - 3.141592))")
-        
-        angles.addPerAngleParameter("ka")
-        for start, end, isRing in self.chains:
-            for j in range(start + 1, end):
-                angles.addAngle(j - 1, j, j + 1, [ka[j]])
-                
-                
-            if isRing:
-                angles.addAngle(end - 1, end , start, [ka[end]])
-                angles.addAngle(end , start, start + 1, [ka[start]])
+        Adds an angular potential between bonds connecting beads i-1, i, and i+1.
 
-        self.forceDict["AngleForce"] = angles
-        
-        
-    def addRepulsiveSoftCore(self, Ecut=4.0,CutoffDistance=3.0):
-        
-        R"""
-        Adds a soft-core repulsive interaction that allows chain crossing, which represents the activity of topoisomerase II. Details can be found in the following publications: 
-        
-            - Oliveira Jr., A.B., Contessoto, V.G., Mello, M.F. and Onuchic, J.N., 2021. A scalable computational approach for simulating complexes of multiple chromosomes. Journal of Molecular Biology, 433(6), p.166700.
-            - Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173.
-            - Naumova, N., Imakaev, M., Fudenberg, G., Zhan, Y., Lajoie, B.R., Mirny, L.A. and Dekker, J., 2013. Organization of the mitotic chromosome. Science, 342(6161), pp.948-953.
+        This function adds angle forces to the system to enforce stiffness between sequential beads,
+        according to the method described in:
+        Halverson, J.D., Lee, W.B., Grest, G.S., Grosberg, A.Y., & Kremer, K. (2011).
+        Molecular dynamics simulation study of nonconcatenated ring polymers in a melt. I. Statics.
+        *The Journal of Chemical Physics*, 134(20), 204904.
 
         Args:
+            kA (float or array-like, optional):
+                Angle potential coefficient(s). If a single float is provided, the same coefficient is used
+                for all angles. If an array is provided, it must have a length of N-2 (number of angles),
+                and each angle will use the corresponding coefficient. Defaults to 2.0.
 
-            Ecut (float, required):
-                Energy cost for the chain passing in units of :math:`k_{b}T`. (Default value = 4.0).
-          """
-        
-        nbCutOffDist = self.Sigma * 2. ** (1. / 6.) #1.112
-        
-        Ecut = Ecut*self.Epsilon
-        
-        r_0 = self.Sigma*(((0.5*Ecut)/(4.0*self.Epsilon) - 0.25 +((0.5)**(2.0)))**(1.0/2.0) +0.5)**(-1.0/6.0)
-        
-        repul_energy = ("LJ * step(r - r_0) * step(CutOff - r)"
-                       " + step(r_0 - r)* 0.5 * Ecut * (1.0 + tanh( (2.0 * LJ/Ecut) - 1.0 ));"
-                       "LJ = 4.0 * Epsi * ((Sig/r)^12 - (Sig/r)^6) + Epsi")
-        
-        self.forceDict["RepulsiveSoftCore"] = self.mm.CustomNonbondedForce(
-            repul_energy)
-        repulforceGr = self.forceDict["RepulsiveSoftCore"]
-        repulforceGr.addGlobalParameter('Epsi', self.Epsilon)
-        repulforceGr.addGlobalParameter('Sig', self.Sigma)
-        repulforceGr.addGlobalParameter('Ecut', Ecut)
-        repulforceGr.addGlobalParameter('r_0', r_0)
-        repulforceGr.addGlobalParameter('CutOff', nbCutOffDist)
-        repulforceGr.setCutoffDistance(CutoffDistance)
+        Raises:
+            ValueError: If kA is an array and its length does not match the expected number of angles.
+        """
+        # Determine the number of angles based on chains
+        num_angles = 0
+        for start, end, isRing in self.chains:
+            num_angles += (end - start - 1)
+            if isRing:
+                num_angles += 2  # For the two additional angles in a ring
 
+        # Ensure kA is an array of coefficients
+        if np.isscalar(kA):
+            kA_array = np.full(num_angles, kA, dtype=float)
+        else:
+            kA_array = np.asarray(kA, dtype=float)
+            if len(kA_array) != num_angles:
+                raise ValueError(
+                    f"The length of kA ({len(kA_array)}) must match the number of angles ({num_angles})."
+                )
+
+        # Define the angle force expression
+        angleForceExpression = "kA * (1 - cos(theta - pi))"
+
+        # Create the custom angle force
+        angleForce = self.mm.CustomAngleForce(angleForceExpression)
+        angleForce.addPerAngleParameter("kA")
+        angleForce.addGlobalParameter("pi", np.pi)
+
+        angle_index = 0  # Index to track position in kA_array
+
+        # Add angles for each chain
+        for start, end, isRing in self.chains:
+            # For linear chains
+            for j in range(start + 1, end):
+                i1, i2, i3 = j - 1, j, j + 1
+                if i3 >= self.N:
+                    break  # Avoid index out of range
+                angleForce.addAngle(i1, i2, i3, [kA_array[angle_index]])
+                angle_index += 1
+            # For ring chains, add angles that wrap around
+            if isRing:
+                # Angle between last three beads
+                i1, i2, i3 = end - 1, end, start
+                angleForce.addAngle(i1, i2, i3, [kA_array[angle_index]])
+                angle_index += 1
+                # Angle wrapping from end to start + 1
+                i1, i2, i3 = end, start, start + 1
+                angleForce.addAngle(i1, i2, i3, [kA_array[angle_index]])
+                angle_index += 1
+
+        # Add the angle force to the system
+        self.forceDict["AngleForce"] = angleForce
+
+    def addRepulsiveSoftCore(self, eCut=4.0, cutoffDistance=3.0):
+        """
+        Adds a soft-core repulsive interaction that allows chain crossing, representing the activity of topoisomerase II.
+
+        Details can be found in the following publications:
+
+        - Oliveira Jr., A.B., Contessoto, V.G., Mello, M.F., & Onuchic, J.N. (2021). A scalable computational approach for simulating complexes of multiple chromosomes. *Journal of Molecular Biology*, 433(6), 166700.
+        - Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G., & Onuchic, J.N. (2016). Transferable model for chromosome architecture. *Proceedings of the National Academy of Sciences*, 113(43), 12168-12173.
+        - Naumova, N., Imakaev, M., Fudenberg, G., Zhan, Y., Lajoie, B.R., Mirny, L.A., & Dekker, J. (2013). Organization of the mitotic chromosome. *Science*, 342(6161), 948-953.
+
+        Args:
+            eCut (float, optional):
+                Energy cost for chain crossing in units of \(k_B T\). Defaults to 4.0.
+            cutoffDistance (float, optional):
+                Cutoff distance for the nonbonded interactions. Defaults to 3.0.
+        """
+        # Calculate the nonbonded cutoff distance
+        nbCutoffDist = self.sigma * 2.0 ** (1.0 / 6.0)
+
+        # Scale eCut by epsilon
+        eCut *= self.epsilon
+
+        # Calculate r0 based on eCut and epsilon
+        r0 = self.sigma * (((0.5 * eCut) / (4.0 * self.epsilon) - 0.25 + (0.5) ** 2.0) ** 0.5 + 0.5) ** (-1.0 / 6.0)
+
+        # Define the energy expression for the repulsive soft-core potential
+        repulEnergy = (
+            "LJ * step(r - r0) * step(cutoff - r)"
+            " + step(r0 - r) * 0.5 * eCut * (1.0 + tanh((2.0 * LJ / eCut) - 1.0));"
+            "LJ = 4.0 * epsilon * ((sigma / r)^12 - (sigma / r)^6) + epsilon"
+        )
+
+        # Create the custom nonbonded force
+        repulForce = self.mm.CustomNonbondedForce(repulEnergy)
+        repulForce.addGlobalParameter('epsilon', self.epsilon)
+        repulForce.addGlobalParameter('sigma', self.sigma)
+        repulForce.addGlobalParameter('eCut', eCut)
+        repulForce.addGlobalParameter('r0', r0)
+        repulForce.addGlobalParameter('cutoff', nbCutoffDist)
+        repulForce.setCutoffDistance(cutoffDistance)
+
+        # Add particles to the force
         for _ in range(self.N):
-            repulforceGr.addParticle(())
+            repulForce.addParticle(())
+
+        # Add the force to the force dictionary
+        self.forceDict["RepulsiveSoftCore"] = repulForce
+
         
     def addTypetoType(self, mu=3.22, rc = 1.78 ):
         R"""
