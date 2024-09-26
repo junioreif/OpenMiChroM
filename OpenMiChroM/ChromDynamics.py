@@ -451,12 +451,12 @@ class MiChroM:
         if "FENEBond" not in self.forceDict:
             # Define the FENE bond potential
             feneEnergy = (
-                "-0.5 * kFb * r0^2 * log(1 - (r / r0)^2) + "
+                "-0.5 * kFb * fr0^2 * log(1 - (r / fr0)^2) + "
                 "(4 * epsilon * ((sigma / r)^12 - (sigma / r)^6) + epsilon) * step(cutoff - r)"
             )
             feneBondForce = self.mm.CustomBondForce(feneEnergy)
             feneBondForce.addGlobalParameter("kFb", kFb)
-            feneBondForce.addGlobalParameter("r0", 1.5)
+            feneBondForce.addGlobalParameter("fr0", 1.5)
             feneBondForce.addGlobalParameter("epsilon", 1.0)
             feneBondForce.addGlobalParameter("sigma", 1.0)
             feneBondForce.addGlobalParameter("cutoff", 2.0 ** (1.0 / 6.0))
@@ -561,20 +561,20 @@ class MiChroM:
         self.forceDict["AngleForce"] = angleForce
 
     def addRepulsiveSoftCore(self, eCut=4.0, cutoffDistance=3.0):
-        """
-        Adds a soft-core repulsive interaction that allows chain crossing, representing the activity of topoisomerase II.
+        R"""
+            Adds a soft-core repulsive interaction that allows chain crossing, representing the activity of topoisomerase II.
 
-        Details can be found in the following publications:
+            Details can be found in the following publications:
 
-        - Oliveira Jr., A.B., Contessoto, V.G., Mello, M.F., & Onuchic, J.N. (2021). A scalable computational approach for simulating complexes of multiple chromosomes. *Journal of Molecular Biology*, 433(6), 166700.
-        - Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G., & Onuchic, J.N. (2016). Transferable model for chromosome architecture. *Proceedings of the National Academy of Sciences*, 113(43), 12168-12173.
-        - Naumova, N., Imakaev, M., Fudenberg, G., Zhan, Y., Lajoie, B.R., Mirny, L.A., & Dekker, J. (2013). Organization of the mitotic chromosome. *Science*, 342(6161), 948-953.
+            - Oliveira Jr., A.B., Contessoto, V.G., Mello, M.F., & Onuchic, J.N. (2021). A scalable computational approach for simulating complexes of multiple chromosomes. *Journal of Molecular Biology*, 433(6), 166700.
+            - Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G., & Onuchic, J.N. (2016). Transferable model for chromosome architecture. *Proceedings of the National Academy of Sciences*, 113(43), 12168-12173.
+            - Naumova, N., Imakaev, M., Fudenberg, G., Zhan, Y., Lajoie, B.R., Mirny, L.A., & Dekker, J. (2013). Organization of the mitotic chromosome. *Science*, 342(6161), 948-953.
 
-        Args:
-            eCut (float, optional):
-                Energy cost for chain crossing in units of \(k_B T\). Defaults to 4.0.
-            cutoffDistance (float, optional):
-                Cutoff distance for the nonbonded interactions. Defaults to 3.0.
+            Args:
+                eCut (float, optional):
+                    Energy cost for chain crossing in units of \(k_B T\). Defaults to 4.0.
+                cutoffDistance (float, optional):
+                    Cutoff distance for the nonbonded interactions. Defaults to 3.0.
         """
         # Calculate the nonbonded cutoff distance
         nbCutoffDist = self.sigma * 2.0 ** (1.0 / 6.0)
@@ -1265,11 +1265,11 @@ class MiChroM:
 
         for forceName, force in self.forceDict.items():
             if hasattr(force, "addException"):
-                print(f"Adding exceptions for '{forceName}' force")
+                #print(f"Adding exceptions for '{forceName}' force")
                 for pair in exceptions:
                     force.addException(int(pair[0]), int(pair[1]), 0.0, 0.0, 0.0, True)
             elif hasattr(force, "addExclusion"):
-                print(f"Adding exclusions for '{forceName}' force")
+                #print(f"Adding exclusions for '{forceName}' force")
                 for pair in exceptions:
                     force.addExclusion(int(pair[0]), int(pair[1]))
 
@@ -1277,7 +1277,7 @@ class MiChroM:
                 force.setNonbondedMethod(force.CutoffNonPeriodic)
 
             self.system.addForce(force)
-            print(f"{forceName} force as added")
+            print(f"{forceName} was added")
 
         forceGroupIndex = 0
         for forceName, force in self.forceDict.items():
@@ -1287,15 +1287,17 @@ class MiChroM:
                 force.setForceGroup(forceGroupIndex)
                 forceGroupIndex += 1
 
-        self.context = self.mm.Context(
-            self.system, self.integrator, self.platform, self.properties)
+        #self.context = self.mm.Context(
+            #self.system, self.integrator, self.platform, self.properties)
+        self.simulation = Simulation(None, self.system, self.integrator, self.platform, self.properties)
+        self.context = self.simulation.context
         self.initPositions()
         self.initVelocities()
         self.contexted = True
         print('Context created!')
 
         simulationInfo = (
-                f"Simulation {self.name} information: "
+                f"\nSimulation name: {self.name}\n"
                 f"number of beads: {self.N}, number of chains: {len(self.chains)}"
             )
             
@@ -1309,7 +1311,7 @@ class MiChroM:
         # Prepare energy information
         energyInfo = (
             f"Potential energy: {ePot:.5f}, "
-            f"Kinetic Energy: {eKin:.5f} at temperature: {self.temperature}"
+            f"Kinetic Energy: {eKin:.5f} at temperature: {self.temperature * 0.008314}"
         )
         
         # Gather platform information
@@ -1330,13 +1332,17 @@ class MiChroM:
         # Print information to console
         print(simulationInfo)
         print(energyInfo)
+        print(f'\nPotential energy per forceGroup:\n {self.printForces()}')
         
-        filePath = Path(self.folder) / 'Initial_Statistics.txt'
+        filePath = Path(self.folder) / 'initialStats.txt'
         with open(filePath, 'w') as f:
             for info in platformInfo:
                 print(info, file=f)
             print(simulationInfo, file=f)
             print(energyInfo, file=f)
+            print(f'\nPotential energy per forceGroup:\n {self.printForces()}', file=f)
+
+
     
     def loadNDB(self, NDBfiles=None):
         R"""
@@ -2224,11 +2230,10 @@ class MiChroM:
             forceValues.append(self.context.getState(getEnergy=True, groups={self.forceDict[n].getForceGroup()}).getPotentialEnergy().value_in_unit(units.kilojoules_per_mole))
         forceNames.append('Potential Energy (total)')
         forceValues.append(self.context.getState(getEnergy=True).getPotentialEnergy().value_in_unit(units.kilojoules_per_mole))
-        forceNames.append('Potential Energy (per loci)')
-        forceValues.append(self.context.getState(getEnergy=True).getPotentialEnergy().value_in_unit(units.kilojoules_per_mole)/self.N)
         df = pd.DataFrame(forceValues,forceNames)
         df.columns = ['Values']
         return(df)
+
 
     def printHeader(self):
         print('{:^96s}'.format("***************************************************************************************"))
