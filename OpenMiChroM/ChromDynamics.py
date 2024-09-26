@@ -1346,6 +1346,30 @@ class MiChroM:
 
     def createReporters(self, statistics=True, traj=False, trajFormat="cndb", energyComponents=False,
                          interval=1000):
+        R"""
+        Configures and attaches reporters to the simulation for data collection during simulation runs.
+        This method sets up custom reporters for the OpenMM `Simulation` object to collect simulation statistics and/or save trajectory data at specified intervals. It supports saving energies per force group and various trajectory file formats.
+
+        Args:
+            statistics (bool, optional):
+                If `True`, attaches a reporter to collect simulation statistics such as step number, radius of gyration (RG), total energy, potential energy, kinetic energy, and temperature.
+                (Default: `True`)
+            traj (bool, optional):
+                If `True`, attaches a reporter to save trajectory data during the simulation.
+                (Default: `False`)
+            trajFormat (str, optional):
+                The file format to save the trajectory data. Options are `'cndb'`, `'ndb'`, `'pdb'`, `'gro'`, `'xyz'`.
+                (Default: `'cndb'`)
+            energyComponents (bool, optional):
+                If `True`, saves energy components per force group to a separate file named `'energyComponents.txt'` in the simulation folder.
+                Requires that `statistics` is `True`.
+                (Default: `False`)
+            interval (int, optional):
+                The interval (in time steps) at which to report data.
+                (Default: `1000`)
+
+        """
+        
         if traj:
             save_structure_reporter = SaveStructure(
                 filePrefix=f'{self.name}_traj',
@@ -1376,6 +1400,15 @@ class MiChroM:
                     reportPerForceGroup=False, 
                 )
                 self.simulation.reporters.append(simulation_reporter)
+
+    def run(self, nsteps, report=True, interval=10**4):
+
+        if report:
+            self.simulation.reporters.append(StateDataReporter(stdout, interval, step=True, remainingTime=True,
+                                                  progress=True, speed=True, totalSteps=nsteps, separator="\t"))
+        
+        self.simulation.step(nsteps)
+
 
     def loadNDB(self, NDBfiles=None):
         R"""
