@@ -32,9 +32,7 @@ except ImportError:
 from sys import stdout
 import warnings
 import numpy as np
-from six import string_types
 import os
-import time
 import random
 import h5py
 import pandas as pd
@@ -1893,70 +1891,37 @@ class MiChroM:
         else:
             if mode != 'auto':
                 raise ValueError("Mode '{:}' not supported!".format(mode))
-
-
-    def initStorage(self, filename):
-        
+                   
+    def saveStructure(self, filename=None, mode="gro"):
         R"""
-        Initializes the *.cndb* files to store the chromosome structures. 
-        
+        Saves the 3D positions of beads during the simulation in various file formats.
+
+        This method exports the simulation's bead positions to files in formats such as XYZ, PDB, GRO, and NDB. It supports multiple chains and assigns residue names based on bead types. The method ensures that the output directory exists and handles different file formats appropriately.
+
         Args:
-
-            filename (str, required):
-                 Filename of the cndb/h5dict storage file.
-            mode (str, required):
-                - 'w' - Create file, truncate if exists. (Default value = w).
-                - 'w-' - Create file, fail if exists. 
-                - 'r+' - Continue saving the structures in the same file that must exist.   
+            filename (str, optional):
+                The name of the file to save the structure. If `None`, the filename is automatically generated using the simulation's name and current step number with the specified mode as the file extension.
+                (Default: `None`)
+            mode (str, optional):
+                The file format to save the structure. Supported formats are:
+                - `'xyz'`: XYZ format.
+                - `'pdb'`: Protein Data Bank format.
+                - `'gro'`: GROMACS GRO format.
+                - `'ndb'`: Nucleome Data Bank format.
+                (Default: `'gro'`)
         """
-        
-        self.storage = []
-
-        for k, chain in zip(range(len(self.chains)),self.chains):
-            fname = os.path.join(self.folder, filename + '_' +str(k) + '.cndb')
-            self.storage.append(h5py.File(fname, "w"))    
-            self.storage[k]['types'] = self.type_list_letter[chain[0]:chain[1]+1]
-                    
-    def saveStructure(self, filename=None, mode="auto"):
-        R"""
-        Save the 3D position of each bead of the chromosome polymer over the chromatin dynamics simulations.
-        
-        Args:
-
-            filename (str, required):
-                 Filename of the storage file.
-            mode (str, required):
-                - 'ndb' - The Nucleome Data Bank file format to save 3D structures of chromosomes. Please see the `NDB - Nucleome Data Bank <https://ndb.rice.edu/ndb-format>`__. for details.
-                - 'cndb' - The compact ndb file format to save 3D structures of chromosomes. The binary format used the `hdf5 - Hierarchical Data Format <https://www.hdfgroup.org/solutions/hdf5/>`__ to store the data. Please see the NDB server for details. (Default value = cndb).
-                - 'pdb' - The Protein Data Bank file format. Here, the chromosome is considered to be a protein where the locus is set at the carbon alpha position. This trick helps to use the standard macromolecules visualization software.  
-                - 'gro' - The GROMACS file format. Initially, the MiChroM energy function was implemented in GROMACS. Details on how to run and use these files can be found at the `Nucleome Data Bank <https://ndb.rice.edu/GromacsInput-Documentation>`__.
-                - 'xyz' - A XYZ file format.
-                
-        """
-        
         
         data = self.getPositions()
         
         if filename is None:
-            filename = self.name +"_block%d." % self.step + mode
+            filename = self.name +"_step%d." % self.step + mode
 
         filename = os.path.join(self.folder, filename)
         
         if not hasattr(self, "type_list_letter"):
             raise ValueError("Chromatin sequence not defined!")
         
-        if mode == "auto":
-            if hasattr(self, "storage"):
-                mode = "cndb"
-            else:
-                mode = 'ndb'
-
-        if mode == "cndb":
-            for k, chain in zip(range(len(self.chains)),self.chains):
-                self.storage[k][str(self.step)] = data[chain[0]:chain[1]+1]
-            return
-        
-        elif mode == "xyz":
+        if mode == "xyz":
             lines = []
             lines.append(str(len(data)) + "\n")
 
@@ -1964,7 +1929,7 @@ class MiChroM:
                 lines.append("{0:.3f} {1:.3f} {2:.3f}\n".format(*particle))
             if filename == None:
                 return lines
-            elif isinstance(filename, string_types):
+            elif isinstance(filename, str):
                 with open(filename, 'w') as myfile:
                     myfile.writelines(lines)
             else:
@@ -2093,87 +2058,6 @@ class MiChroM:
                     
                 np.savetxt(filename,ndbf,fmt="%s")
    
-    def runSimBlock(self, steps=None, increment=True, num=None):
-        R"""
-        Performs a block of simulation steps.
-        
-        Args:
-
-            steps (int, required):
-                 Number of steps to perform in the block.
-            increment (bool, optional):
-                 Whether to increment the steps counter. Typically it is set :code:`False` during the collapse or equilibration simulations. (Default value: :code:`True`).
-            num (int or None, required):
-                 The number of subblocks to split the steps of the primary block. (Default value: :code:`None`).                
-        """
-
-        if increment == True:
-            self.step += 1
-        if steps is None:
-            steps = self.steps_per_block
-        if (increment == True) and ((self.step % 50) == 0):
-            self.printStats()
-
-        for attempt in range(6):
-            print("bl=%d" % (self.step), end=' ')
-            stdout.flush()
-
-
-            if num is None:
-                num = steps // 5 + 1
-            a = time.time()
-            for _ in range(steps // num):
-
-                self.integrator.step(num)  # integrate!
-                stdout.flush()
-            if (steps % num) > 0:
-                self.integrator.step(steps % num)
-
-            self.state = self.context.getState(getPositions=True,
-                                               getEnergy=True)
-
-            b = time.time()
-            coords = self.state.getPositions(asNumpy=True)
-            newcoords = coords / self.nm
-
-            eK = (self.state.getKineticEnergy() / self.N / units.kilojoule_per_mole)
-            eP = self.state.getPotentialEnergy() / self.N / units.kilojoule_per_mole
-
-
-            if eK > 5.0:
-                print("(i)", end=' ')
-                self.initVelocities()
-            print("pos[1]=[%.1lf %.1lf %.1lf]" % tuple(newcoords[0]), end=' ')
-
-
-            if ((np.isnan(newcoords).any()) or (eK > 5000) or
-                (np.isnan(eK)) or (np.isnan(eP))):
-
-                self.context.setPositions(self.data)
-                self.initVelocities()
-                print("eK={0}, eP={1}, trying one more time at step {2} ".format(eK, eP, self.step))
-            else:
-                dif = np.sqrt(np.mean(np.sum((newcoords -
-                    self.getPositions()) ** 2, axis=1)))
-                print("dr=%.2lf" % (dif,), end=' ')
-                self.data = coords
-                print("t=%2.1lfps" % (self.state.getTime() / (units.second * 1e-12)), end=' ')
-                print("kin=%.2lf pot=%.2lf" % (eK,
-                    eP), "Rg=%.3lf" % self.chromRG(), end=' ')
-                print("SPS=%.0lf" % (steps / (float(b - a))), end=' ')
-
-                if (self.integrator_type.lower() == 'variablelangevin'
-                    or self.integrator_type.lower() == 'variableverlet'):
-                    dt = self.integrator.getStepSize()
-                    mass = self.system.getParticleMass(1)
-                    dx = (units.sqrt(2.0 * eK * self.kT / mass) * dt)
-                    print('dx=%.2lfpm' % (dx / self.nm * 1000.0), end=' ')
-
-                print("")
-                break
-
-        return {"Ep":eP, "Ek":eK}
-        
         
     def initPositions(self):
         """
