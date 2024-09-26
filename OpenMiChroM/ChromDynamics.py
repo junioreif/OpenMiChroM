@@ -40,6 +40,8 @@ import h5py
 import pandas as pd
 from pathlib import Path
 import types
+from .CustomReporter import *
+ 
 
 
 class MiChroM:
@@ -1342,8 +1344,39 @@ class MiChroM:
             print(energyInfo, file=f)
             print(f'\nPotential energy per forceGroup:\n {self.printForces()}', file=f)
 
+    def createReporters(self, statistics=True, traj=False, trajFormat="cndb", energyComponents=False,
+                         interval=1000):
+        if traj:
+            save_structure_reporter = SaveStructure(
+                filePrefix=f'{self.name}_traj',
+                reportInterval=interval,
+                mode=trajFormat, 
+                folder=self.folder,
+                chains=self.chains,
+                typeListLetter=self.type_list_letter
+            )
+            self.simulation.reporters.append(save_structure_reporter)
+        if statistics:
+            if energyComponents:
+                simulation_reporter = SimulationReporter(
+                    file=f'{self.folder}/statistics.txt',
+                    reportInterval=interval,
+                    N=self.N,
+                    reportPerForceGroup=True, 
+                    forceGroupFile=f'{self.folder}/energyComponents.txt',
+                    forceDict=self.forceDict
+                )
+                self.simulation.reporters.append(simulation_reporter)
 
-    
+            else:
+                simulation_reporter = SimulationReporter(
+                    file=f'{self.folder}/statistics.txt',
+                    reportInterval=interval,
+                    N=self.N,
+                    reportPerForceGroup=False, 
+                )
+                self.simulation.reporters.append(simulation_reporter)
+
     def loadNDB(self, NDBfiles=None):
         R"""
         Loads a single or multiple *.ndb* files and gets position and types of the chromosome beads.
