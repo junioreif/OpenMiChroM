@@ -1298,7 +1298,7 @@ class MiChroM:
 
         simulationInfo = (
                 f"\nSimulation name: {self.name}\n"
-                f"number of beads: {self.N}, number of chains: {len(self.chains)}"
+                f"Number of beads: {self.N}, Number of chains: {len(self.chains)}"
             )
             
         # Get the state of the simulation
@@ -1370,7 +1370,7 @@ class MiChroM:
         
         if traj:
             save_structure_reporter = SaveStructure(
-                filePrefix=f'{self.name}_traj',
+                filePrefix=f'{self.name}',
                 reportInterval=interval,
                 mode=trajFormat, 
                 folder=self.folder,
