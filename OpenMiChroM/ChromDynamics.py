@@ -1,310 +1,267 @@
-# Copyright (c) 2020-2023 The Center for Theoretical Biological Physics (CTBP) - Rice University
-# This file is from the Open-MiChroM project, released under the MIT License. 
+# Copyright (c) 2020-2024 The Center for Theoretical Biological Physics (CTBP)
+# Rice University
+# This file is from the Open-MiChroM project, released under the MIT License.
 
-R"""  
-The :class:`~.ChromDynamics` classes perform chromatin dynamics based on the compartment annotations sequence of chromosomes. The simulations can be performed either using the default parameters of MiChroM (Minimal Chromatin Model) or using custom values for the type-to-type and Ideal Chromosome parameters..
+R"""
+The `ChromDynamics` classes perform chromatin dynamics based on the compartment
+annotation sequences of chromosomes. Simulations can be performed either using
+the default parameters of MiChroM (Minimal Chromatin Model) or using custom
+values for the type-to-type and Ideal Chromosome parameters.
+
+Details about the MiChroM energy function and default parameters are described in:
+Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G., & Onuchic, J.N. (2016).
+Transferable model for chromosome architecture. *Proceedings of the National Academy of Sciences*, 113(43), 12168-12173.
 """
 
-# with OpenMM 7.7.0, the import calls have changed. So, try both, if needed
+# Import OpenMM, handling compatibility with different versions
 try:
+    # For OpenMM versions >= 7.7.0
+    from openmm.app import *
+    import openmm
+    import openmm.unit as units
+except ImportError:
+    # Fallback for earlier versions
+    print("Unable to load OpenMM as 'openmm'. Trying 'simtk.openmm'...")
     try:
-        # >=7.7.0
-        from openmm.app import *
-        import openmm as openmm
-        import openmm.unit as units
-    except:
-        # earlier
-        print('Unable to load OpenMM as \'openmm\'. Will try the older way \'simtk.openmm\'')
         from simtk.openmm.app import *
         import simtk.openmm as openmm
-        import simtk.unit as units  
-except:
-    print('Failed to load OpenMM. Check your configuration.')
-
+        import simtk.unit as units
+    except ImportError:
+        raise ImportError("Failed to load OpenMM. Please check your installation and configuration.")
 
 from sys import stdout
 import warnings
 import numpy as np
-from six import string_types
 import os
-import time
 import random
-import h5py
 import pandas as pd
 from pathlib import Path
 import types
-
+from textwrap import dedent
+from . import __version__
+from .CustomReporter import *
 
 class MiChroM:
     R"""
-    The :class:`~.MiChroM` class performs chromatin dynamics employing the default MiChroM energy function parameters for the type-to-type and Ideal Chromosome interactions.
-    
-    Details about the MiChroM (Minimal Chromatin Model) energy function and the default parameters are described in "Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173."
-    
-    
-    The :class:`~.MiChroM` sets the environment to start the chromatin dynamics simulations.
-    
-    Args:
-        time_step (float, required):
-            Simulation time step in units of :math:`\tau`. (Default value = 0.01).
-        collision_rate (float, required):
-            Friction/Damping constant in units of reciprocal time (:math:`1/\tau`). (Default value = 0.1).
-        temperature (float, required):
-            Temperature in reduced units. (Default value = 1.0).
-        verbose (bool, optional):
-            Whether to output the information in the screen during the simulation. (Default value: :code:`False`). 
-        velocity_reinitialize (bool, optional):
-            Reset/Reinitialize velocities if :math:`E_{kin}` is greater than 5.0. (Default value: :code:`True`). 
-        name (str):
-            Name used in the output files. (Default value: *Chromosome*). 
-        length_scale (float, required):
-            Length scale used in the distances of the system in units of reduced length :math:`\sigma`. (Default value = 1.0).
-        mass_scale (float, required):
-            Mass scale used in units of :math:`\mu`. (Default value = 1.0).
-    """
-    def __init__(
-        self, time_step=0.01, collision_rate=0.1, temperature=1.0,
-        verbose=False,
-        velocity_reinitialize=True,
-        name="Chromosome",
-        length_scale=1.0,
-        mass_scale=1.0):
-            self.name = name
-            self.timestep = time_step
-            self.collisionRate = collision_rate
-            self.temperature = temperature / 0.008314
-            self.verbose = verbose
-            self.velocityReinitialize = velocity_reinitialize
-            self.loaded = False
-            self.forcesApplied = False
-            self.folder = "."
-            self.metadata = {}
-            self.length_scale = length_scale
-            self.mass_scale = mass_scale
-            self.eKcritical = 50000000
-            self.nm = units.meter * 1e-9
-            self.Sigma = 1.0
-            self.Epsilon = 1.0
-            #####################        A1         A2        B1        B2        B3        B4       NA   
-            self.inter_Chrom_types =[-0.268028,-0.274604,-0.262513,-0.258880,-0.266760,-0.266760,-0.225646, #A1
-                                     -0.274604,-0.299261,-0.286952,-0.281154,-0.301320,-0.301320,-0.245080, #A2
-                                     -0.262513,-0.286952,-0.342020,-0.321726,-0.336630,-0.336630,-0.209919, #B1
-                                     -0.258880,-0.281154,-0.321726,-0.330443,-0.329350,-0.329350,-0.282536, #B2
-                                     -0.266760,-0.301320,-0.336630,-0.329350,-0.341230,-0.341230,-0.349490, #B3
-                                     -0.266760,-0.301320,-0.336630,-0.329350,-0.341230,-0.341230,-0.349490, #B4
-                                     -0.225646,-0.245080,-0.209919,-0.282536,-0.349490,-0.349490,-0.255994] #NA
-            self.printHeader()
-            
+    The `MiChroM` class performs chromatin dynamics simulations using the default MiChroM energy function parameters for type-to-type and Ideal Chromosome interactions.
 
-    def setup(self, platform="CUDA", PBC=False, PBCbox=None, GPU="default",
-              integrator="langevin", errorTol=None, precision="mixed",deviceIndex="0"):
-        
-        R"""Sets up the parameters of the simulation OpenMM platform.
+    Details about the MiChroM (Minimal Chromatin Model) energy function and the default parameters are described in:
+    Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G., & Onuchic, J.N. (2016). Transferable model for chromosome architecture. *Proceedings of the National Academy of Sciences*, 113(43), 12168-12173.
+
+    The `MiChroM` class sets up the environment to start chromatin dynamics simulations.
+
+    Args:
+        name (str, optional): 
+            Name used in the output files. Defaults to "OpenMichrom".
+        timeStep (float, optional): 
+            Simulation time step in units of τ. Defaults to 0.01.
+        collisionRate (float, optional): 
+            Friction/damping constant in units of reciprocal time (1/τ). Defaults to 0.1.
+        temperature (float, optional): 
+            Temperature in reduced units. Defaults to 1.0.
+    """
+    def __init__(self, name="OpenMiChroM", timeStep=0.01, collisionRate=0.1, temperature=1.0):
+        self.name = name
+        self.timeStep = timeStep
+        self.collisionRate = collisionRate
+        self.temperature = temperature / 0.008314
+        self.loaded = False
+        self.contexted = False
+        self.folder = "."
+        self.nm = units.meter * 1e-9
+        self.sigma = 1.0
+        self.epsilon = 1.0
+        self.printHeader()
+        print(f"TEST VERSION {__version__}")
+
+            
+    def setup(self, platform="CUDA", gpu="default",
+            integrator="langevin", precision="mixed", deviceIndex="0"):
+        R"""Sets up the simulation environment.
+
+        Tries to select the computational platform in the following priority order:
+        the specified platform, then 'CUDA', 'HIP', 'OpenCL', and 'CPU'. If the
+        preferred platform is not available, it will attempt to use the next
+        available platform in the list and print an informational message.
 
         Args:
+            platform (str, optional): The preferred computation platform to use.
+                Defaults to 'CUDA'.
+            gpu (str, optional): GPU device index or 'default'. Defaults to 'default'.
+            integrator (str or OpenMM Integrator, optional): The integrator to use for the simulation.
+                Can be a string (e.g., 'langevin') or an OpenMM Integrator object.
+                Defaults to 'langevin'.
+            precision (str, optional): The floating point precision to use ('mixed', 'single', or 'double').
+                Defaults to 'mixed'.
+            deviceIndex (str, optional): The device index to use if specifying a GPU device.
+                Defaults to '0'.
 
-            platform (str, optional):
-                Platform to use in the simulations. Opitions are *CUDA*, *OpenCL*, *HIP*, *CPU*, *Reference*. (Default value: *CUDA*). 
-
-            PBC (bool, optional)
-                Whether to use periodic boundary conditions. (Default value: :code:`False`). 
-
-            PBCbox ([float,float,float], optional):
-                Define size of the bounding box for PBC. (Default value: :code:`None`).
-
-            GPU ( :math:`0` or :math:`1`, optional):
-                Switch to another GPU. Machines with one GPU automatically select the right GPU. Machines with two or more GPUs select GPU that is less used.
-
-            integrator (str):
-                Integrator to use in the simulations. Options are *langevin*,  *variableLangevin*, *verlet*, *variableVerlet* and, *brownian*. (Default value: *langevin*).
-            verbose (bool, optional):
-                Whether to output the information in the screen during the simulation. (Default value: :code:`False`).
-            deviceIndex (str, optional):
-                Set of Platform device index IDs. Ex: 0,1,2 for the system to use the devices 0, 1 and 2. (Use only when GPU != default)
-
-            errorTol (float, required if **integrator** = *variableLangevin*):
-                Error tolerance parameter for *variableLangevin* integrator.
+        Raises:
+            ValueError: If an unknown integrator or precision is specified.
+            Exception: If no suitable computational platform is available.
         """
-
-        self.step = 0
-        if PBC == True:
-            self.metadata["PBC"] = True
-
         precision = precision.lower()
         if precision not in ["mixed", "single", "double"]:
-            raise ValueError("Precision must be mixed, single or double")
+            raise ValueError("Precision must be 'mixed', 'single', or 'double'.")
 
-        self.kB = units.BOLTZMANN_CONSTANT_kB * units.AVOGADRO_CONSTANT_NA  
-        self.kT = self.kB * self.temperature  
-        self.mass = 10.0 * units.amu * self.mass_scale
+        self.kB = units.BOLTZMANN_CONSTANT_kB * units.AVOGADRO_CONSTANT_NA
+        self.kT = self.kB * self.temperature
+        self.mass = 10.0 * units.amu
         self.bondsForException = []
         self.mm = openmm
         self.system = self.mm.System()
-        self.PBC = PBC
+        self.step = 0
+        self.gpu = str(gpu)
 
-        if self.PBC == True:  
-            if PBCbox is None:  
-                data = self.getPositions()
-                data -= np.min(data, axis=0)
+        # Define the platform priority order
+        default_platforms = ['CUDA', 'HIP', 'OpenCL', 'CPU']
 
-                datasize = 1.1 * (2 + (np.max(self.getPositions(), axis=0) - np.min(self.getPositions(), axis=0)))
+        # Rearrange the platform priority so that the specified platform is first
+        preferred_platform = platform.upper()
+        platform_priority = [preferred_platform] + [p for p in default_platforms if p != preferred_platform]
 
-                self.SolventGridSize = (datasize / 1.1) - 2
-                print("density is ", self.N / (datasize[0]
-                    * datasize[1] * datasize[2]))
-            else:
-                PBCbox = np.array(PBCbox)
-                datasize = PBCbox
+        # Dictionary to map platform names to their specific property names
+        property_names = {
+            'CUDA': {'DeviceIndex': 'CudaDeviceIndex', 'Precision': 'CudaPrecision'},
+            'HIP': {'DeviceIndex': 'HipDeviceIndex', 'Precision': 'HipPrecision'},
+            'OPENCL': {'DeviceIndex': 'OpenCLDeviceIndex', 'Precision': 'OpenCLPrecision'},
+            'CPU': {}
+        }
 
-            self.metadata["PBCbox"] = PBCbox
-            self.system.setDefaultPeriodicBoxVectors([datasize[0], 0.,
-                0.], [0., datasize[1], 0.], [0., 0., datasize[2]])
-            self.BoxSizeReal = datasize
+        # Attempt to set up the platform
+        for plat_name in platform_priority:
+            try:
+                self.platform = self.mm.Platform.getPlatformByName(plat_name)
+                print(f"Using platform: {plat_name}")
 
-        self.GPU = str(GPU)
-        properties = {}
-        if self.GPU.lower() != "default":
-            properties["DeviceIndex"] = deviceIndex
-            properties["Precision"] = precision
-        self.properties = properties
-
-        if platform.lower() == "opencl":
-            platformObject = self.mm.Platform.getPlatformByName('OpenCL')
-
-        elif platform.lower() == "reference":
-            platformObject = self.mm.Platform.getPlatformByName('Reference')
-
-        elif platform.lower() == "cuda":
-            platformObject = self.mm.Platform.getPlatformByName('CUDA')
-
-        elif platform.lower() == "cpu":
-            platformObject = self.mm.Platform.getPlatformByName('CPU')
-
-        elif platform.lower() == "hip":
-            platformObject = self.mm.Platform.getPlatformByName('HIP')
-
+                # Set platform-specific properties
+                properties = {}
+                if plat_name != 'CPU':
+                    if self.gpu.lower() != "default":
+                        properties[property_names[plat_name]['DeviceIndex']] = deviceIndex
+                    properties[property_names[plat_name]['Precision']] = precision
+                self.properties = properties
+                break
+            except Exception as e:
+                print(f"Platform '{plat_name}' is not available: {e}")
         else:
-            self.exit("\n!!!! Unknown platform !!!!\n")
-        self.platform = platformObject
+            raise Exception("No suitable computational platform is available.")
 
         self.forceDict = {}
 
-        self.integrator_type = integrator
-        if isinstance(integrator, string_types):
-            integrator = str(integrator)
-            if integrator.lower() == "langevin":
-                self.integrator = self.mm.LangevinIntegrator(self.temperature,
-                    self.collisionRate, self.timestep)
-            elif integrator.lower() == "variablelangevin":
-                self.integrator = self.mm.VariableLangevinIntegrator(self.temperature,
-                    self.collisionRate, errorTol)
-            elif integrator.lower() == "verlet":
-                self.integrator = self.mm.VariableVerletIntegrator(self.timestep)
-            elif integrator.lower() == "variableverlet":
-                self.integrator = self.mm.VariableVerletIntegrator(errorTol)
-
-            elif integrator.lower() == 'brownian':
-                self.integrator = self.mm.BrownianIntegrator(self.temperature,
-                    self.collisionRate, self.timestep)
+        if isinstance(integrator, str):
+            integrator_name = integrator.lower()
+            if integrator_name == "langevin":
+                self.integrator = self.mm.LangevinIntegrator(
+                    self.temperature, self.collisionRate, self.timeStep)
+                self.integrator_type = "Langevin"
             else:
-                print ('please select from "langevin", "variablelangevin", '
-                       '"verlet", "variableVerlet", '
-                       '"brownian" or provide an integrator object')
+                raise ValueError(f"Unknown integrator '{integrator}'.")
         else:
             self.integrator = integrator
             self.integrator_type = "UserDefined"
             
-    def saveFolder(self, folder):
-        
+
+    def saveFolder(self, folderPath):
         R"""Sets the folder path to save data.
 
         Args:
-
-            folder (str, optional):
-                Folder path to save the simulation data. If the folder path does not exist, the function will create the directory.
+            folderPath (str): The folder path where simulation data will be saved.
+                If the folder does not exist, it will be created.
         """
-    
-        if os.path.exists(folder) == False:
-            os.mkdir(folder)
-        self.folder = folder
+        os.makedirs(folderPath, exist_ok=True)
+        self.folder = folderPath
+
         
-    def loadStructure(self, filename,center=True,masses=None):
- 
-        R"""Loads the 3D position of each bead of the chromosome polymer in the OpenMM system platform.
+    def loadStructure(self, data, center=True, massList=None):
+        R"""Loads the 3D positions of each bead of the chromosome polymer into the OpenMM system.
 
         Args:
+            data (array-like): The initial positions of the beads. Should be an array of shape (N, 3) or (3, N).
+            center (bool, optional): If True, centers the chromosome's center of mass at [0, 0, 0]. Defaults to True.
+            massList (array-like, optional): Masses of each chromosome bead in units of μ. If None, all masses are set to 1.0. Defaults to None.
 
-            center (bool, optional):
-                Whether to move the center of mass of the chromosome to the 3D position ``[0, 0, 0]`` before starting the simulation. (Default value: :code:`True`).
-            masses (array, optional):
-                Masses of each chromosome bead measured in units of :math:`\mu`. (Default value: :code:`None`).
+        Raises:
+            ValueError: If the input data is not in the correct format or contains NaN values.
         """
-    
-        data = filename
+        data = np.asarray(data, dtype=float)
 
-        data = np.asarray(data, float)
+        if data.shape[1] != 3:
+            raise ValueError("Input data must have shape (N, 3).")
 
-        if len(data) == 3:
-            data = np.transpose(data)
-        if len(data[0]) != 3:
-            self._exitProgram("Wrong file format")
         if np.isnan(data).any():
-            self._exitProgram("\n!!!! The file contains NAN's !!!!\n")
+            raise ValueError("Input data contains NaN values.")
 
-        if center is True:
-            av = np.mean(data, 0)
-            data -= av
-
-        if center == "zero":
-            minvalue = np.min(data, 0)
-            data -= minvalue
+        if center:
+            data -= np.mean(data, axis=0)
 
         self.setPositions(data)
-       
-        if masses == None:
-            self.masses = [1. for _ in range(self.N)]
+
+        if massList is None:
+            self.masses = np.ones(self.N)
         else:
-            self.masses = masses
-            
+            massList = np.asarray(massList, dtype=float)
+
+            if len(massList) != self.N:
+                raise ValueError(f"Mass list length {len(massList)} does not match number of beads {self.N}.")
+            self.masses = massList
+
         if not hasattr(self, "chains"):
             self.setChains()
-            
-    def setChains(self, chains=[(0, None, 0)]):
-        
-        R"""Sets configuration of the chains in the system. This information is later used for adding Bonds and Angles of the Homopolymer potential.
+
+
+    def setChains(self, chains=None):
+        R"""Sets the configuration of the chains in the system.
+
+        This information is used later for adding bonds and angles in the homopolymer potential.
 
         Args:
-
-            chains (list of tuples, optional):
-                The list of chains in the format [(start, end, isRing)]. isRing is a boolean whether the chromosome chain is circular or not (Used to simulate bacteria genome, for example). The particle range should be semi-open, i.e., a chain  :math:`(0,3,0)` links the particles :math:`0`, :math:`1`, and :math:`2`. If :code:`bool(isRing)` is :code:`True` , the first and last particles of the chain are linked, forming a ring. The default value links all particles of the system into one chain. (Default value: :code:`[(0, None, 0)]`).
+            chains (list of tuples, optional): A list of chains in the format `[(start, end, isRing)]`.
+                `isRing` is a boolean indicating whether the chromosome chain is circular or not (used to
+                simulate bacterial genomes, for example). The particle range should be semi-open; for
+                example, a chain `(0, 3, False)` links the particles `0`, `1`, and `2`. If `isRing` is
+                `True`, the first and last particles of the chain are linked, forming a ring. Defaults to
+                `[(0, None, False)]`, which links all particles of the system into one chain.
         """
+        if chains is None:
+            chains = [(0, None, False)]
+        else:
+            # Validate and process the chains
+            validated_chains = []
+            for chain in chains:
+                start, end, isRing = chain
 
-        self.chains = [i for i in chains]  
-        for i in range(len(self.chains)):
-            start, end, isRing = self.chains[i]
-            self.chains[i] = (start, end, isRing)
+                isRing = bool(isRing)
+                validated_chains.append((start, end, isRing))
+
+            chains = validated_chains
+
+        self.chains = chains.copy()
+
             
-    def setPositions(self, beadsPos , random_offset = 1e-5):
-        
-        R"""Sets the 3D position of each bead of the chromosome polymer in the OpenMM system platform.
+    def setPositions(self, beadsPos, randomize=False, randomOffset=1e-5):
+        R"""Sets the 3D positions of each bead of the chromosome polymer in the OpenMM system.
 
         Args:
-
-            beadsPos (:math:`(N, 3)` :class:`numpy.ndarray`):
+            beadsPos (numpy.ndarray of shape (N, 3)):
                 Array of XYZ positions for each bead (locus) in the polymer model.
-            random_offset (float, optional):
-                A small increment in the positions to avoid numeral instability and guarantee that a *float* parameter will be used. (Default value = 1e-5).       
+            randomize (bool, optional):
+                If True, adds a small random offset to the positions to avoid numerical instability.
+                Defaults to False.
+            randomOffset (float, optional):
+                The magnitude of the random offset to be added if randomize is True.
+                Defaults to 1e-5.
         """
-        
-        data = np.asarray(beadsPos, dtype="float")
-        if random_offset:
-            data = data + (np.random.random(data.shape) * 2 - 1) * random_offset
-        
+        data = np.asarray(beadsPos, dtype=float)
+        if randomize:
+            data += (np.random.random(data.shape) * 2 - 1) * randomOffset
+
         self.data = units.Quantity(data, self.nm)
         self.N = len(self.data)
         if hasattr(self, "context"):
             self.initPositions()
             
+
     def getPositions(self):
         R"""
         Returns:
@@ -314,27 +271,6 @@ class MiChroM:
         
         return np.asarray(self.data / self.nm, dtype=np.float32)
 
-    def getVelocities(self):
-        R"""
-        Returns:
-            :math:`(N, 3)` :class:`numpy.ndarray`:
-                Returns an array of velocities.
-        """
-
-        state = self.context.getState(getVelocities=True)
-        vel = state.getVelocities()
-
-        return np.asarray(vel / (self.nm / units.picosecond ), dtype=np.float32)
-
-        
-    def randomizePositions(self):
-        R"""
-        Runs automatically to offset the positions if it is an integer (int) variable.
-        """
-        data = self.getPositions()
-        data = data + np.random.randn(*data.shape) * 0.0001
-        self.setPositions(data)
-        
 
     def getLoops(self, looplists):
         R"""
@@ -362,210 +298,310 @@ class MiChroM:
     ##============================
     ##      FORCES          
     ##============================
+    def addCylindricalConfinement(self, rConf=5.0, zConf=10.0, kConf=30.0):
+        R"""Adds a cylindrical confinement potential to the system.
 
-    def addCylindricalConfinement(self, r_conf=5.0, z_conf=10.0, kr=30.0):
-        cyl_conf_energy="step(r_xy-r_cyn) * 0.5 * k_cyn * (r_xy-r_cyn)^2 + step(z^2-zconf^2) * 0.5 * k_cyn * (z-zconf)^2; r_xy=sqrt(x*x+y*y)"
-        
-        cyl_conf_fg = self.mm.CustomExternalForce(cyl_conf_energy)
-        cyl_conf_fg.addGlobalParameter('r_cyn', r_conf)
-        cyl_conf_fg.addGlobalParameter('k_cyn', kr)
-        cyl_conf_fg.addGlobalParameter('zconf', z_conf)
-        
-        self.forceDict["CylindricalConfinement"]=cyl_conf_fg
+        This potential confines particles within a cylinder of radius `rConf` and height `2 * zConf`.
+        Particles outside this cylinder experience a harmonic restoring force pushing them back inside.
+
+        Args:
+            rConf (float, optional): Radius of the cylindrical confinement in nanometers. Defaults to 5.0.
+            zConf (float, optional): Half-height of the cylindrical confinement along the z-axis in nanometers. Defaults to 10.0.
+            kConf (float, optional): Force constant (stiffness) of the confinement potential. Defaults to 30.0.
+        """
+        cylConfEnergy = (
+            "step(r_xy - r_cyn) * 0.5 * k_cyn * (r_xy - r_cyn)^2 + "
+            "step(abs(z) - zconf) * 0.5 * k_cyn * (abs(z) - zconf)^2;"
+            "r_xy = sqrt(x^2 + y^2)"
+        )
+        cylConfForce = self.mm.CustomExternalForce(cylConfEnergy)
+        cylConfForce.addGlobalParameter('r_cyn', rConf)
+        cylConfForce.addGlobalParameter('k_cyn', kConf)
+        cylConfForce.addGlobalParameter('zconf', zConf)
+
+        self.forceDict["CylindricalConfinement"] = cylConfForce
 
         for i in range(self.N):
             self.forceDict["CylindricalConfinement"].addParticle(i, [])
+
     
-    def addFlatBottomHarmonic(self, kr=5*10**-3, n_rad=10.0):
-        
+    def addFlatBottomHarmonic(self, kR=5e-3, nRad=10.0):
         R"""
-        Sets a Flat-Bottom Harmonic potential to collapse the chromosome chain inside the nucleus wall. The potential is defined as: :math:`step(r-r0) * (kr/2)*(r-r0)^2`.
+        Adds a flat-bottom harmonic potential to confine the chromosome chain inside the nucleus wall.
+
+        The potential is defined as:
+            V(r) = step(r - r0) * (kR / 2) * (r - r0)^2
+
+        where:
+            - `r` is the distance from the origin (center of the nucleus)
+            - `r0` (nRad) is the nucleus radius
+            - `kR` is the spring constant of the potential
+
+        This potential applies no force when particles are inside the nucleus (r ≤ r0) and applies a harmonic restoring force when particles are outside the nucleus (r > r0).
 
         Args:
-
-            kr (float, required):
-                Spring constant. (Default value = 5e-3). 
-            n_rad (float, required):
-                Nucleus wall radius in units of :math:`\sigma`. (Default value = 10.0).  
+            kR (float, optional):
+                Spring constant of the harmonic potential. Defaults to 5e-3.
+            nRad (float, optional):
+                Nucleus radius in units of σ. Defaults to 10.0.
         """
+        # Define the energy expression for the flat-bottom harmonic potential
+        energyExpression = (
+            "step(r - rRes) * 0.5 * kR * (r - rRes)^2;"
+            "r = sqrt(x^2 + y^2 + z^2)"
+        )
 
-        restraintForce = self.mm.CustomExternalForce("step(r-r_res) * 0.5 * kr * (r-r_res)^2; r=sqrt(x*x+y*y+z*z)")
-        restraintForce.addGlobalParameter('r_res', n_rad)
-        restraintForce.addGlobalParameter('kr', kr)
-        
+        # Create the custom external force using the energy expression
+        restraintForce = self.mm.CustomExternalForce(energyExpression)
+        restraintForce.addGlobalParameter('rRes', nRad)
+        restraintForce.addGlobalParameter('kR', kR)
+
+        # Apply the force to all particles in the system
         for i in range(self.N):
             restraintForce.addParticle(i, [])
-            
+
+        # Add the force to the force dictionary
         self.forceDict["FlatBottomHarmonic"] = restraintForce
-    
-    def addSphericalConfinementLJ(self, r="density", density=0.1):
-                                
+
+
+    def addSphericalConfinementLJ(self, radius="density", density=0.1):
         R"""
-        Sets the nucleus wall potential according to MiChroM Energy function. The confinement potential describes the interaction between the chromosome and a spherical wall.
+        Adds a spherical confinement potential to the system according to the MiChroM energy function.
+
+        This potential describes the interaction between the chromosome and a spherical wall,
+        effectively confining the particles within a sphere of specified radius.
 
         Args:
+            radius (float or str, optional):
+                Radius of the spherical confinement. If set to "density", the radius is calculated
+                based on the specified density. Defaults to "density".
+            density (float, optional):
+                Density of the chromosome beads inside the nucleus. Required if `radius` is "density".
+                Defaults to 0.1.
 
-            r (float or str="density", optional):
-                Radius of the nucleus wall. If **r="density"** requires a **density** value.
-            density (float, required if **r="density"**):
-                Density of the chromosome beads inside the nucleus. (Default value = 0.1).  
-        """        
+        Notes:
+            - If `radius` is "density", the radius is calculated using the formula:
 
-        spherForce = self.mm.CustomExternalForce("(4 * GROSe * ((GROSs/r)^12 - (GROSs/r)^6) + GROSe) * step(GROScut - r);"
-                                                 "r= R - sqrt(x^2 + y^2 + z^2) ")
-            
-        self.forceDict["SphericalConfinementLJ"] = spherForce
+            radius = (3 * N / (4 * π * density)) ** (1/3)
 
+            where N is the number of particles in the system.
+            - The confinement potential is modeled using a shifted Lennard-Jones potential.
+        """
+        # Define the energy expression for the spherical confinement using a shifted Lennard-Jones potential
+        energyExpression = (
+            "(4 * epsilon * ((sigma/deltaR)^12 - (sigma/deltaR)^6) + epsilon) * step(cutoff - deltaR);"
+            "deltaR = R - sqrt(x^2 + y^2 + z^2)"
+        )
+
+        # Create the custom external force using the energy expression
+        sphericalForce = self.mm.CustomExternalForce(energyExpression)
+
+        # Calculate radius if set to "density"
+        if radius == "density":
+            radius = (3 * self.N / (4 * 3.141592653589793 * density)) ** (1 / 3.)
+
+        self.sphericalConfinementRadius = radius
+
+        # Add global parameters to the force
+        sphericalForce.addGlobalParameter('R', radius)
+        sphericalForce.addGlobalParameter('epsilon', 1.0)
+        sphericalForce.addGlobalParameter('sigma', 1.0)
+        sphericalForce.addGlobalParameter('cutoff', 2.0 ** (1.0 / 6.0))
+
+        # Apply the force to all particles in the system
         for i in range(self.N):
-            spherForce.addParticle(i, [])
-        if r == "density":
-            r = (3 * self.N / (4 * 3.141592 * density)) ** (1 / 3.)
+            sphericalForce.addParticle(i, [])
 
-        self.sphericalConfinementRadius = r
-
-        spherForce.addGlobalParameter('R', r)
-        spherForce.addGlobalParameter('GROSe', 1.0)
-        spherForce.addGlobalParameter('GROSs', 1.0)
-        spherForce.addGlobalParameter("GROScut", 2.**(1./6.))
-        
-        return r
+        # Add the force to the force dictionary
+        self.forceDict["SphericalConfinementLJ"] = sphericalForce
 
         
-    def addFENEBonds(self, kfb=30.0):
-        
+    def addFENEBonds(self, kFb=30.0, bonds=None):
         R"""
-        Adds FENE (Finite Extensible Nonlinear Elastic) bonds between neighbor loci :math:`i` and :math:`i+1` according to "Halverson, J.D., Lee, W.B., Grest, G.S., Grosberg, A.Y. and Kremer, K., 2011. Molecular dynamics simulation study of nonconcatenated ring polymers in a melt. I. Statics. The Journal of chemical physics, 134(20), p.204904".
+        Adds FENE (Finite Extensible Nonlinear Elastic) bonds to the system.
+
+        This function initializes the FENE bond force if it has not been added yet, and adds bonds between specified pairs of loci.
+        By default, if no bonds are specified, it will add bonds between neighboring loci in each chain according to the chain definitions.
+        If a chain is specified as a ring, it will also add a bond between the first and last loci of that chain.
+
+        The FENE bonds are defined according to the method described in:
+        Halverson, J.D., Lee, W.B., Grest, G.S., Grosberg, A.Y., & Kremer, K. (2011).
+        Molecular dynamics simulation study of nonconcatenated ring polymers in a melt. I. Statics.
+        The Journal of Chemical Physics, 134(20), 204904.
 
         Args:
+            kFb (float, optional):
+                Bond coefficient (force constant) for the FENE bonds. Defaults to 30.0.
+            bonds (list of tuples, optional):
+                A list of tuples specifying the pairs of loci to bond. Each tuple is (i, j).
+                If None, bonds between neighboring loci in the chains will be added. Defaults to None.
 
-            kfb (float, required):
-                Bond coefficient. (Default value = 30.0).
-          """
-
-        for start, end, isRing in self.chains:
-            for j in range(start, end):
-                self.addBond(j, j + 1, kfb=kfb)
-                self.bondsForException.append((j, j + 1))
-
-            if isRing:
-                self.addBond(start, end, distance=1, kfb=kfb)
-                self.bondsForException.append((start, end ))
-
-        self.metadata["FENEBond"] = repr({"kfb": kfb})
-        
-
-    def _initFENEBond(self, kfb=30):
-        R"""
-        Internal function that inits FENE bond force.
+        Raises:
+            ValueError: If any of the loci indices are out of bounds.
         """
-        if "FENEBond" not in list(self.forceDict.keys()):
-            force = ("- 0.5 * kfb * r0 * r0 * log(1-(r/r0)*(r/r0)) + (4 * e * ((s/r)^12 - (s/r)^6) + e) * step(cut - r)")
-            bondforceGr = self.mm.CustomBondForce(force)
-            bondforceGr.addGlobalParameter("kfb", kfb)
-            bondforceGr.addGlobalParameter("r0", 1.5) 
-            bondforceGr.addGlobalParameter('e', 1.0)
-            bondforceGr.addGlobalParameter('s', 1.0)
-            bondforceGr.addGlobalParameter("cut", 2.**(1./6.))
-                
-            self.forceDict["FENEBond"] = bondforceGr
-        
+        # Initialize the FENE bond force if not already done
+        if "FENEBond" not in self.forceDict:
+            # Define the FENE bond potential
+            feneEnergy = (
+                "-0.5 * kFb * fr0^2 * log(1 - (r / fr0)^2) + "
+                "(4 * epsilon * ((sigma / r)^12 - (sigma / r)^6) + epsilon) * step(cutoff - r)"
+            )
+            feneBondForce = self.mm.CustomBondForce(feneEnergy)
+            feneBondForce.addGlobalParameter("kFb", kFb)
+            feneBondForce.addGlobalParameter("fr0", 1.5)
+            feneBondForce.addGlobalParameter("epsilon", 1.0)
+            feneBondForce.addGlobalParameter("sigma", 1.0)
+            feneBondForce.addGlobalParameter("cutoff", 2.0 ** (1.0 / 6.0))
+            self.forceDict["FENEBond"] = feneBondForce
 
-    def addBond(self, i, j, distance=None, kfb=30):
-        
-        R"""
-        Adds bonds between loci :math:`i` and :math:`j` 
-
-        Args:
-
-            kfb (float, required):
-                Bond coefficient. (Default value = 30.0).
-            i (int, required):
-                Locus index **i**.
-            j (int, required):
-                Locus index **j**
-          """
-
-        if (i >= self.N) or (j >= self.N):
-            raise ValueError("\n Cannot add a bond between beads  %d,%d that are beyond the chromosome length %d" % (i, j, self.N))
-        if distance is None:
-            distance = self.length_scale
+        if bonds is None:
+            # Add bonds between neighboring loci in the chains
+            for start, end, isRing in self.chains:
+                for j in range(start, end):
+                    i1, i2 = j, j + 1
+                    if i1 >= self.N or i2 >= self.N:
+                        raise ValueError(
+                            f"Cannot add a bond between beads {i1} and {i2}; indices are out of bounds for chromosome length {self.N}."
+                        )
+                    self.forceDict["FENEBond"].addBond(int(i1), int(i2), [])
+                    self.bondsForException.append((i1, i2))
+                if isRing:
+                    i1, i2 = start, end
+                    if i1 >= self.N or i2 >= self.N:
+                        raise ValueError(
+                            f"Cannot add a bond between beads {i1} and {i2}; indices are out of bounds for chromosome length {self.N}."
+                        )
+                    self.forceDict["FENEBond"].addBond(int(i1), int(i2), [])
+                    self.bondsForException.append((i1, i2))
         else:
-            distance = self.length_scale * distance
-        distance = float(distance)
+            # Add specified bonds
+            for (i, j) in bonds:
+                if i >= self.N or j >= self.N:
+                    raise ValueError(
+                        f"Cannot add a bond between beads {i} and {j}; indices are out of bounds for chromosome length {self.N}."
+                    )
+                self.forceDict["FENEBond"].addBond(int(i), int(j), [])
+                self.bondsForException.append((i, j))
 
-        self._initFENEBond(kfb=kfb)
-        self.forceDict["FENEBond"].addBond(int(i), int(j), [])
 
-            
-    def addAngles(self, ka=2.0):
-        
+    def addAngles(self, kA=2.0):
         R"""
-        Adds an angular potential between bonds connecting beads :math:`i − 1, i` and :math:`i, i + 1` according to "Halverson, J.D., Lee, W.B., Grest, G.S., Grosberg, A.Y. and Kremer, K., 2011. Molecular dynamics simulation study of nonconcatenated ring polymers in a melt. I. Statics. The Journal of chemical physics, 134(20), p.204904".
-        
-        Args:
+        Adds an angular potential between bonds connecting beads i-1, i, and i+1.
 
-            ka (float, required):
-                Angle potential coefficient. (Default value = 2.0).
+        This function adds angle forces to the system to enforce stiffness between sequential beads,
+        according to the method described in:
+        Halverson, J.D., Lee, W.B., Grest, G.S., Grosberg, A.Y., & Kremer, K. (2011).
+        Molecular dynamics simulation study of nonconcatenated ring polymers in a melt. I. Statics.
+        *The Journal of Chemical Physics*, 134(20), 204904.
+
+        Args:
+            kA (float or array-like, optional):
+                Angle potential coefficient(s). If a single float is provided, the same coefficient is used
+                for all angles. If an array is provided, it must have a length of N-2 (number of angles),
+                and each angle will use the corresponding coefficient. Defaults to 2.0.
+
+        Raises:
+            ValueError: If kA is an array and its length does not match the expected number of angles.
         """
-        
-        try:
-            ka[0]
-        except:
-            ka = np.zeros(self.N, float) + ka
-        angles = self.mm.CustomAngleForce(
-            "ka *  (1 - cos(theta - 3.141592))")
-        
-        angles.addPerAngleParameter("ka")
+        # Determine the number of angles based on chains
+        num_angles = 0
         for start, end, isRing in self.chains:
-            for j in range(start + 1, end):
-                angles.addAngle(j - 1, j, j + 1, [ka[j]])
-                
-                
+            num_angles += (end - start - 1)
             if isRing:
-                angles.addAngle(end - 1, end , start, [ka[end]])
-                angles.addAngle(end , start, start + 1, [ka[start]])
+                num_angles += 2  # For the two additional angles in a ring
 
-        self.metadata["AngleForce"] = repr({"stiffness": ka})
-        self.forceDict["AngleForce"] = angles
-        
-        
-    def addRepulsiveSoftCore(self, Ecut=4.0,CutoffDistance=3.0):
-        
+        # Ensure kA is an array of coefficients
+        if np.isscalar(kA):
+            kA_array = np.full(num_angles, kA, dtype=float)
+        else:
+            kA_array = np.asarray(kA, dtype=float)
+            if len(kA_array) != num_angles:
+                raise ValueError(
+                    f"The length of kA ({len(kA_array)}) must match the number of angles ({num_angles})."
+                )
+
+        # Define the angle force expression
+        angleForceExpression = "kA * (1 - cos(theta - pi))"
+
+        # Create the custom angle force
+        angleForce = self.mm.CustomAngleForce(angleForceExpression)
+        angleForce.addPerAngleParameter("kA")
+        angleForce.addGlobalParameter("pi", np.pi)
+
+        angle_index = 0  # Index to track position in kA_array
+
+        # Add angles for each chain
+        for start, end, isRing in self.chains:
+            # For linear chains
+            for j in range(start + 1, end):
+                i1, i2, i3 = j - 1, j, j + 1
+                if i3 >= self.N:
+                    break  # Avoid index out of range
+                angleForce.addAngle(i1, i2, i3, [kA_array[angle_index]])
+                angle_index += 1
+            # For ring chains, add angles that wrap around
+            if isRing:
+                # Angle between last three beads
+                i1, i2, i3 = end - 1, end, start
+                angleForce.addAngle(i1, i2, i3, [kA_array[angle_index]])
+                angle_index += 1
+                # Angle wrapping from end to start + 1
+                i1, i2, i3 = end, start, start + 1
+                angleForce.addAngle(i1, i2, i3, [kA_array[angle_index]])
+                angle_index += 1
+
+        # Add the angle force to the system
+        self.forceDict["AngleForce"] = angleForce
+
+
+    def addRepulsiveSoftCore(self, eCut=4.0, cutoffDistance=3.0):
         R"""
-        Adds a soft-core repulsive interaction that allows chain crossing, which represents the activity of topoisomerase II. Details can be found in the following publications: 
-        
-            - Oliveira Jr., A.B., Contessoto, V.G., Mello, M.F. and Onuchic, J.N., 2021. A scalable computational approach for simulating complexes of multiple chromosomes. Journal of Molecular Biology, 433(6), p.166700.
-            - Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173.
-            - Naumova, N., Imakaev, M., Fudenberg, G., Zhan, Y., Lajoie, B.R., Mirny, L.A. and Dekker, J., 2013. Organization of the mitotic chromosome. Science, 342(6161), pp.948-953.
+            Adds a soft-core repulsive interaction that allows chain crossing, representing the activity of topoisomerase II.
 
-        Args:
+            Details can be found in the following publications:
 
-            Ecut (float, required):
-                Energy cost for the chain passing in units of :math:`k_{b}T`. (Default value = 4.0).
-          """
-        
-        nbCutOffDist = self.Sigma * 2. ** (1. / 6.) #1.112
-        
-        Ecut = Ecut*self.Epsilon
-        
-        r_0 = self.Sigma*(((0.5*Ecut)/(4.0*self.Epsilon) - 0.25 +((0.5)**(2.0)))**(1.0/2.0) +0.5)**(-1.0/6.0)
-        
-        repul_energy = ("LJ * step(r - r_0) * step(CutOff - r)"
-                       " + step(r_0 - r)* 0.5 * Ecut * (1.0 + tanh( (2.0 * LJ/Ecut) - 1.0 ));"
-                       "LJ = 4.0 * Epsi * ((Sig/r)^12 - (Sig/r)^6) + Epsi")
-        
-        self.forceDict["RepulsiveSoftCore"] = self.mm.CustomNonbondedForce(
-            repul_energy)
-        repulforceGr = self.forceDict["RepulsiveSoftCore"]
-        repulforceGr.addGlobalParameter('Epsi', self.Epsilon)
-        repulforceGr.addGlobalParameter('Sig', self.Sigma)
-        repulforceGr.addGlobalParameter('Ecut', Ecut)
-        repulforceGr.addGlobalParameter('r_0', r_0)
-        repulforceGr.addGlobalParameter('CutOff', nbCutOffDist)
-        repulforceGr.setCutoffDistance(CutoffDistance)
+            - Oliveira Jr., A.B., Contessoto, V.G., Mello, M.F., & Onuchic, J.N. (2021). A scalable computational approach for simulating complexes of multiple chromosomes. *Journal of Molecular Biology*, 433(6), 166700.
+            - Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G., & Onuchic, J.N. (2016). Transferable model for chromosome architecture. *Proceedings of the National Academy of Sciences*, 113(43), 12168-12173.
+            - Naumova, N., Imakaev, M., Fudenberg, G., Zhan, Y., Lajoie, B.R., Mirny, L.A., & Dekker, J. (2013). Organization of the mitotic chromosome. *Science*, 342(6161), 948-953.
 
+            Args:
+                eCut (float, optional):
+                    Energy cost for chain crossing in units of \(k_B T\). Defaults to 4.0.
+                cutoffDistance (float, optional):
+                    Cutoff distance for the nonbonded interactions. Defaults to 3.0.
+        """
+        # Calculate the nonbonded cutoff distance
+        nbCutoffDist = self.sigma * 2.0 ** (1.0 / 6.0)
+
+        # Scale eCut by epsilon
+        eCut *= self.epsilon
+
+        # Calculate r0 based on eCut and epsilon
+        r0 = self.sigma * (((0.5 * eCut) / (4.0 * self.epsilon) - 0.25 + (0.5) ** 2.0) ** 0.5 + 0.5) ** (-1.0 / 6.0)
+
+        # Define the energy expression for the repulsive soft-core potential
+        repulEnergy = (
+            "LJ * step(r - r0) * step(cutoff - r)"
+            " + step(r0 - r) * 0.5 * eCut * (1.0 + tanh((2.0 * LJ / eCut) - 1.0));"
+            "LJ = 4.0 * epsilon * ((sigma / r)^12 - (sigma / r)^6) + epsilon"
+        )
+
+        # Create the custom nonbonded force
+        repulForce = self.mm.CustomNonbondedForce(repulEnergy)
+        repulForce.addGlobalParameter('epsilon', self.epsilon)
+        repulForce.addGlobalParameter('sigma', self.sigma)
+        repulForce.addGlobalParameter('eCut', eCut)
+        repulForce.addGlobalParameter('r0', r0)
+        repulForce.addGlobalParameter('cutoff', nbCutoffDist)
+        repulForce.setCutoffDistance(cutoffDistance)
+
+        # Add particles to the force
         for _ in range(self.N):
-            repulforceGr.addParticle(())
+            repulForce.addParticle(())
+
+        # Add the force to the force dictionary
+        self.forceDict["RepulsiveSoftCore"] = repulForce
+
         
     def addTypetoType(self, mu=3.22, rc = 1.78 ):
         R"""
@@ -580,8 +616,6 @@ class MiChroM:
             rc (float, required):
                 Parameter in the probability of crosslink function, :math:`f(rc) = 0.5`. (Default value = 1.78).
         """
-
-        self.metadata["TypetoType"] = repr({"mu": mu})
 
         path = "share/MiChroM.ff"
         pt = os.path.dirname(os.path.realpath(__file__))
@@ -620,7 +654,6 @@ class MiChroM:
 
         """
 
-        self.metadata["CrossLink"] = repr({"mu": mu})
         if not hasattr(self, "type_list_letter"):
             raise ValueError("Chromatin sequence not defined!")
 
@@ -660,6 +693,7 @@ class MiChroM:
                 
         self.forceDict[name] = crossLP
     
+
     def _createTypeList(self, header_types):
         R"""
         Internal function for indexing unique chromatin types.
@@ -709,6 +743,7 @@ class MiChroM:
   
         self.forceDict["Loops"] = Loop  
         
+
     def addCustomIC(self, mu=3.22, rc = 1.78, dinit=3, dend=200, IClist=None,CutoffDistance=3.0):
         R"""
         Adds the Ideal Chromosome potential using custom values for interactions between beads separated by a genomic distance :math:`d`. The parameters :math:`\mu` (mu) and rc are part of the probability of crosslink function :math:`f(r_{i,j}) = \frac{1}{2}\left( 1 + tanh\left[\mu(r_c - r_{i,j}\right] \right)`, where :math:`r_{i,j}` is the spatial distance between loci (beads) *i* and *j*.
@@ -758,6 +793,7 @@ class MiChroM:
         
         self.forceDict["CustomIC"] = IC
 
+
     def addCustomMultiChainIC(self, mu=3.22, rc = 1.78, dinit=3, dend=1000, chainIndex=None, IClist=None, CutoffDistance=3.0):
 
         energyIC = ("step(d-dinit)*ic(d)*step(dend-d)*f;"
@@ -796,6 +832,7 @@ class MiChroM:
 
         self.forceDict["CustomIC_chain_"+str(chainIndex)] = IC
         
+
     def addIdealChromosome(self, mu=3.22, rc = 1.78, Gamma1=-0.030,Gamma2=-0.351,
                            Gamma3=-3.727, dinit=3, dend=500,CutoffDistance=3.0):
         
@@ -966,67 +1003,47 @@ class MiChroM:
             print('Active sequence (act_seq) either not defined or all the monomers are not accounted for!\nCorrelated noise has NOT been added!')
 
 
-    def addHarmonicBonds(self, kfb=30.0, r0=1.0):
+    def addHarmonicBonds(self, bondStiffness=30.0, equilibriumDistance=1.0):
         R"""
-        This function adds harmonic bonds to all the monomers within a chain
-        Args:
-            kfb (float, required): 
-                bond stiffness
-            
-            r0 (float, required):
-                equilibrium distance for the bond
-        """
+        Adds harmonic bonds to all monomers within each chain. For each chain, bonds are created 
+        between consecutive monomers. If the chain forms a ring, an additional bond is created 
+        between the first and last monomer to complete the ring.
 
-        for start, end, isRing in self.chains:
+        Args:
+            bondStiffness (float, optional): The stiffness of the bond. Default is 30.0.
+            equilibriumDistance (float, optional): The equilibrium distance for the bond. Default is 1.0.
+        """
+        # Initialize the Harmonic Bond force group if it hasn't been initialized yet
+        if "HarmonicBond" not in self.forceDict:
+            bondForceExpression = "0.5 * kfb * (r - r0)^2"
+            harmonicBondForce = self.mm.CustomBondForce(bondForceExpression)
+            harmonicBondForce.addGlobalParameter("kfb", bondStiffness)
+            harmonicBondForce.addGlobalParameter("r0", equilibriumDistance)
+            self.forceDict["HarmonicBond"] = harmonicBondForce
+
+        harmonicBondForce = self.forceDict["HarmonicBond"]
+
+        for chain in self.chains:
+            start, end, isRing = chain
+            # Iterate through monomers in the chain to add consecutive bonds
             for j in range(start, end):
-                self.addHarmonicBond_ij(j, j + 1, kfb=kfb, r0=r0)
+                i = j
+                k = j + 1
+                if i >= self.N or k >= self.N:
+                    raise ValueError(
+                        f"\nCannot add a bond between beads {i}, {k} as they exceed the chromosome length {self.N}."
+                    )
+                harmonicBondForce.addBond(int(i), int(k), [])
+                self.bondsForException.append((int(i), int(k)))
 
+            # If the chain forms a ring, add a bond between the first and last monomer
             if isRing:
-                self.addHarmonicBond_ij(start, end, kfb=kfb, r0=r0)
-
-        self.metadata["HarmonicBond"] = repr({"kfb": kfb})
-        
-
-    def _initHarmonicBond(self, kfb=30,r0=1.0):
-        R"""
-        Internal function used to initiate Harmonic Bond force group
-        Args:
-            kfb (float, required): 
-                bond stiffness
-            
-            r0 (float, required):
-                equilibrium distance for the bond
-        """
-        
-        if "HarmonicBond" not in list(self.forceDict.keys()):
-            force = ("0.5 * kfb * (r-r0)*(r-r0)")
-            bondforceGr = self.mm.CustomBondForce(force)
-            bondforceGr.addGlobalParameter("kfb", kfb)
-            bondforceGr.addGlobalParameter("r0", r0) 
-                
-            self.forceDict["HarmonicBond"] = bondforceGr
-        
-
-    def addHarmonicBond_ij(self, i, j, r0=1.0, kfb=30):
-        R"""
-        Internal function used to add bonds between i and j monomers
-        Args:
-            i,j (int, required):
-                monomers to be bonded
-
-            kfb (float, required): 
-                bond stiffness
-            
-            r0 (float, required):
-                equilibrium distance for the bond
-        """
-        
-        if (i >= self.N) or (j >= self.N):
-            raise ValueError("\n Cannot add a bond between beads  %d,%d that are beyond the chromosome length %d" % (i, j, self.N))
-        
-        self._initHarmonicBond(kfb=kfb, r0=r0)
-        self.forceDict["HarmonicBond"].addBond(int(i), int(j), [])
-        self.bondsForException.append((int(i), int(j)))
+                if start >= self.N or end >= self.N:
+                    raise ValueError(
+                        f"\nCannot add a bond between beads {start}, {end} as they exceed the chromosome length {self.N}."
+                    )
+                harmonicBondForce.addBond(int(start), int(end), [])
+                self.bondsForException.append((int(start), int(end)))
 
 
     def addSelfAvoidance(self, Ecut=4.0, k_rep=20.0, r0=1.0):
@@ -1073,7 +1090,7 @@ class MiChroM:
 
 
     def _isForceDictEqualSystemForces(self):
-        R""""
+        R"""
         Internal function that returns True when forces in self.forceDict and in self.system are equal.
         """
 
@@ -1090,7 +1107,7 @@ class MiChroM:
 
 
     def removeForce(self, forceName):
-        R""""
+        R"""
         Remove force from the system.
         """
 
@@ -1107,7 +1124,7 @@ class MiChroM:
 
 
     def removeFlatBottomHarmonic(self):
-        R""""
+        R"""
         Remove FlatBottomHarmonic force from the system.
         """
 
@@ -1153,30 +1170,7 @@ class MiChroM:
                 raise ValueError("Force function added multiple new forces in MiChroM! Please break down the function so each force is added separately.")
         
         force = self.forceDict[newForceDictKey]
-        
-        # exclusion list
-        exc = self.bondsForException
-
-        # set all the attributes of the force (see _applyForces)
-        if hasattr(force, "addException"):
-            print('Add exceptions for {0} force'.format(newForceDictKey))
-            for pair in exc:
-                force.addException(int(pair[0]),
-                    int(pair[1]), 0, 0, 0, True)
-                
-        elif hasattr(force, "addExclusion"):
-            print('Add exclusions for {0} force'.format(newForceDictKey))
-            for pair in exc:
-                force.addExclusion(int(pair[0]), int(pair[1]))
-
-        if hasattr(force, "CutoffNonPeriodic") and hasattr(
-                                                force, "CutoffPeriodic"):
-            if self.PBC:
-                force.setNonbondedMethod(force.CutoffPeriodic)
-                print("Using periodic boundary conditions!!!!")
-            else:
-                force.setNonbondedMethod(force.CutoffNonPeriodic)
-        
+       
         # add the force
         print("adding force ", newForceDictKey, self.system.addForce(self.forceDict[newForceDictKey]))
 
@@ -1197,76 +1191,284 @@ class MiChroM:
 
     def _loadParticles(self):
         R"""
-        Internal function that loads the chromosome beads into the simulations system.
+        Internal function that loads the chromosome beads into the simulation system.
         """
         if not hasattr(self, "system"):
             return
         if not self.loaded:
-            for mass in self.masses:
-                self.system.addParticle(self.mass * mass)
-            if self.verbose == True:
-                print("%d particles loaded" % self.N)
+            for beadMass in self.masses:
+                self.system.addParticle(self.mass * beadMass)
             self.loaded = True
-            
 
-    def _applyForces(self):
-        R"""Internal function that adds all loci to the system and applies all the forces present in the forcedict."""
 
-        if self.forcesApplied == True:
+    def createSimulation(self):
+        R"""
+        Initializes the simulation context and adds forces to the system.
+
+        This function checks if the simulation context has already been created. If not, it loads the particles,
+        processes any exceptions (bonds that should not be included in nonbonded interactions), adds
+        forces to the system, and sets up the simulation context.
+        """
+        if getattr(self, 'contexted', False):
             return
+
         self._loadParticles()
 
-        exc = self.bondsForException
-        print("Number of exceptions:", len(exc))
+        exceptions = self.bondsForException
+        if exceptions:
+            # Ensure each bond is a tuple with sorted indices to avoid duplicates like (i, j) and (j, i)
+            exceptions = [tuple(sorted(bond)) for bond in exceptions]
+            # Remove duplicate bonds by converting the list to a set, then back to a list
+            exceptions = list(set(exceptions))
 
-        if len(exc) > 0:
-            exc = np.array(exc)
-            exc = np.sort(exc, axis=1)
-            exc = [tuple(i) for i in exc]
-            exc = list(set(exc)) 
-
-        for i in list(self.forceDict.keys()): 
-            force = self.forceDict[i]
+        for forceName, force in self.forceDict.items():
             if hasattr(force, "addException"):
-                print('Add exceptions for {0} force'.format(i))
-                for pair in exc:
-                    force.addException(int(pair[0]),
-                        int(pair[1]), 0, 0, 0, True)
+                #print(f"Adding exceptions for '{forceName}' force")
+                for pair in exceptions:
+                    force.addException(int(pair[0]), int(pair[1]), 0.0, 0.0, 0.0, True)
             elif hasattr(force, "addExclusion"):
-                print('Add exclusions for {0} force'.format(i))
-                for pair in exc:
+                #print(f"Adding exclusions for '{forceName}' force")
+                for pair in exceptions:
                     force.addExclusion(int(pair[0]), int(pair[1]))
 
-            if hasattr(force, "CutoffNonPeriodic") and hasattr(
-                                                    force, "CutoffPeriodic"):
-                if self.PBC:
-                    force.setNonbondedMethod(force.CutoffPeriodic)
-                    print("Using periodic boundary conditions!!!!")
-                else:
-                    force.setNonbondedMethod(force.CutoffNonPeriodic)
-            print("adding force ", i, self.system.addForce(self.forceDict[i]))
-        
-        ForceGroupIndex = 0
-        for i,name in enumerate(self.forceDict):
-            if "IdealChromosomeChain" in name:
-                self.forceDict[name].setForceGroup(31) 
+            if hasattr(force, "CutoffNonPeriodic") and hasattr(force, "CutoffPeriodic"):
+                force.setNonbondedMethod(force.CutoffNonPeriodic)
+
+            self.system.addForce(force)
+            print(f"{forceName} was added")
+
+        forceGroupIndex = 0
+        for forceName, force in self.forceDict.items():
+            if "IdealChromosomeChain" in forceName:
+                force.setForceGroup(31)
             else:
-                self.forceDict[name].setForceGroup(ForceGroupIndex)
-                ForceGroupIndex+= 1
-            
-        self.context = self.mm.Context(self.system, self.integrator, self.platform, self.properties)
+                force.setForceGroup(forceGroupIndex)
+                forceGroupIndex += 1
+
+        #self.context = self.mm.Context(
+            #self.system, self.integrator, self.platform, self.properties)
+        self.simulation = Simulation(None, self.system, self.integrator, self.platform, self.properties)
+        self.context = self.simulation.context
         self.initPositions()
         self.initVelocities()
-        self.forcesApplied = True
-     
-        with open(str(Path(self.folder))+'/platform_info.dat', 'w') as f:
-                print('Name: ', self.platform.getName(), file=f)
-                print('Speed: ',self.platform.getSpeed(), file=f)
-                print('Property names: ',self.platform.getPropertyNames(), file=f)
-                for name in self.platform.getPropertyNames():
-                     print(name,' value: ',self.platform.getPropertyValue(self.context, name), file=f) 
+        self.contexted = True
+        print('Context created!')
 
-    
+        simulationInfo = (
+                f"\nSimulation name: {self.name}\n"
+                f"Number of beads: {self.N}, Number of chains: {len(self.chains)}"
+            )
+            
+        # Get the state of the simulation
+        state = self.context.getState(getPositions=True, getEnergy=True, getVelocities=True)
+        
+        # Calculate energies per bead
+        eKin = state.getKineticEnergy() / self.N / units.kilojoule_per_mole
+        ePot = state.getPotentialEnergy() / self.N / units.kilojoule_per_mole
+        
+        # Prepare energy information
+        energyInfo = (
+            f"Potential energy: {ePot:.5f}, "
+            f"Kinetic Energy: {eKin:.5f} at temperature: {self.temperature * 0.008314}"
+        )
+        
+        # Gather platform information
+        platformName = self.platform.getName()
+        platformSpeed = self.platform.getSpeed()
+        propertyNames = self.platform.getPropertyNames()
+        
+        platformInfo = [
+            f"Platform Name: {platformName}",
+            f"Platform Speed: {platformSpeed}",
+            f"Platform Property Names: {propertyNames}",
+        ]
+        
+        for name in propertyNames:
+            value = self.platform.getPropertyValue(self.context, name)
+            platformInfo.append(f"{name} Value: {value}")
+        
+        # Print information to console
+        print(simulationInfo)
+        print(energyInfo)
+        print(f'\nPotential energy per forceGroup:\n {self.printForces()}')
+        
+        filePath = Path(self.folder) / 'initialStats.txt'
+        with open(filePath, 'w') as f:
+            for info in platformInfo:
+                print(info, file=f)
+            print(simulationInfo, file=f)
+            print(energyInfo, file=f)
+            print(f'\nPotential energy per forceGroup:\n {self.printForces()}', file=f)
+
+
+    def createReporters(self, statistics=True, traj=False, trajFormat="cndb", energyComponents=False,
+                         interval=1000):
+        R"""
+        Configures and attaches reporters to the simulation for data collection during simulation runs.
+        This method sets up custom reporters for the OpenMM `Simulation` object to collect simulation statistics and/or save trajectory data at specified intervals. It supports saving energies per force group and various trajectory file formats.
+
+        Args:
+            statistics (bool, optional):
+                If `True`, attaches a reporter to collect simulation statistics such as step number, radius of gyration (RG), total energy, potential energy, kinetic energy, and temperature.
+                (Default: `True`)
+            traj (bool, optional):
+                If `True`, attaches a reporter to save trajectory data during the simulation.
+                (Default: `False`)
+            trajFormat (str, optional):
+                The file format to save the trajectory data. Options are `'cndb'`, `'ndb'`, `'pdb'`, `'gro'`, `'xyz'`.
+                (Default: `'cndb'`)
+            energyComponents (bool, optional):
+                If `True`, saves energy components per force group to a separate file named `'energyComponents.txt'` in the simulation folder.
+                Requires that `statistics` is `True`.
+                (Default: `False`)
+            interval (int, optional):
+                The interval (in time steps) at which to report data.
+                (Default: `1000`)
+        """
+        
+        if traj:
+            save_structure_reporter = SaveStructure(
+                filePrefix=f'{self.name}',
+                reportInterval=interval,
+                mode=trajFormat, 
+                folder=self.folder,
+                chains=self.chains,
+                typeListLetter=self.type_list_letter
+            )
+            self.simulation.reporters.append(save_structure_reporter)
+        if statistics:
+            if energyComponents:
+                simulation_reporter = SimulationReporter(
+                    file=f'{self.folder}/statistics.txt',
+                    reportInterval=interval,
+                    N=self.N,
+                    reportPerForceGroup=True, 
+                    forceGroupFile=f'{self.folder}/energyComponents.txt',
+                    forceDict=self.forceDict
+                )
+                self.simulation.reporters.append(simulation_reporter)
+
+            else:
+                simulation_reporter = SimulationReporter(
+                    file=f'{self.folder}/statistics.txt',
+                    reportInterval=interval,
+                    N=self.N,
+                    reportPerForceGroup=False, 
+                )
+                self.simulation.reporters.append(simulation_reporter)
+
+
+    def run(self, nsteps, report=True, interval=10**4):
+        R"""
+        Executes the simulation for a specified number of steps, with optional progress reporting.
+
+        This function runs the simulation by advancing it through the defined number of steps (`nsteps`).
+        If `report` is set to `True`, it adds a `StateDataReporter` to the simulation's reporters
+        to output progress information to the standard output (`stdout`) at every `interval` steps.
+
+        Args:
+            nsteps (int):
+                The total number of steps to execute in the simulation. Must be a positive integer.
+            
+            report (bool, optional):
+                Determines whether to enable progress reporting during the simulation run.
+                If `True`, a `StateDataReporter` is added to provide real-time updates.
+                Default is `True`.
+            
+            interval (int, optional):
+                The number of simulation steps between each progress report.
+                This defines how frequently the `StateDataReporter` outputs status information.
+                Must be a positive integer.
+                Default is `10**4` (10,000 steps).
+
+        Example:
+            ```python
+            # Run the simulation for 500,000 steps with progress reporting every 5,000 steps
+            simulation.run(nsteps=500000, report=True, interval=5000)
+            ```
+        """
+        if report:
+            self.simulation.reporters.append(StateDataReporter(stdout, interval, step=True, remainingTime=True,
+                                                  progress=True, speed=True, totalSteps=nsteps, separator="\t"))
+        
+        self.simulation.step(nsteps)
+
+
+    def addHomoPolymerForces(self, harmonic=False, kFb=30, kA=2.0, eCut= 4.0):
+        R"""
+        Adds homopolymer forces to the system based on the specified parameters.
+
+        Depending on the `harmonic` flag, this function will add either harmonic bonds
+        or FENE bonds to the polymer chains. Additionally, it sets up angle forces and
+        repulsive soft-core interactions.
+
+        Args:
+            harmonic (bool, optional):
+                If True, adds harmonic bonds to the monomers. If False, adds FENE bonds.
+                Default is False.
+            
+            KFb (float, optional):
+                The stiffness of the bonds. Relevant when `harmonic` is True.
+                Default is 30.0.
+            
+            kA (float, optional):
+                The stiffness of the angles between bonded monomers.
+                Default is 2.0.
+            
+            eCut (float, optional):
+                The cutoff distance for the repulsive soft-core potential.
+                Default is 4.0.
+        """
+        if harmonic:
+            self.addHarmonicBonds(bondStiffness=kFb)
+        else:
+            self.addFENEBonds(kFb=kFb)
+
+        self.addAngles(kA=kA)
+        self.addRepulsiveSoftCore(eCut= eCut)
+
+
+    def buildClassicMichrom(self, ChromSeq=None, CoordFiles=None, mode='auto'):
+        R"""
+        Builds a Classic Michrom simulation setup by initializing the structure, loading it,
+        adding polymer forces, defining interactions between types, setting up the ideal chromosome,
+        adding flat-bottom harmonic potentials, and creating the simulation.
+
+        Args:
+            ChromSeq (str, optional):
+                Path to the chromosome sequence file. If `None`, a default path is used.
+                Default is `None`.
+            
+            CoordFiles (str, optional):
+                Path to the coordinate files. If `None`, a default path is used.
+                Default is `None`.
+            
+            mode (str, optional):
+                Mode of initialization for the structure. Supported modes include 'spring', 'line', etc.
+                Default is `'auto'`.
+        
+        Example:
+            ```python
+            simulation = MichromSimulation()
+            simulation.buildClassicMichrom(
+                ChromSeq="/path/to/chromosome_sequence.txt",
+                CoordFiles="/path/to/coordinate_files/",
+                mode='spring'
+            )
+            ```
+        """
+
+        initialPos = self.initStructure(mode=mode, CoordFiles=CoordFiles, ChromSeq=ChromSeq, isRing=False)
+        self.loadStructure(initialPos, center=True)
+        self.addHomoPolymerForces()
+
+        self.addTypetoType(mu=3.22, rc=1.78)
+        self.addIdealChromosome(mu=3.22, rc=1.78, dinit=3, dend=500)
+
+        self.addFlatBottomHarmonic(kR=5*10**-3, nRad=15.0)
+        self.createSimulation()
+
+
     def loadNDB(self, NDBfiles=None):
         R"""
         Loads a single or multiple *.ndb* files and gets position and types of the chromosome beads.
@@ -1395,8 +1597,7 @@ class MiChroM:
         if len(typesLetter) != len(x):
             raise ValueError("Sequence length is different from coordinates length!")
 
-        print("Chains: ", chains)
-
+        
         self.diff_types = set(typesLetter)
 
         self.type_list_letter = typesLetter
@@ -1404,6 +1605,7 @@ class MiChroM:
         self.setChains(chains)
 
         return np.vstack([x,y,z]).T
+
 
     def _aa2types (self, amino_acid):
         
@@ -1413,9 +1615,9 @@ class MiChroM:
             return Type_conversion[amino_acid]
         else:
             return 'NA'
-                    
+
+
     def loadPDB(self, PDBfiles=None, ChromSeq=None):
-        
         R"""
         Loads a single or multiple *.pdb* files and gets position and types of the chromosome beads.
         Here we consider the chromosome beads as the carbon-alpha to mimic a protein. This trick helps to use the standard macromolecules visualization software. 
@@ -1492,7 +1694,6 @@ class MiChroM:
 
 
     def createSpringSpiral(self, ChromSeq=None, isRing=False):
-        
         R"""
         Creates a spring-spiral-like shape for the initial configuration of the chromosome polymer.
         
@@ -1539,8 +1740,8 @@ class MiChroM:
 
         return np.vstack([x,y,z]).T
     
+
     def random_ChromSeq(self, Nbeads):
-        
         R"""
         Creates a random sequence of chromatin types for the chromosome beads.
         
@@ -1556,8 +1757,8 @@ class MiChroM:
         
         return random.choices(population=[0,1,2,3,4,5], k=Nbeads)
     
+
     def _translate_type(self, filename):
-        
         R"""Internal function that converts the letters of the types numbers following the rule: 'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6.
         
          Args:
@@ -1581,8 +1782,8 @@ class MiChroM:
                 self.diff_types.append(pos[t][1]) 
                 self.type_list_letter.append(pos[t][1])
 
+
     def createLine(self, ChromSeq):
-        
         R"""
         Creates a straight line for the initial configuration of the chromosome polymer.
         
@@ -1617,6 +1818,7 @@ class MiChroM:
 
         return np.vstack([x,y,z]).T
     
+
     def createRandomWalk(self, ChromSeq=None):    
         R"""
         Creates a chromosome polymer chain with beads position based on a random walk.
@@ -1652,8 +1854,8 @@ class MiChroM:
 
         return np.vstack([x, y, z]).T
 
-    def initStructure(self, mode='auto', CoordFiles=None, ChromSeq=None, isRing=False):
 
+    def initStructure(self, mode='auto', CoordFiles=None, ChromSeq=None, isRing=False):
         R"""
         Creates the coordinates for the initial configuration of the chromosomal chains and sets their sequence information.
  
@@ -1753,87 +1955,36 @@ class MiChroM:
                 raise ValueError("Mode '{:}' not supported!".format(mode))
 
 
-    def initStorage(self, filename, mode="w"):
-        
+    def saveStructure(self, filename=None, mode="gro"):
         R"""
-        Initializes the *.cndb* files to store the chromosome structures. 
-        
+        Saves the 3D positions of beads during the simulation in various file formats.
+
+        This method exports the simulation's bead positions to files in formats such as XYZ, PDB, GRO, and NDB. It supports multiple chains and assigns residue names based on bead types. The method ensures that the output directory exists and handles different file formats appropriately.
+
         Args:
-
-            filename (str, required):
-                 Filename of the cndb/h5dict storage file.
-            mode (str, required):
-                - 'w' - Create file, truncate if exists. (Default value = w).
-                - 'w-' - Create file, fail if exists. 
-                - 'r+' - Continue saving the structures in the same file that must exist.   
+            filename (str, optional):
+                The name of the file to save the structure. If `None`, the filename is automatically generated using the simulation's name and current step number with the specified mode as the file extension.
+                (Default: `None`)
+            mode (str, optional):
+                The file format to save the structure. Supported formats are:
+                - `'xyz'`: XYZ format.
+                - `'pdb'`: Protein Data Bank format.
+                - `'gro'`: GROMACS GRO format.
+                - `'ndb'`: Nucleome Data Bank format.
+                (Default: `'gro'`)
         """
-        
-        self.storage = []
-
-        if mode not in ['w', 'w-', 'r+']:
-            raise ValueError("Wrong mode to open file."
-                             " Only 'w','w-' and 'r+' are supported")
-        if (mode == "w-") and os.path.exists(filename):
-            raise IOError("Cannot create file... file already exists."                          " Use mode ='w' to override")
-        for k, chain in zip(range(len(self.chains)),self.chains):
-            fname = os.path.join(self.folder, filename + '_' +str(k) + '.cndb')
-            self.storage.append(h5py.File(fname, mode))    
-            self.storage[k]['types'] = self.type_list_letter[chain[0]:chain[1]+1]
-
-        if mode == "r+":
-            myKeys = []
-            for i in list(self.storage.keys()):
-                try:
-                    myKeys.append(int(i))
-                except:
-                    pass
-            maxkey = max(myKeys) if myKeys else 1
-            self.step = maxkey - 1
-            self.setPositions(self.storage[str(maxkey - 1)])
-
-                    
-    def saveStructure(self, filename=None, mode="auto", h5dictKey="1", pdbGroups=None):
-        R"""
-        Save the 3D position of each bead of the chromosome polymer over the chromatin dynamics simulations.
-        
-        Args:
-
-            filename (str, required):
-                 Filename of the storage file.
-            mode (str, required):
-                - 'ndb' - The Nucleome Data Bank file format to save 3D structures of chromosomes. Please see the `NDB - Nucleome Data Bank <https://ndb.rice.edu/ndb-format>`__. for details.
-                - 'cndb' - The compact ndb file format to save 3D structures of chromosomes. The binary format used the `hdf5 - Hierarchical Data Format <https://www.hdfgroup.org/solutions/hdf5/>`__ to store the data. Please see the NDB server for details. (Default value = cndb).
-                - 'pdb' - The Protein Data Bank file format. Here, the chromosome is considered to be a protein where the locus is set at the carbon alpha position. This trick helps to use the standard macromolecules visualization software.  
-                - 'gro' - The GROMACS file format. Initially, the MiChroM energy function was implemented in GROMACS. Details on how to run and use these files can be found at the `Nucleome Data Bank <https://ndb.rice.edu/GromacsInput-Documentation>`__.
-                - 'xyz' - A XYZ file format.
-                
-        """
-        
         
         data = self.getPositions()
         
         if filename is None:
-            filename = self.name +"_block%d." % self.step + mode
+            filename = self.name +"_step%d." % self.step + mode
 
         filename = os.path.join(self.folder, filename)
         
         if not hasattr(self, "type_list_letter"):
             raise ValueError("Chromatin sequence not defined!")
         
-        if mode == "auto":
-            if hasattr(self, "storage"):
-                mode = "h5dict"
-            else:
-                mode = 'ndb'
-
-        if mode == "h5dict":
-            if not hasattr(self, "storage"):
-                raise Exception("Cannot save to h5dict!"                                    " Initialize storage first!")
-            for k, chain in zip(range(len(self.chains)),self.chains):
-                self.storage[k][str(self.step)] = data[chain[0]:chain[1]+1]
-            return
-        
-        elif mode == "xyz":
+        if mode == "xyz":
             lines = []
             lines.append(str(len(data)) + "\n")
 
@@ -1841,7 +1992,7 @@ class MiChroM:
                 lines.append("{0:.3f} {1:.3f} {2:.3f}\n".format(*particle))
             if filename == None:
                 return lines
-            elif isinstance(filename, string_types):
+            elif isinstance(filename, str):
                 with open(filename, 'w') as myfile:
                     myfile.writelines(lines)
             else:
@@ -1969,138 +2120,39 @@ class MiChroM:
                         ndbf.append(loops_string.format("LOOPS",p[0],p[1]))
                     
                 np.savetxt(filename,ndbf,fmt="%s")
-        
-    def runSimBlock(self, steps=None, increment=True, num=None):
-        R"""
-        Performs a block of simulation steps.
-        
-        Args:
-
-            steps (int, required):
-                 Number of steps to perform in the block.
-            increment (bool, optional):
-                 Whether to increment the steps counter. Typically it is set :code:`False` during the collapse or equilibration simulations. (Default value: :code:`True`).
-            num (int or None, required):
-                 The number of subblocks to split the steps of the primary block. (Default value: :code:`None`).                
-        """
-
-        if self.forcesApplied == False:
-            if self.verbose:
-                print("applying forces")
-                stdout.flush()
-            self._applyForces()
-            self.forcesApplied = True
-        if increment == True:
-            self.step += 1
-        if steps is None:
-            steps = self.steps_per_block
-        if (increment == True) and ((self.step % 50) == 0):
-            self.printStats()
-
-        for attempt in range(6):
-            print("bl=%d" % (self.step), end=' ')
-            stdout.flush()
-            if self.verbose:
-                print()
-                stdout.flush()
-
-            if num is None:
-                num = steps // 5 + 1
-            a = time.time()
-            for _ in range(steps // num):
-                if self.verbose:
-                    print("performing integration")
-                self.integrator.step(num)  # integrate!
-                stdout.flush()
-            if (steps % num) > 0:
-                self.integrator.step(steps % num)
-
-            self.state = self.context.getState(getPositions=True,
-                                               getEnergy=True)
-
-            b = time.time()
-            coords = self.state.getPositions(asNumpy=True)
-            newcoords = coords / self.nm
-
-            eK = (self.state.getKineticEnergy() / self.N / units.kilojoule_per_mole)
-            eP = self.state.getPotentialEnergy() / self.N / units.kilojoule_per_mole
-
-
-            if self.velocityReinitialize:
-                if eK > 5.0:
-                    print("(i)", end=' ')
-                    self.initVelocities()
-            print("pos[1]=[%.1lf %.1lf %.1lf]" % tuple(newcoords[0]), end=' ')
-
-
-            if ((np.isnan(newcoords).any()) or (eK > self.eKcritical) or
-                (np.isnan(eK)) or (np.isnan(eP))):
-
-                self.context.setPositions(self.data)
-                self.initVelocities()
-                print("eK={0}, eP={1}, trying one more time at step {2} ".format(eK, eP, self.step))
-            else:
-                dif = np.sqrt(np.mean(np.sum((newcoords -
-                    self.getPositions()) ** 2, axis=1)))
-                print("dr=%.2lf" % (dif,), end=' ')
-                self.data = coords
-                print("t=%2.1lfps" % (self.state.getTime() / (units.second * 1e-12)), end=' ')
-                print("kin=%.2lf pot=%.2lf" % (eK,
-                    eP), "Rg=%.3lf" % self.chromRG(), end=' ')
-                print("SPS=%.0lf" % (steps / (float(b - a))), end=' ')
-
-                if (self.integrator_type.lower() == 'variablelangevin'
-                    or self.integrator_type.lower() == 'variableverlet'):
-                    dt = self.integrator.getStepSize()
-                    mass = self.system.getParticleMass(1)
-                    dx = (units.sqrt(2.0 * eK * self.kT / mass) * dt)
-                    print('dx=%.2lfpm' % (dx / self.nm * 1000.0), end=' ')
-
-                print("")
-                break
-
-        return {"Ep":eP, "Ek":eK}
-        
+   
         
     def initPositions(self):
-        
         R"""
-        Internal function that sends the locus coordinates to OpenMM system. 
+        Internal function that sets the locus coordinates in the OpenMM system.
+        
+        Raises:
+            ValueError: If the simulation context has not been initialized.
         """
+        if not hasattr(self, 'context'):
+            raise ValueError("No context; cannot set positions. Initialize the context before calling initPositions.")
 
-        print("Positions... ")
-        try:
-            self.context
-        except:
-            raise ValueError("No context, cannot set velocs."                             " Initialize context before that")
-
+        print("Setting positions...", end='', flush=True)
         self.context.setPositions(self.data)
         print(" loaded!")
-        state = self.context.getState(getPositions=True, getEnergy=True)
-        
-        eP = state.getPotentialEnergy() / self.N / units.kilojoule_per_mole
-        print("potential energy is %lf" % eP)
-        
-    def initVelocities(self, mult=1.0):
+
+
+    def initVelocities(self):
         R"""
-        Internal function that set the locus velocity to OpenMM system. 
+        Internal function that sets the initial velocities of the loci in the OpenMM system.
         
-        Args:
-
-            mult (float, optional):
-                 Rescale initial velocities. (Default value = 1.0). 
+        Raises:
+            ValueError: If the simulation context has not been initialized.
         """
-        try:
-            self.context
-        except:
-            raise ValueError("No context, cannot set velocs."                             "Initialize context before that")
+        if not hasattr(self, 'context'):
+            raise ValueError("No context; cannot set velocities. Initialize the context before calling initVelocities.")
+        
+        print("Setting velocities...", end='', flush=True)
+        # Set velocities using OpenMM's built-in method
+        temperature = self.temperature * units.kelvin
+        self.context.setVelocitiesToTemperature(temperature)
+        print(" loaded!")
 
-        sigma = units.sqrt(self.Epsilon*units.kilojoule_per_mole / self.system.getParticleMass(
-            1)) 
-        velocs = units.Quantity(mult * np.random.normal(
-            size=(self.N, 3)), units.meter) * (sigma / units.meter)
-
-        self.context.setVelocities(velocs) 
         
     def setFibPosition(self, positions, returnCM=False, factor=1.0):
         R"""
@@ -2165,97 +2217,8 @@ class MiChroM:
             return positions,points
         else:
             return positions
-        
-    def chromRG(self):
-        R"""
-        Calculates the Radius of Gyration of a chromosome chain.
-        
-        Returns:
-                Returns the Radius of Gyration in units of :math:`\sigma`
-        """
-        data = self.getScaledData()
-        data = data - np.mean(data, axis=0)[None,:]
-        return np.sqrt(np.sum(np.var(np.array(data), 0)))
-    
-    def getScaledData(self):
-        R"""
-        Internal function for keeping the system in the simulation box if PBC is employed.
-        """
-        if self.PBC != True:
-            return self.getPositions()
-        alldata = self.getPositions()
-        boxsize = np.array(self.BoxSizeReal)
-        mults = np.floor(alldata / boxsize[None, :])
-        toRet = alldata - mults * boxsize[None, :]
-        assert toRet.min() >= 0
-        return toRet
-        
-    def printStats(self):
-        R"""
-        Prints some statistical information of a system.
-        """
-        state = self.context.getState(getPositions=True,
-            getVelocities=True, getEnergy=True)
+   
 
-        eP = state.getPotentialEnergy()
-        pos = np.array(state.getPositions() / (units.meter * 1e-9))
-        bonds = np.sqrt(np.sum(np.diff(pos, axis=0) ** 2, axis=1))
-        
-        # delete "bonds" from different chains
-        indexInDifferentChains = [x[1] for x in self.chains]
-        bonds = np.delete(bonds, indexInDifferentChains[:-1])
-
-        sbonds = np.sort(bonds)
-        vel = state.getVelocities()
-        mass = self.system.getParticleMass(1)
-        vkT = np.array(vel / units.sqrt(self.Epsilon*units.kilojoule_per_mole / mass), dtype=float)
-        self.velocs = vkT
-        EkPerParticle = 0.5 * np.sum(vkT ** 2, axis=1)
-
-        cm = np.mean(pos, axis=0)
-        centredPos = pos - cm[None, :]
-        dists = np.sqrt(np.sum(centredPos ** 2, axis=1))
-        per95 = np.percentile(dists, 95)
-        den = (0.95 * self.N) / ((4. * np.pi * per95 ** 3) / 3)
-        per5 = np.percentile(dists, 5)
-        den5 = (0.05 * self.N) / ((4. * np.pi * per5 ** 3) / 3)
-        x, y, z = pos[:, 0], pos[:, 1], pos[:, 2]
-        minmedmax = lambda x: (x.min(), np.median(x), x.mean(), x.max())
-
-        print()
-        print("Statistics for the simulation %s, number of particles: %d, "        " number of chains: %d" % (
-            self.name, self.N, len(self.chains)))
-        print()
-        print("Statistics for particle position")
-        print("     mean position is: ", np.mean(
-            pos, axis=0), "  Rg = ", self.chromRG())
-        print("     median bond size is ", np.median(bonds))
-        print("     three shortest/longest (<10)/ bonds are ", sbonds[
-            :3], "  ", sbonds[sbonds < 10][-3:])
-        if (sbonds > 10).sum() > 0:
-            print("longest 10 bonds are", sbonds[-10:])
-
-        print("     95 percentile of distance to center is:   ", per95)
-        print("     density of closest 95% monomers is:   ", den)
-        print("     density of the core monomers is:   ", den5)
-        print("     min/median/mean/max coordinates are: ")
-        print("     x: %.2lf, %.2lf, %.2lf, %.2lf" % minmedmax(x))
-        print("     y: %.2lf, %.2lf, %.2lf, %.2lf" % minmedmax(y))
-        print("     z: %.2lf, %.2lf, %.2lf, %.2lf" % minmedmax(z))
-        print()
-        print("Statistics for velocities:")
-        print("     mean kinetic energy is: ", np.mean(
-            EkPerParticle), "should be:", 1.5)
-        print("     fastest particles are (in kT): ", np.sort(
-            EkPerParticle)[-5:])
-
-        print()
-        print("Statistics for the system:")
-        print("     Forces are: ", list(self.forceDict.keys()))
-        print("     Number of exceptions:  ", len(self.bondsForException))
-        print()
-        print("Potential Energy Ep = ", eP / self.N / units.kilojoule_per_mole)
-        
     def printForces(self):
         R"""
         Prints the energy values for each force applied in the system.
@@ -2268,15 +2231,14 @@ class MiChroM:
             forceValues.append(self.context.getState(getEnergy=True, groups={self.forceDict[n].getForceGroup()}).getPotentialEnergy().value_in_unit(units.kilojoules_per_mole))
         forceNames.append('Potential Energy (total)')
         forceValues.append(self.context.getState(getEnergy=True).getPotentialEnergy().value_in_unit(units.kilojoules_per_mole))
-        forceNames.append('Potential Energy (per loci)')
-        forceValues.append(self.context.getState(getEnergy=True).getPotentialEnergy().value_in_unit(units.kilojoules_per_mole)/self.N)
         df = pd.DataFrame(forceValues,forceNames)
         df.columns = ['Values']
-        print(df)
+        return(df)
+
 
     def printHeader(self):
         print('{:^96s}'.format("***************************************************************************************"))
-        print('{:^96s}'.format("**** **** *** *** *** *** *** *** OpenMiChroM-1.0.9 *** *** *** *** *** *** **** ****"))
+        print('{:^96s}'.format("**** **** *** *** *** *** *** *** OpenMiChroM-"+__version__+" *** *** *** *** *** *** **** ****"))
         print('')
         print('{:^96s}'.format("OpenMiChroM is a Python library for performing chromatin dynamics simulations."))
         print('{:^96s}'.format("OpenMiChroM uses the OpenMM Python API,"))
@@ -2285,18 +2247,14 @@ class MiChroM:
         print('{:^96s}'.format("that are consistent with experimental Hi-C maps, also allows simulations of a single"))
         print('{:^96s}'.format("or multiple chromosome chain using High-Performance Computing "))
         print('{:^96s}'.format("in different platforms (GPUs and CPUs)."))
+        print('')
         print('{:^96s}'.format("OpenMiChroM documentation is available at https://open-michrom.readthedocs.io"))
         print('')
         print('{:^96s}'.format("OpenMiChroM is described in: Oliveira Junior, A. B & Contessoto, V, G et. al."))
         print('{:^96s}'.format("A Scalable Computational Approach for Simulating Complexes of Multiple Chromosomes."))
         print('{:^96s}'.format("Journal of Molecular Biology. doi:10.1016/j.jmb.2020.10.034."))
-        print('{:^96s}'.format("and"))
-        print('{:^96s}'.format("Oliveira Junior, A. B. et al."))
-        print('{:^96s}'.format("Chromosome Modeling on Downsampled Hi-C Maps Enhances the Compartmentalization Signal."))
-        print('{:^96s}'.format("J. Phys. Chem. B, doi:10.1021/acs.jpcb.1c04174."))
         print('{:^96s}'.format("We also thank the polychrom <https://github.com/open2c/polychrom>"))
-        print('{:^96s}'.format("where part of this code was inspired."))
-        print('{:^96s}'.format("10.5281/zenodo.3579472."))
+        print('{:^96s}'.format("where part of this code was inspired - 10.5281/zenodo.3579472."))
         print('')
         print('{:^96s}'.format("Copyright (c) 2024, The OpenMiChroM development team at"))
         print('{:^96s}'.format("Rice University"))
