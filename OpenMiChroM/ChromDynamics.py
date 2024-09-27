@@ -58,7 +58,7 @@ class MiChroM:
         temperature (float, optional): 
             Temperature in reduced units. Defaults to 1.0.
     """
-    def __init__(self, name="OpenMichrom", timeStep=0.01, collisionRate=0.1, temperature=1.0):
+    def __init__(self, name="OpenMiChroM", timeStep=0.01, collisionRate=0.1, temperature=1.0):
         self.name = name
         self.timeStep = timeStep
         self.collisionRate = collisionRate
@@ -1365,21 +1365,21 @@ class MiChroM:
         self.simulation.step(nsteps)
 
 
-    def addHomoPolymerForces(self, Harmonic=False, kFb=30, kA=2.0, eCut= 4.0):
+    def addHomoPolymerForces(self, harmonic=False, kFb=30, kA=2.0, eCut= 4.0):
         R"""
         Adds homopolymer forces to the system based on the specified parameters.
 
-        Depending on the `Harmonic` flag, this function will add either harmonic bonds
+        Depending on the `harmonic` flag, this function will add either harmonic bonds
         or FENE bonds to the polymer chains. Additionally, it sets up angle forces and
         repulsive soft-core interactions.
 
         Args:
-            Harmonic (bool, optional):
+            harmonic (bool, optional):
                 If True, adds harmonic bonds to the monomers. If False, adds FENE bonds.
                 Default is False.
             
             KFb (float, optional):
-                The stiffness of the bonds. Relevant when `Harmonic` is True.
+                The stiffness of the bonds. Relevant when `harmonic` is True.
                 Default is 30.0.
             
             kA (float, optional):
@@ -1390,16 +1390,16 @@ class MiChroM:
                 The cutoff distance for the repulsive soft-core potential.
                 Default is 4.0.
         """
-        if Harmonic:
+        if harmonic:
             self.addHarmonicBonds(bondStiffness=kFb)
         else:
-            self.addFENEBonds(kFb=30)
+            self.addFENEBonds(kFb=kFb)
 
         self.addAngles(kA=kA)
         self.addRepulsiveSoftCore(eCut= eCut)
 
 
-    def buildClassicMichrom(self, ChromSeq=None, CoordFiles=None, mode='spring'):
+    def buildClassicMichrom(self, ChromSeq=None, CoordFiles=None, mode='auto'):
         R"""
         Builds a Classic Michrom simulation setup by initializing the structure, loading it,
         adding polymer forces, defining interactions between types, setting up the ideal chromosome,
@@ -1416,7 +1416,7 @@ class MiChroM:
             
             mode (str, optional):
                 Mode of initialization for the structure. Supported modes include 'spring', 'line', etc.
-                Default is `'spring'`.
+                Default is `'auto'`.
         
         Example:
             ```python
