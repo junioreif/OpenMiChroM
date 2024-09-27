@@ -34,13 +34,10 @@ import warnings
 import numpy as np
 import os
 import random
-import h5py
 import pandas as pd
 from pathlib import Path
 import types
 from .CustomReporter import *
- 
-
 
 class MiChroM:
     R"""
@@ -268,17 +265,6 @@ class MiChroM:
         """
         
         return np.asarray(self.data / self.nm, dtype=np.float32)
-
-    def getVelocities(self):
-        R"""
-        Returns:
-            :math:`(N, 3)` :class:`numpy.ndarray`:
-                Returns an array of velocities.
-        """
-        state = self.context.getState(getVelocities=True)
-        vel = state.getVelocities()
-
-        return np.asarray(vel / (self.nm / units.picosecond ), dtype=np.float32)      
 
     def getLoops(self, looplists):
         R"""
@@ -1004,67 +990,47 @@ class MiChroM:
         except (ValueError, AssertionError):
             print('Active sequence (act_seq) either not defined or all the monomers are not accounted for!\nCorrelated noise has NOT been added!')
 
-
-    def addHarmonicBonds(self, kfb=30.0, r0=1.0):
-        R"""
-        This function adds harmonic bonds to all the monomers within a chain
-        Args:
-            kfb (float, required): 
-                bond stiffness
-            
-            r0 (float, required):
-                equilibrium distance for the bond
+    def add_harmonic_bonds(self, bondStiffness=30.0, equilibriumDistance=1.0):
         """
+        Adds harmonic bonds to all monomers within each chain. For each chain, bonds are created 
+        between consecutive monomers. If the chain forms a ring, an additional bond is created 
+        between the first and last monomer to complete the ring.
 
-        for start, end, isRing in self.chains:
+        Args:
+            bondStiffness (float, optional): The stiffness of the bond. Default is 30.0.
+            equilibriumDistance (float, optional): The equilibrium distance for the bond. Default is 1.0.
+        """
+        # Initialize the Harmonic Bond force group if it hasn't been initialized yet
+        if "HarmonicBond" not in self.forceDict:
+            bondForceExpression = "0.5 * kfb * (r - r0)^2"
+            harmonicBondForce = self.mm.CustomBondForce(bondForceExpression)
+            harmonicBondForce.addGlobalParameter("kfb", bondStiffness)
+            harmonicBondForce.addGlobalParameter("r0", equilibriumDistance)
+            self.forceDict["HarmonicBond"] = harmonicBondForce
+
+        harmonicBondForce = self.forceDict["HarmonicBond"]
+
+        for chain in self.chains:
+            start, end, isRing = chain
+            # Iterate through monomers in the chain to add consecutive bonds
             for j in range(start, end):
-                self.addHarmonicBond_ij(j, j + 1, kfb=kfb, r0=r0)
+                i = j
+                k = j + 1
+                if i >= self.N or k >= self.N:
+                    raise ValueError(
+                        f"\nCannot add a bond between beads {i}, {k} as they exceed the chromosome length {self.N}."
+                    )
+                harmonicBondForce.addBond(int(i), int(k), [])
+                self.bondsForException.append((int(i), int(k)))
 
+            # If the chain forms a ring, add a bond between the first and last monomer
             if isRing:
-                self.addHarmonicBond_ij(start, end, kfb=kfb, r0=r0)
-        
-
-    def _initHarmonicBond(self, kfb=30,r0=1.0):
-        R"""
-        Internal function used to initiate Harmonic Bond force group
-        Args:
-            kfb (float, required): 
-                bond stiffness
-            
-            r0 (float, required):
-                equilibrium distance for the bond
-        """
-        
-        if "HarmonicBond" not in list(self.forceDict.keys()):
-            force = ("0.5 * kfb * (r-r0)*(r-r0)")
-            bondforceGr = self.mm.CustomBondForce(force)
-            bondforceGr.addGlobalParameter("kfb", kfb)
-            bondforceGr.addGlobalParameter("r0", r0) 
-                
-            self.forceDict["HarmonicBond"] = bondforceGr
-        
-
-    def addHarmonicBond_ij(self, i, j, r0=1.0, kfb=30):
-        R"""
-        Internal function used to add bonds between i and j monomers
-        Args:
-            i,j (int, required):
-                monomers to be bonded
-
-            kfb (float, required): 
-                bond stiffness
-            
-            r0 (float, required):
-                equilibrium distance for the bond
-        """
-        
-        if (i >= self.N) or (j >= self.N):
-            raise ValueError("\n Cannot add a bond between beads  %d,%d that are beyond the chromosome length %d" % (i, j, self.N))
-        
-        self._initHarmonicBond(kfb=kfb, r0=r0)
-        self.forceDict["HarmonicBond"].addBond(int(i), int(j), [])
-        self.bondsForException.append((int(i), int(j)))
-
+                if start >= self.N or end >= self.N:
+                    raise ValueError(
+                        f"\nCannot add a bond between beads {start}, {end} as they exceed the chromosome length {self.N}."
+                    )
+                harmonicBondForce.addBond(int(start), int(end), [])
+                self.bondsForException.append((int(start), int(end)))
 
     def addSelfAvoidance(self, Ecut=4.0, k_rep=20.0, r0=1.0):
         R"""
@@ -1190,30 +1156,7 @@ class MiChroM:
                 raise ValueError("Force function added multiple new forces in MiChroM! Please break down the function so each force is added separately.")
         
         force = self.forceDict[newForceDictKey]
-        
-        # exclusion list
-        exc = self.bondsForException
-
-        # set all the attributes of the force (see _applyForces)
-        if hasattr(force, "addException"):
-            print('Add exceptions for {0} force'.format(newForceDictKey))
-            for pair in exc:
-                force.addException(int(pair[0]),
-                    int(pair[1]), 0, 0, 0, True)
-                
-        elif hasattr(force, "addExclusion"):
-            print('Add exclusions for {0} force'.format(newForceDictKey))
-            for pair in exc:
-                force.addExclusion(int(pair[0]), int(pair[1]))
-
-        if hasattr(force, "CutoffNonPeriodic") and hasattr(
-                                                force, "CutoffPeriodic"):
-            if self.PBC:
-                force.setNonbondedMethod(force.CutoffPeriodic)
-                print("Using periodic boundary conditions!!!!")
-            else:
-                force.setNonbondedMethod(force.CutoffNonPeriodic)
-        
+       
         # add the force
         print("adding force ", newForceDictKey, self.system.addForce(self.forceDict[newForceDictKey]))
 
@@ -1365,7 +1308,6 @@ class MiChroM:
             interval (int, optional):
                 The interval (in time steps) at which to report data.
                 (Default: `1000`)
-
         """
         
         if traj:
