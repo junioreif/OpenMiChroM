@@ -159,6 +159,7 @@ class MiChroM:
             self.integrator = integrator
             self.integrator_type = "UserDefined"
             
+            
     def saveFolder(self, folderPath):
         """Sets the folder path to save data.
 
@@ -205,6 +206,7 @@ class MiChroM:
 
         if not hasattr(self, "chains"):
             self.setChains()
+
 
     def setChains(self, chains=None):
         """Sets the configuration of the chains in the system.
@@ -257,6 +259,7 @@ class MiChroM:
         if hasattr(self, "context"):
             self.initPositions()
             
+
     def getPositions(self):
         R"""
         Returns:
@@ -265,6 +268,7 @@ class MiChroM:
         """
         
         return np.asarray(self.data / self.nm, dtype=np.float32)
+
 
     def getLoops(self, looplists):
         R"""
@@ -292,7 +296,6 @@ class MiChroM:
     ##============================
     ##      FORCES          
     ##============================
-
     def addCylindricalConfinement(self, rConf=5.0, zConf=10.0, kConf=30.0):
         """Adds a cylindrical confinement potential to the system.
 
@@ -357,6 +360,7 @@ class MiChroM:
 
         # Add the force to the force dictionary
         self.forceDict["FlatBottomHarmonic"] = restraintForce
+
 
     def addSphericalConfinementLJ(self, radius="density", density=0.1):
         """
@@ -477,6 +481,7 @@ class MiChroM:
                 self.forceDict["FENEBond"].addBond(int(i), int(j), [])
                 self.bondsForException.append((i, j))
 
+
     def addAngles(self, kA=2.0):
         """
         Adds an angular potential between bonds connecting beads i-1, i, and i+1.
@@ -545,6 +550,7 @@ class MiChroM:
 
         # Add the angle force to the system
         self.forceDict["AngleForce"] = angleForce
+
 
     def addRepulsiveSoftCore(self, eCut=4.0, cutoffDistance=3.0):
         R"""
@@ -685,6 +691,7 @@ class MiChroM:
                 
         self.forceDict[name] = crossLP
     
+
     def _createTypeList(self, header_types):
         R"""
         Internal function for indexing unique chromatin types.
@@ -734,6 +741,7 @@ class MiChroM:
   
         self.forceDict["Loops"] = Loop  
         
+
     def addCustomIC(self, mu=3.22, rc = 1.78, dinit=3, dend=200, IClist=None,CutoffDistance=3.0):
         R"""
         Adds the Ideal Chromosome potential using custom values for interactions between beads separated by a genomic distance :math:`d`. The parameters :math:`\mu` (mu) and rc are part of the probability of crosslink function :math:`f(r_{i,j}) = \frac{1}{2}\left( 1 + tanh\left[\mu(r_c - r_{i,j}\right] \right)`, where :math:`r_{i,j}` is the spatial distance between loci (beads) *i* and *j*.
@@ -783,6 +791,7 @@ class MiChroM:
         
         self.forceDict["CustomIC"] = IC
 
+
     def addCustomMultiChainIC(self, mu=3.22, rc = 1.78, dinit=3, dend=1000, chainIndex=None, IClist=None, CutoffDistance=3.0):
 
         energyIC = ("step(d-dinit)*ic(d)*step(dend-d)*f;"
@@ -821,6 +830,7 @@ class MiChroM:
 
         self.forceDict["CustomIC_chain_"+str(chainIndex)] = IC
         
+
     def addIdealChromosome(self, mu=3.22, rc = 1.78, Gamma1=-0.030,Gamma2=-0.351,
                            Gamma3=-3.727, dinit=3, dend=500,CutoffDistance=3.0):
         
@@ -990,6 +1000,7 @@ class MiChroM:
         except (ValueError, AssertionError):
             print('Active sequence (act_seq) either not defined or all the monomers are not accounted for!\nCorrelated noise has NOT been added!')
 
+
     def add_harmonic_bonds(self, bondStiffness=30.0, equilibriumDistance=1.0):
         """
         Adds harmonic bonds to all monomers within each chain. For each chain, bonds are created 
@@ -1031,6 +1042,7 @@ class MiChroM:
                     )
                 harmonicBondForce.addBond(int(start), int(end), [])
                 self.bondsForException.append((int(start), int(end)))
+
 
     def addSelfAvoidance(self, Ecut=4.0, k_rep=20.0, r0=1.0):
         R"""
@@ -1186,6 +1198,7 @@ class MiChroM:
                 self.system.addParticle(self.mass * beadMass)
             self.loaded = True
 
+
     def createSimulation(self):
         """
         Initializes the simulation context and adds forces to the system.
@@ -1285,6 +1298,7 @@ class MiChroM:
             print(energyInfo, file=f)
             print(f'\nPotential energy per forceGroup:\n {self.printForces()}', file=f)
 
+
     def createReporters(self, statistics=True, traj=False, trajFormat="cndb", energyComponents=False,
                          interval=1000):
         R"""
@@ -1340,6 +1354,7 @@ class MiChroM:
                     reportPerForceGroup=False, 
                 )
                 self.simulation.reporters.append(simulation_reporter)
+
 
     def run(self, nsteps, report=True, interval=10**4):
 
@@ -1487,6 +1502,7 @@ class MiChroM:
 
         return np.vstack([x,y,z]).T
 
+
     def _aa2types (self, amino_acid):
         
         Type_conversion = {'ASP':"A1", 'GLU':"A2", 'HIS':"B1", 'LYS':"B2", 'ARG':"B3", 'ARG':"B3", 'ASN':"NA"}
@@ -1495,7 +1511,8 @@ class MiChroM:
             return Type_conversion[amino_acid]
         else:
             return 'NA'
-                    
+
+
     def loadPDB(self, PDBfiles=None, ChromSeq=None):
         
         R"""
@@ -1621,6 +1638,7 @@ class MiChroM:
 
         return np.vstack([x,y,z]).T
     
+
     def random_ChromSeq(self, Nbeads):
         
         R"""
@@ -1638,6 +1656,7 @@ class MiChroM:
         
         return random.choices(population=[0,1,2,3,4,5], k=Nbeads)
     
+
     def _translate_type(self, filename):
         
         R"""Internal function that converts the letters of the types numbers following the rule: 'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6.
@@ -1662,6 +1681,7 @@ class MiChroM:
             else:
                 self.diff_types.append(pos[t][1]) 
                 self.type_list_letter.append(pos[t][1])
+
 
     def createLine(self, ChromSeq):
         
@@ -1699,6 +1719,7 @@ class MiChroM:
 
         return np.vstack([x,y,z]).T
     
+
     def createRandomWalk(self, ChromSeq=None):    
         R"""
         Creates a chromosome polymer chain with beads position based on a random walk.
@@ -1733,6 +1754,7 @@ class MiChroM:
         self.setChains(chain)
 
         return np.vstack([x, y, z]).T
+
 
     def initStructure(self, mode='auto', CoordFiles=None, ChromSeq=None, isRing=False):
 
@@ -1833,7 +1855,8 @@ class MiChroM:
         else:
             if mode != 'auto':
                 raise ValueError("Mode '{:}' not supported!".format(mode))
-                   
+
+
     def saveStructure(self, filename=None, mode="gro"):
         R"""
         Saves the 3D positions of beads during the simulation in various file formats.
@@ -2015,7 +2038,7 @@ class MiChroM:
         self.context.setPositions(self.data)
         print(" loaded!")
 
-        
+
     def initVelocities(self):
         """
         Internal function that sets the initial velocities of the loci in the OpenMM system.
@@ -2097,6 +2120,7 @@ class MiChroM:
         else:
             return positions
    
+
     def printForces(self):
         R"""
         Prints the energy values for each force applied in the system.
@@ -2112,6 +2136,7 @@ class MiChroM:
         df = pd.DataFrame(forceValues,forceNames)
         df.columns = ['Values']
         return(df)
+
 
     def printHeader(self):
         print('{:^96s}'.format("***************************************************************************************"))
