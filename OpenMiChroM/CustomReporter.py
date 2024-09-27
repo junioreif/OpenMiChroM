@@ -3,6 +3,8 @@ import h5py
 import numpy as np
 from openmm import unit
 from openmm.app import StateDataReporter
+from datetime import datetime
+
 
 class SaveStructure(StateDataReporter):
     """
@@ -37,6 +39,30 @@ class SaveStructure(StateDataReporter):
         os.makedirs(self.folder, exist_ok=True)
 
         # Initialize storage if using 'cndb' mode
+        if self.mode == 'swb':
+            info = {
+            'version' : '1.0.0',
+            'format' : 'swb',
+            'genome' : 'hg38',
+            'pointtype' : 'single_point',
+            'title': 'Trajectory from OpenmiChroM apy',
+            'author' : 'Antonio B Oliveira Junior',
+            'date' : str(datetime.now())
+            }
+            self.storage = []
+            for k, chain in enumerate(self.chains):
+                fname = os.path.join(self.folder, f"{self.filePrefix}_{k}.swb")
+                storageFile = h5py.File(fname, "w")
+                H = storageFile.create_group('Header')
+                H.attrs.update(info)
+                C = storageFile.create_group(self.filePrefix)
+                C.create_group('spatial_position')
+                l = chain[1]+1 - chain[0]
+                range_list = [[int(n*50000+1), int(n*50000+50000)] for n in range(l)]
+                C.create_dataset('genomic_position',data=np.array(range_list))
+                self.storage.append(storageFile)
+
+        # Initialize storage if using 'cndb' mode
         if self.mode == 'cndb':
             self.storage = []
             for k, chain in enumerate(self.chains):
@@ -46,8 +72,13 @@ class SaveStructure(StateDataReporter):
                 self.storage.append(storageFile)
 
     def __del__(self):
-        # Close any open storage files
+        # Close any open storage files 
+        # #its not work in notebooks
         if self.mode == 'cndb' and hasattr(self, 'storage'):
+            for storageFile in self.storage:
+                storageFile.close()
+
+        if self.mode == 'swb' and hasattr(self, 'storage'):
             for storageFile in self.storage:
                 storageFile.close()
 
@@ -73,9 +104,16 @@ class SaveStructure(StateDataReporter):
         data = state.getPositions(asNumpy=True).value_in_unit(unit.nanometer)
 
         # Save the structure based on the specified mode
-        if self.mode == 'cndb':
+        if self.mode == 'swb':
+            for k, chain in enumerate(self.chains):
+                pos = self.storage[k][f'/{self.filePrefix}/spatial_position']
+                pos.create_dataset(f't_{self.step}',data=data[chain[0]:chain[1]+1])
+
+        # Save the structure based on the specified mode
+        elif self.mode == 'cndb':
             for k, chain in enumerate(self.chains):
                 self.storage[k][str(self.step)] = data[chain[0]:chain[1]+1]
+
         elif self.mode == 'xyz':
             filename = os.path.join(self.folder, f"{self.filePrefix}_state{self.step}.xyz")
             with open(filename, 'w') as myfile:
