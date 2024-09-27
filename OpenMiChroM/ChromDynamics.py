@@ -37,6 +37,8 @@ import random
 import pandas as pd
 from pathlib import Path
 import types
+from textwrap import dedent
+from . import __version__
 from .CustomReporter import *
 
 class MiChroM:
@@ -70,12 +72,12 @@ class MiChroM:
         self.sigma = 1.0
         self.epsilon = 1.0
         self.printHeader()
-        print("TEST VERSION")
+        print(f"TEST VERSION {__version__}")
 
             
     def setup(self, platform="CUDA", gpu="default",
             integrator="langevin", precision="mixed", deviceIndex="0"):
-        """Sets up the simulation environment.
+        R"""Sets up the simulation environment.
 
         Tries to select the computational platform in the following priority order:
         the specified platform, then 'CUDA', 'HIP', 'OpenCL', and 'CPU'. If the
@@ -161,7 +163,7 @@ class MiChroM:
             
 
     def saveFolder(self, folderPath):
-        """Sets the folder path to save data.
+        R"""Sets the folder path to save data.
 
         Args:
             folderPath (str): The folder path where simulation data will be saved.
@@ -172,7 +174,7 @@ class MiChroM:
 
         
     def loadStructure(self, data, center=True, massList=None):
-        """Loads the 3D positions of each bead of the chromosome polymer into the OpenMM system.
+        R"""Loads the 3D positions of each bead of the chromosome polymer into the OpenMM system.
 
         Args:
             data (array-like): The initial positions of the beads. Should be an array of shape (N, 3) or (3, N).
@@ -209,7 +211,7 @@ class MiChroM:
 
 
     def setChains(self, chains=None):
-        """Sets the configuration of the chains in the system.
+        R"""Sets the configuration of the chains in the system.
 
         This information is used later for adding bonds and angles in the homopolymer potential.
 
@@ -238,7 +240,7 @@ class MiChroM:
 
             
     def setPositions(self, beadsPos, randomize=False, randomOffset=1e-5):
-        """Sets the 3D positions of each bead of the chromosome polymer in the OpenMM system.
+        R"""Sets the 3D positions of each bead of the chromosome polymer in the OpenMM system.
 
         Args:
             beadsPos (numpy.ndarray of shape (N, 3)):
@@ -297,7 +299,7 @@ class MiChroM:
     ##      FORCES          
     ##============================
     def addCylindricalConfinement(self, rConf=5.0, zConf=10.0, kConf=30.0):
-        """Adds a cylindrical confinement potential to the system.
+        R"""Adds a cylindrical confinement potential to the system.
 
         This potential confines particles within a cylinder of radius `rConf` and height `2 * zConf`.
         Particles outside this cylinder experience a harmonic restoring force pushing them back inside.
@@ -324,7 +326,7 @@ class MiChroM:
 
     
     def addFlatBottomHarmonic(self, kR=5e-3, nRad=10.0):
-        """
+        R"""
         Adds a flat-bottom harmonic potential to confine the chromosome chain inside the nucleus wall.
 
         The potential is defined as:
@@ -363,7 +365,7 @@ class MiChroM:
 
 
     def addSphericalConfinementLJ(self, radius="density", density=0.1):
-        """
+        R"""
         Adds a spherical confinement potential to the system according to the MiChroM energy function.
 
         This potential describes the interaction between the chromosome and a spherical wall,
@@ -415,7 +417,7 @@ class MiChroM:
 
         
     def addFENEBonds(self, kFb=30.0, bonds=None):
-        """
+        R"""
         Adds FENE (Finite Extensible Nonlinear Elastic) bonds to the system.
 
         This function initializes the FENE bond force if it has not been added yet, and adds bonds between specified pairs of loci.
@@ -483,7 +485,7 @@ class MiChroM:
 
 
     def addAngles(self, kA=2.0):
-        """
+        R"""
         Adds an angular potential between bonds connecting beads i-1, i, and i+1.
 
         This function adds angle forces to the system to enforce stiffness between sequential beads,
@@ -1002,7 +1004,7 @@ class MiChroM:
 
 
     def addHarmonicBonds(self, bondStiffness=30.0, equilibriumDistance=1.0):
-        """
+        R"""
         Adds harmonic bonds to all monomers within each chain. For each chain, bonds are created 
         between consecutive monomers. If the chain forms a ring, an additional bond is created 
         between the first and last monomer to complete the ring.
@@ -1088,7 +1090,7 @@ class MiChroM:
 
 
     def _isForceDictEqualSystemForces(self):
-        R""""
+        R"""
         Internal function that returns True when forces in self.forceDict and in self.system are equal.
         """
 
@@ -1105,7 +1107,7 @@ class MiChroM:
 
 
     def removeForce(self, forceName):
-        R""""
+        R"""
         Remove force from the system.
         """
 
@@ -1122,7 +1124,7 @@ class MiChroM:
 
 
     def removeFlatBottomHarmonic(self):
-        R""""
+        R"""
         Remove FlatBottomHarmonic force from the system.
         """
 
@@ -1188,7 +1190,7 @@ class MiChroM:
 
 
     def _loadParticles(self):
-        """
+        R"""
         Internal function that loads the chromosome beads into the simulation system.
         """
         if not hasattr(self, "system"):
@@ -1200,7 +1202,7 @@ class MiChroM:
 
 
     def createSimulation(self):
-        """
+        R"""
         Initializes the simulation context and adds forces to the system.
 
         This function checks if the simulation context has already been created. If not, it loads the particles,
@@ -1357,7 +1359,34 @@ class MiChroM:
 
 
     def run(self, nsteps, report=True, interval=10**4):
+        R"""
+        Executes the simulation for a specified number of steps, with optional progress reporting.
 
+        This function runs the simulation by advancing it through the defined number of steps (`nsteps`).
+        If `report` is set to `True`, it adds a `StateDataReporter` to the simulation's reporters
+        to output progress information to the standard output (`stdout`) at every `interval` steps.
+
+        Args:
+            nsteps (int):
+                The total number of steps to execute in the simulation. Must be a positive integer.
+            
+            report (bool, optional):
+                Determines whether to enable progress reporting during the simulation run.
+                If `True`, a `StateDataReporter` is added to provide real-time updates.
+                Default is `True`.
+            
+            interval (int, optional):
+                The number of simulation steps between each progress report.
+                This defines how frequently the `StateDataReporter` outputs status information.
+                Must be a positive integer.
+                Default is `10**4` (10,000 steps).
+
+        Example:
+            ```python
+            # Run the simulation for 500,000 steps with progress reporting every 5,000 steps
+            simulation.run(nsteps=500000, report=True, interval=5000)
+            ```
+        """
         if report:
             self.simulation.reporters.append(StateDataReporter(stdout, interval, step=True, remainingTime=True,
                                                   progress=True, speed=True, totalSteps=nsteps, separator="\t"))
@@ -1589,7 +1618,6 @@ class MiChroM:
 
 
     def loadPDB(self, PDBfiles=None, ChromSeq=None):
-        
         R"""
         Loads a single or multiple *.pdb* files and gets position and types of the chromosome beads.
         Here we consider the chromosome beads as the carbon-alpha to mimic a protein. This trick helps to use the standard macromolecules visualization software. 
@@ -1666,7 +1694,6 @@ class MiChroM:
 
 
     def createSpringSpiral(self, ChromSeq=None, isRing=False):
-        
         R"""
         Creates a spring-spiral-like shape for the initial configuration of the chromosome polymer.
         
@@ -1715,7 +1742,6 @@ class MiChroM:
     
 
     def random_ChromSeq(self, Nbeads):
-        
         R"""
         Creates a random sequence of chromatin types for the chromosome beads.
         
@@ -1733,7 +1759,6 @@ class MiChroM:
     
 
     def _translate_type(self, filename):
-        
         R"""Internal function that converts the letters of the types numbers following the rule: 'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6.
         
          Args:
@@ -1759,7 +1784,6 @@ class MiChroM:
 
 
     def createLine(self, ChromSeq):
-        
         R"""
         Creates a straight line for the initial configuration of the chromosome polymer.
         
@@ -1832,7 +1856,6 @@ class MiChroM:
 
 
     def initStructure(self, mode='auto', CoordFiles=None, ChromSeq=None, isRing=False):
-
         R"""
         Creates the coordinates for the initial configuration of the chromosomal chains and sets their sequence information.
  
@@ -2100,7 +2123,7 @@ class MiChroM:
    
         
     def initPositions(self):
-        """
+        R"""
         Internal function that sets the locus coordinates in the OpenMM system.
         
         Raises:
@@ -2115,7 +2138,7 @@ class MiChroM:
 
 
     def initVelocities(self):
-        """
+        R"""
         Internal function that sets the initial velocities of the loci in the OpenMM system.
         
         Raises:
@@ -2215,7 +2238,7 @@ class MiChroM:
 
     def printHeader(self):
         print('{:^96s}'.format("***************************************************************************************"))
-        print('{:^96s}'.format("**** **** *** *** *** *** *** *** OpenMiChroM-1.0.9 *** *** *** *** *** *** **** ****"))
+        print('{:^96s}'.format("**** **** *** *** *** *** *** *** OpenMiChroM-"+__version__+" *** *** *** *** *** *** **** ****"))
         print('')
         print('{:^96s}'.format("OpenMiChroM is a Python library for performing chromatin dynamics simulations."))
         print('{:^96s}'.format("OpenMiChroM uses the OpenMM Python API,"))
@@ -2224,18 +2247,14 @@ class MiChroM:
         print('{:^96s}'.format("that are consistent with experimental Hi-C maps, also allows simulations of a single"))
         print('{:^96s}'.format("or multiple chromosome chain using High-Performance Computing "))
         print('{:^96s}'.format("in different platforms (GPUs and CPUs)."))
+        print('')
         print('{:^96s}'.format("OpenMiChroM documentation is available at https://open-michrom.readthedocs.io"))
         print('')
         print('{:^96s}'.format("OpenMiChroM is described in: Oliveira Junior, A. B & Contessoto, V, G et. al."))
         print('{:^96s}'.format("A Scalable Computational Approach for Simulating Complexes of Multiple Chromosomes."))
         print('{:^96s}'.format("Journal of Molecular Biology. doi:10.1016/j.jmb.2020.10.034."))
-        print('{:^96s}'.format("and"))
-        print('{:^96s}'.format("Oliveira Junior, A. B. et al."))
-        print('{:^96s}'.format("Chromosome Modeling on Downsampled Hi-C Maps Enhances the Compartmentalization Signal."))
-        print('{:^96s}'.format("J. Phys. Chem. B, doi:10.1021/acs.jpcb.1c04174."))
         print('{:^96s}'.format("We also thank the polychrom <https://github.com/open2c/polychrom>"))
-        print('{:^96s}'.format("where part of this code was inspired."))
-        print('{:^96s}'.format("10.5281/zenodo.3579472."))
+        print('{:^96s}'.format("where part of this code was inspired - 10.5281/zenodo.3579472."))
         print('')
         print('{:^96s}'.format("Copyright (c) 2024, The OpenMiChroM development team at"))
         print('{:^96s}'.format("Rice University"))
