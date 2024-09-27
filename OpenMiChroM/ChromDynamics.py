@@ -2096,19 +2096,6 @@ class MiChroM:
             return positions,points
         else:
             return positions
-        
-    def chromRG(self):
-        """
-        Calculates the Radius of Gyration of a chromosome chain.
-
-        Returns:
-            float: The Radius of Gyration in units of σ (sigma).
-        """
-        data = self.getPositions()
-        data -= np.mean(data, axis=0)
-        squared_distances = np.sum(data**2, axis=1)
-        rg_squared = np.mean(squared_distances)
-        return np.sqrt(rg_squared)
    
     def printForces(self):
         R"""
@@ -2125,7 +2112,6 @@ class MiChroM:
         df = pd.DataFrame(forceValues,forceNames)
         df.columns = ['Values']
         return(df)
-
 
     def printHeader(self):
         print('{:^96s}'.format("***************************************************************************************"))
