@@ -159,7 +159,7 @@ class MiChroM:
             self.integrator = integrator
             self.integrator_type = "UserDefined"
             
-            
+
     def saveFolder(self, folderPath):
         """Sets the folder path to save data.
 
@@ -1001,7 +1001,7 @@ class MiChroM:
             print('Active sequence (act_seq) either not defined or all the monomers are not accounted for!\nCorrelated noise has NOT been added!')
 
 
-    def add_harmonic_bonds(self, bondStiffness=30.0, equilibriumDistance=1.0):
+    def addHarmonicBonds(self, bondStiffness=30.0, equilibriumDistance=1.0):
         """
         Adds harmonic bonds to all monomers within each chain. For each chain, bonds are created 
         between consecutive monomers. If the chain forms a ring, an additional bond is created 
@@ -1363,6 +1363,81 @@ class MiChroM:
                                                   progress=True, speed=True, totalSteps=nsteps, separator="\t"))
         
         self.simulation.step(nsteps)
+
+
+    def addHomoPolymerForces(self, Harmonic=False, kFb=30, kA=2.0, eCut= 4.0):
+        R"""
+        Adds homopolymer forces to the system based on the specified parameters.
+
+        Depending on the `Harmonic` flag, this function will add either harmonic bonds
+        or FENE bonds to the polymer chains. Additionally, it sets up angle forces and
+        repulsive soft-core interactions.
+
+        Args:
+            Harmonic (bool, optional):
+                If True, adds harmonic bonds to the monomers. If False, adds FENE bonds.
+                Default is False.
+            
+            KFb (float, optional):
+                The stiffness of the bonds. Relevant when `Harmonic` is True.
+                Default is 30.0.
+            
+            kA (float, optional):
+                The stiffness of the angles between bonded monomers.
+                Default is 2.0.
+            
+            eCut (float, optional):
+                The cutoff distance for the repulsive soft-core potential.
+                Default is 4.0.
+        """
+        if Harmonic:
+            self.addHarmonicBonds(bondStiffness=kFb)
+        else:
+            self.addFENEBonds(kFb=30)
+
+        self.addAngles(kA=kA)
+        self.addRepulsiveSoftCore(eCut= eCut)
+
+
+    def buildClassicMichrom(self, ChromSeq=None, CoordFiles=None, mode='spring'):
+        R"""
+        Builds a Classic Michrom simulation setup by initializing the structure, loading it,
+        adding polymer forces, defining interactions between types, setting up the ideal chromosome,
+        adding flat-bottom harmonic potentials, and creating the simulation.
+
+        Args:
+            ChromSeq (str, optional):
+                Path to the chromosome sequence file. If `None`, a default path is used.
+                Default is `None`.
+            
+            CoordFiles (str, optional):
+                Path to the coordinate files. If `None`, a default path is used.
+                Default is `None`.
+            
+            mode (str, optional):
+                Mode of initialization for the structure. Supported modes include 'spring', 'line', etc.
+                Default is `'spring'`.
+        
+        Example:
+            ```python
+            simulation = MichromSimulation()
+            simulation.buildClassicMichrom(
+                ChromSeq="/path/to/chromosome_sequence.txt",
+                CoordFiles="/path/to/coordinate_files/",
+                mode='spring'
+            )
+            ```
+        """
+
+        initialPos = self.initStructure(mode=mode, CoordFiles=CoordFiles, ChromSeq=ChromSeq, isRing=False)
+        self.loadStructure(initialPos, center=True)
+        self.addHomoPolymerForces()
+
+        self.addTypetoType(mu=3.22, rc=1.78)
+        self.addIdealChromosome(mu=3.22, rc=1.78, dinit=3, dend=500)
+
+        self.addFlatBottomHarmonic(kR=5*10**-3, nRad=15.0)
+        self.createSimulation()
 
 
     def loadNDB(self, NDBfiles=None):
