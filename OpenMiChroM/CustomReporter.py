@@ -59,6 +59,7 @@ class SaveStructure(StateDataReporter):
             the positions, velocities, forces, energies, and parameters are needed.
         """
         steps = self.reportInterval - simulation.currentStep % self.reportInterval
+        
         return (steps, True, False, False, False, False)
 
     def report(self, simulation, state):
@@ -76,7 +77,7 @@ class SaveStructure(StateDataReporter):
             for k, chain in enumerate(self.chains):
                 self.storage[k][str(self.step)] = data[chain[0]:chain[1]+1]
         elif self.mode == 'xyz':
-            filename = os.path.join(self.folder, f"{self.filePrefix}_block{self.step}.xyz")
+            filename = os.path.join(self.folder, f"{self.filePrefix}_state{self.step}.xyz")
             with open(filename, 'w') as myfile:
                 myfile.write(f"{len(data)}\n")
                 myfile.write("Atoms\n")
@@ -84,7 +85,7 @@ class SaveStructure(StateDataReporter):
                     myfile.write("{0:.3f} {1:.3f} {2:.3f}\n".format(*particle))
         elif self.mode == 'pdb':
             for chainNum, chain in enumerate(self.chains):
-                filename = f"{self.filePrefix}_{chainNum}_block{self.step}.pdb"
+                filename = f"{self.filePrefix}_{chainNum}_state{self.step}.pdb"
                 filename = os.path.join(self.folder, filename)
                 data_chain = data[chain[0]:chain[1]+1]
                 types_chain = self.typeListLetter[chain[0]:chain[1]+1]
@@ -106,7 +107,7 @@ class SaveStructure(StateDataReporter):
                     pdb_file.write(f"ENDMDL\n")
         elif self.mode == 'gro':
             for chainNum, chain in enumerate(self.chains):
-                filename = f"{self.filePrefix}_{chainNum}_block{self.step}.gro"
+                filename = f"{self.filePrefix}_{chainNum}_state{self.step}.gro"
                 filename = os.path.join(self.folder, filename)
                 data_chain = data[chain[0]:chain[1]+1]
                 types_chain = self.typeListLetter[chain[0]:chain[1]+1]
@@ -128,7 +129,7 @@ class SaveStructure(StateDataReporter):
                     gro_file.write(f"   0.00000   0.00000   0.00000\n")
         elif self.mode == 'ndb':
             for chainNum, chain in enumerate(self.chains):
-                filename = f"{self.filePrefix}_{chainNum}_block{self.step}.ndb"
+                filename = f"{self.filePrefix}_{chainNum}_state{self.step}.ndb"
                 filename = os.path.join(self.folder, filename)
                 data_chain = data[chain[0]:chain[1]+1]
                 types_chain = self.typeListLetter[chain[0]:chain[1]+1]
@@ -313,6 +314,5 @@ class SimulationReporter(StateDataReporter):
         if hasattr(integrator, 'computeSystemTemperature'):
             values.append(integrator.computeSystemTemperature().value_in_unit(unit.kelvin))
         else:
-            values.append((2*state.getKineticEnergy()/(3.0*unit.MOLAR_GAS_CONSTANT_R)).value_in_unit(unit.kelvin)*0.008314)
-
+            values.append((2*(kineticEnergy / self.N) /(3.0*unit.MOLAR_GAS_CONSTANT_R)).value_in_unit(unit.kelvin)*0.008314)
         return values
