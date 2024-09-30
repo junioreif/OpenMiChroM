@@ -202,7 +202,7 @@ class AdamTraining:
                         else:
                             r[i][j] = 0.0 
                         if r[i][j] > 1.0:
-                            r[i][j] = 0.5
+                            r[i][j] = np.mean(np.diag(r,k=i))
 
             rd = np.transpose(r) 
             self.expHiC = r+rd + np.diag(np.ones(len(r)))
@@ -327,7 +327,7 @@ class AdamTraining:
                         else:
                             r[i][j] = 0.0 
                         if r[i][j] > 1.0:
-                            r[i][j] = 0.5
+                            r[i][j] = np.mean(np.diag(r,k=i))
 
             rd = np.transpose(r) 
             self.expHiC = r+rd + np.diag(np.ones(len(r)))
@@ -740,6 +740,24 @@ class CustomMiChroMTraining:
         return self.PiPj_IC/self.Nframes
 
 
+    def normalize_matrix(self, matrix):
+        R"""
+        Normalize the matrix for simulation optimization. Here the first neighbor should have the probability of contact P=1.0.
+        """
+        matrix = np.nan_to_num(matrix, nan=0, posinf=0, neginf=0)
+        np.fill_diagonal(matrix,0.0)
+
+        max_values = np.amax(np.triu(matrix), axis=1)
+        
+        # To avoid division by zero, replace zeros with ones
+        max_values[max_values == 0] = 0.0000001
+        
+        normalized_matrix = np.triu(matrix) / max_values[:, np.newaxis]
+        # return normalized_matrix
+        matrix= normalized_matrix + np.triu(normalized_matrix,k=1).T
+        np.fill_diagonal(matrix,1.0)
+
+        return matrix
 
     def get_HiC_exp(self, HiC, centerRemove=False, centrange=[0,0], norm=False, cutoff_low=0.0, cutoff_high=1.0, KR=False, neighbors=0):
         R"""
@@ -779,7 +797,7 @@ class CustomMiChroMTraining:
                         else:
                             r[i][j] = 0.0 
                         if r[i][j] > 1.0:
-                            r[i][j] = 0.5
+                            r[i][j] = np.mean(np.diag(r,k=i))
 
             rd = np.transpose(r) 
             self.expHiC = r+rd + np.diag(np.ones(len(r)))
