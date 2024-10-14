@@ -5,7 +5,7 @@ this_dir = path.abspath(path.dirname(__file__))
 with open(path.join(this_dir, "README.rst")) as f:
     long_description = f.read()
 
-__version__ = "1.0.9"
+__version__ = "1.1.0"
 for line in open(path.join("OpenMiChroM", "__init__.py")):
     if line.startswith("__version__"):
         exec(line.strip())
@@ -26,7 +26,7 @@ setup(
     ],
     include_package_data=True,
     packages=find_packages(),
-    install_requires=['numpy', 'scipy', 'scikit-learn', 'six', 'h5py', 'pandas', 'seaborn'],
+    install_requires=['numpy', 'scipy', 'scikit-learn', 'h5py', 'pandas', 'seaborn'],
     entry_points={"console_scripts": ["CLINAME=OpenMiChroM._cli:main"]},
     zip_safe=True,
     long_description=long_description,

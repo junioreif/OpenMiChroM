@@ -28,7 +28,6 @@ requirements:
     - python >=3.6
     - scikit-learn
     - scipy
-    - six
     - openmm
     - sklearn
     - seaborn
