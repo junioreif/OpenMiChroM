@@ -1427,7 +1427,7 @@ class MiChroM:
         self.addRepulsiveSoftCore(eCut= eCut)
 
 
-    def buildClassicMichrom(self, ChromSeq=None, CoordFiles=None, mode='auto'):
+    def buildClassicMichrom(self, ChromSeq=None, chromosome=None, CoordFiles=None, mode='auto'):
         R"""
         Builds a Classic Michrom simulation setup by initializing the structure, loading it,
         adding polymer forces, defining interactions between types, setting up the ideal chromosome,
@@ -1457,7 +1457,7 @@ class MiChroM:
             ```
         """
 
-        initialPos = self.initStructure(mode=mode, CoordFiles=CoordFiles, ChromSeq=ChromSeq, isRing=False)
+        initialPos = self.initStructure(mode=mode, CoordFiles=CoordFiles, ChromSeq=ChromSeq, chromosome=chromosome,isRing=False)
         self.loadStructure(initialPos, center=True)
         self.addHomoPolymerForces()
 
@@ -1691,8 +1691,35 @@ class MiChroM:
 
         return np.vstack([x,y,z]).T
 
+    def loadBed(self, bedFile, chromosome):
+        """
+        Reads a BED file and extracts types for a specified chromosome.
 
-    def createSpringSpiral(self, ChromSeq=None, isRing=False):
+        Parameters:
+            bedFile (str): Path to the BED file.
+            chromosome (str): The chromosome identifier (e.g., 'chr1').
+
+        Returns:
+            List[Tuple[int, str]]: A list of tuples containing start positions and types.
+        """
+        positions = []
+        with open(bedFile, 'r') as f:
+            for line in f:
+                # Skip header lines or comments
+                if line.startswith('#'):
+                    continue
+                parts = line.strip().split()
+                if len(parts) < 4:
+                    continue  # Skip lines that don't have enough columns
+                chrom = parts[0]
+                if chrom != chromosome:
+                    continue  # Skip lines that don't match the specified chromosome
+                type_letter = parts[3]
+                positions.append(type_letter)
+        return positions
+
+
+    def createSpringSpiral(self, ChromSeq=None, isRing=False, chromosome=None):
         R"""
         Creates a spring-spiral-like shape for the initial configuration of the chromosome polymer.
         
@@ -1712,7 +1739,7 @@ class MiChroM:
         x = []
         y = []
         z = []
-        self._translate_type(ChromSeq)
+        self._translate_type(ChromSeq, chromosome=chromosome)
         beads = len(self.type_list_letter)
         
         for i in range(beads):
@@ -1757,7 +1784,7 @@ class MiChroM:
         return random.choices(population=[0,1,2,3,4,5], k=Nbeads)
     
 
-    def _translate_type(self, filename):
+    def _translate_type(self, filename, chromosome=None):
         R"""Internal function that converts the letters of the types numbers following the rule: 'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6.
         
          Args:
@@ -1767,22 +1794,32 @@ class MiChroM:
 
         """        
         
-        self.diff_types = []
-        self.type_list_letter = []
+   
 
-        af = open(filename,'r')
-        pos = af.read().splitlines()
-        
-        for t in range(len(pos)):
-            pos[t] = pos[t].split()
-            if pos[t][1] in self.diff_types:
-                self.type_list_letter.append(pos[t][1])
-            else:
-                self.diff_types.append(pos[t][1]) 
-                self.type_list_letter.append(pos[t][1])
+        _, extension = os.path.splitext(filename)
+        if extension == '.bed':
+            pos = self.loadBed(filename, chromosome)
+            self.type_list_letter = pos
+            self.diff_types = list(set(pos))
+        else:
+
+            self.diff_types = []
+            self.type_list_letter = []      
+            
+
+            af = open(filename,'r')
+            pos = af.read().splitlines()
+            
+            for t in range(len(pos)):
+                pos[t] = pos[t].split()
+                if pos[t][1] in self.diff_types:
+                    self.type_list_letter.append(pos[t][1])
+                else:
+                    self.diff_types.append(pos[t][1]) 
+                    self.type_list_letter.append(pos[t][1])
 
 
-    def createLine(self, ChromSeq):
+    def createLine(self, ChromSeq, chromosome=None):
         R"""
         Creates a straight line for the initial configuration of the chromosome polymer.
         
@@ -1799,7 +1836,7 @@ class MiChroM:
    
         """
 
-        self._translate_type(ChromSeq)
+        self._translate_type(ChromSeq, chromosome=chromosome)
         beads = len(self.type_list_letter)
 
         length_scale = 1.0
@@ -1818,7 +1855,7 @@ class MiChroM:
         return np.vstack([x,y,z]).T
     
 
-    def createRandomWalk(self, ChromSeq=None):    
+    def createRandomWalk(self, ChromSeq=None, chromosome=None):    
         R"""
         Creates a chromosome polymer chain with beads position based on a random walk.
         
@@ -1832,7 +1869,7 @@ class MiChroM:
    
         """
         
-        self._translate_type(ChromSeq)
+        self._translate_type(ChromSeq, chromosome=chromosome)
         Nbeads = len(self.type_list_letter)
 
         segment_length = 1
@@ -1854,7 +1891,7 @@ class MiChroM:
         return np.vstack([x, y, z]).T
 
 
-    def initStructure(self, mode='auto', CoordFiles=None, ChromSeq=None, isRing=False):
+    def initStructure(self, mode='auto', CoordFiles=None, ChromSeq=None, isRing=False, chromosome=None):
         R"""
         Creates the coordinates for the initial configuration of the chromosomal chains and sets their sequence information.
  
@@ -1916,15 +1953,15 @@ class MiChroM:
 
         if mode == 'line':
 
-            return self.createLine(ChromSeq=ChromSeq[0])
+            return self.createLine(ChromSeq=ChromSeq[0], chromosome=chromosome)
 
         elif mode == 'spring':
 
-            return self.createSpringSpiral(ChromSeq=ChromSeq[0], isRing=isRing)
+            return self.createSpringSpiral(ChromSeq=ChromSeq[0], isRing=isRing, chromosome=chromosome)
 
         elif mode == 'random':
 
-            return self.createRandomWalk(ChromSeq=ChromSeq[0])
+            return self.createRandomWalk(ChromSeq=ChromSeq[0], chromosome=chromosome)
 
         elif mode == 'ndb':
 
