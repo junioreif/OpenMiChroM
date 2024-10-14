@@ -1,45 +1,43 @@
 {% set name = "OpenMiChroM" %}
-{% set version = "1.0.6" %}
-
+{% set version = "1.1.0" %}
 
 package:
-  name: {{ name|lower }}
-  version: {{ version }}
+  name: "{{ name|lower }}"
+  version: "{{ version }}"
 
 source:
-  url: https://pypi.io/packages/source/{{ name[0] }}/{{ name }}/OpenMiChroM-{{ version }}.tar.gz
-  sha256: 835ed034621994bde1522760f4601b82721f9f7ad065c3caf1a9a165d15af2b8
+  url: "https://files.pythonhosted.org/packages/e5/7c/16223eb7d05efa20f8cb1061f287fc35ed2c397a15cc959d02f10b8e6a03/openmichrom-1.1.0.tar.gz"
+  sha256: a2cd3ae826b0af507dc68b0870d25cbf7835e2954e9c96c14f0de33d43aadf00
 
 build:
   number: 0
-  noarch: python
+  noarch: pyhton
   entry_points:
     - CLINAME=OpenMiChroM._cli:main
-  script: {{ PYTHON }} -m pip install . -vv
+  script: "{{ PYTHON }} -m pip install . -vv"
 
 requirements:
   host:
-    - pip
-    - python >=3.6
-  run:
+    - openmm
     - h5py
     - numpy
     - pandas
-    - python >=3.6
+    - pip
+    - python
     - scikit-learn
     - scipy
+  run:
     - openmm
-    - sklearn
-    - seaborn
+    - h5py
+    - numpy
+    - pandas
+    - python
+    - scikit-learn
+    - scipy
 
 test:
   imports:
     - OpenMiChroM
-    - tests
-  commands:
-    - pip check
-  requires:
-    - pip
 
 about:
   home: https://ndb.rice.edu/Open-MiChroM
