@@ -49,13 +49,13 @@ The following code snippet shows how to generate a single chromosome polymer mod
 ::
 
       from OpenMiChroM.ChromDynamics import MiChroM
-      sim = MiChroM(name='GM12878_chr10', temperature=1.0, timeStep=0.01)
-      sim.setup(platform="Cuda")
-      sim.saveFolder('GM12878_chr10_simulation')
-      sim.buildClassicMichrom(ChromSeq='inputs/chr10_beads.txt')
+      sim = MiChroM(name='stomach_GRCh38', temperature=1.0, timeStep=0.01)
+      sim.setup(platform="cuda")
+      sim.saveFolder('stomach_GRCh38_chr10_simulation')
+      sim.buildClassicMichrom(ChromSeq='inputs/stomach_GRCh38.bed', chromosome='chr10')
 
-      sim.createReporters(statistics=True, traj=True, trajFormat="swb", energyComponents=True, interval=1000)
-      sim.run(nsteps=10**6, report=True, interval=10**4)
+      sim.createReporters(statistics=True, traj=True, trajFormat="cndb", energyComponents=True, interval=10**3)
+      sim.run(nsteps=10**5, report=True, interval=10**4)
 
 
 Resources
