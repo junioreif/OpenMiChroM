@@ -1314,7 +1314,7 @@ class MiChroM:
                 If `True`, attaches a reporter to save trajectory data during the simulation.
                 (Default: `False`)
             trajFormat (str, optional):
-                The file format to save the trajectory data. Options are `'cndb'`, `'ndb'`, `'pdb'`, `'gro'`, `'xyz'`.
+                The file format to save the trajectory data. Options are `'cndb'`, `'swb'`,`'ndb'`, `'pdb'`, `'gro'`, `'xyz'`.
                 (Default: `'cndb'`)
             energyComponents (bool, optional):
                 If `True`, saves energy components per force group to a separate file named `'energyComponents.txt'` in the simulation folder.
