@@ -2012,15 +2012,14 @@ class MiChroM:
         
         data = self.getPositions()
         
-        if filename is None:
-            filename = self.name +"_step%d." % self.step + mode
-
-        filename = os.path.join(self.folder, filename)
-        
         if not hasattr(self, "type_list_letter"):
             raise ValueError("Chromatin sequence not defined!")
         
         if mode == "xyz":
+            if filename is None:
+                filename = self.name +"_step%d." % self.simulation.currentStep + mode
+            filename = os.path.join(self.folder, filename)
+            
             lines = []
             lines.append(str(len(data)) + "\n")
 
@@ -2045,9 +2044,11 @@ class MiChroM:
             
             for chainNum, chain in zip(range(len(self.chains)),self.chains):
                 pdb_string = []
-                filename = self.name +"_" + str(chainNum) + "_block%d." % self.step + mode
 
+                if filename is None:
+                    filename = self.name +"_" + str(chainNum) + "_step%d." % self.simulation.currentStep + mode
                 filename = os.path.join(self.folder, filename)
+
                 data_chain = data[chain[0]:chain[1]+1]
                 types_chain = self.type_list_letter[chain[0]:chain[1]+1] 
 
@@ -2078,7 +2079,9 @@ class MiChroM:
             for chainNum, chain in zip(range(len(self.chains)),self.chains):
                 
                 gro_string = []
-                filename = self.name +"_" + str(chainNum) + "_block%d." % self.step + mode
+
+                if filename is None:
+                    filename = self.name +"_" + str(chainNum) + "_step%d." % self.simulation.currentStep + mode
                 filename = os.path.join(self.folder, filename)
                 
                 data_chain = data[chain[0]:chain[1]+1] 
@@ -2119,10 +2122,12 @@ class MiChroM:
                 return ([l[i:i+n] for i in range(0, len(l), n)])
             
             for chainNum, chain in zip(range(len(self.chains)),self.chains):
-                filename = self.name +"_" + str(chainNum) + "_block%d." % self.step + mode
+                if filename is None:
+                    filename = self.name +"_" + str(chainNum) + "_step%d." % self.simulation.currentStep + mode
+                filename = os.path.join(self.folder, filename)
+                
                 ndbf = []
                 
-                filename = os.path.join(self.folder, filename)
                 data_chain = data[chain[0]:chain[1]+1]
                 
                 ndbf.append(header_string.format('HEADER','NDB File genereted by Open-MiChroM'," ", " "))
