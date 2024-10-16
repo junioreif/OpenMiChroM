@@ -1289,7 +1289,7 @@ class MiChroM:
         # Print information to console
         print(simulationInfo)
         print(energyInfo)
-        print(f'\nPotential energy per forceGroup:\n {self.printForces()}')
+        print(f'\nPotential energy per forceGroup:\n {self.getForces()}')
         
         filePath = Path(self.folder) / 'initialStats.txt'
         with open(filePath, 'w') as f:
@@ -1297,7 +1297,7 @@ class MiChroM:
                 print(info, file=f)
             print(simulationInfo, file=f)
             print(energyInfo, file=f)
-            print(f'\nPotential energy per forceGroup:\n {self.printForces()}', file=f)
+            print(f'\nPotential energy per forceGroup:\n {self.getForces()}', file=f)
 
 
     def createReporters(self, statistics=True, traj=False, trajFormat="cndb", energyComponents=False,
@@ -2260,7 +2260,7 @@ class MiChroM:
             return positions
    
 
-    def printForces(self):
+    def getForces(self):
         R"""
         Prints the energy values for each force applied in the system.
         """
