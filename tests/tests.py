@@ -1,42 +1,48 @@
 import sys
 
-sys.path.append('../OpenMiChroM')
+sys.path.insert(0, "../")
 
+from OpenMiChroM.ChromDynamics import MiChroM
+from OpenMiChroM.Optimization import FullTraining, CustomMiChroMTraining, AdamTraining
+from OpenMiChroM.CndbTools import cndbTools
 
-from ChromDynamics import MiChroM
-from Optimization import FullTraining, CustomMiChroMTraining, AdamTraining
-from CndbTools import cndbTools
-from Analyze import Ana
 import h5py
 import numpy as np
 import pandas as pd
 
 
+class testMichrom:
 
-
-class testMichrom():
-   
     def runDefault(self):
-        a = MiChroM(name="test", temperature=1.0, time_step=0.01)
-        a.setup(platform="opencl", integrator="Langevin", precision='single')
-        a.saveFolder('output')
-        myChrom = a.create_springSpiral(ChromSeq=sys.path[0]+'/chr10/chr10_beads.txt')
-        a.loadStructure(myChrom, center=True)
-        a.addFENEBonds(kfb=30.0) 
-        a.addAngles(ka=2.0)
-        a.addRepulsiveSoftCore(Ecut=4.0)
-        a.addTypetoType(mu=3.22, rc=1.78)
-        a.addIdealChromosome(mu=3.22, rc=1.78)
-        a.addFlatBottomHarmonic(kr=5*10**-3, n_rad=10.0)
+        sim = MiChroM(name="test", temperature=1.0, timeStep=0.01)
+        sim.setup(platform="opencl")
+        sim.saveFolder("output")
 
-        for _ in range(10):
-            a.runSimBlock(2000, increment=False)
-    
-        a.printForces()
-        a.saveStructure(mode = 'ndb')
-        a.saveStructure(mode = 'pdb')
-        a.saveStructure(mode = 'gro')
-        a.saveStructure(mode = 'xyz')
+        chromosome_positions = sim.initStructure(mode="spring", ChromSeq="chr10/chr10_beads.txt")
+
+        sim.loadStructure(chromosome_positions, center=True)
+        sim.addFENEBonds()
+        sim.addAngles()
+        sim.addRepulsiveSoftCore()
+        sim.addTypetoType()
+        sim.addIdealChromosome()
+        sim.addFlatBottomHarmonic()
+
+        sim.createSimulation()
+        sim.createReporters(
+            statistics=True,
+            traj=True,
+            trajFormat="pdb",
+            interval=20_000,
+        )
+
+        sim.run(nsteps=20_000, report=True, interval=1_000)
+
+        sim.printForces()
+        sim.saveStructure(mode = 'ndb')
+        sim.saveStructure(mode = 'pdb')
+        sim.saveStructure(mode = 'gro')
+        sim.saveStructure(mode = 'xyz')
 
     def testCustomMiChroM(self):
         b = CustomMiChroMTraining(ChromSeq=sys.path[0] + '/training/seq_c18_10')
@@ -92,9 +98,6 @@ class testMichrom():
         lamb_new.to_csv("AdamTraining/output/lambda_1", index=False)
 
         ff_new = pd.read_csv("AdamTraining/output/lambda_1")
-    
-    
-
 
 
 run = testMichrom()
