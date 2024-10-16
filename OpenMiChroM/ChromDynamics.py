@@ -2262,7 +2262,7 @@ class MiChroM:
 
     def getForces(self):
         R"""
-        Prints the energy values for each force applied in the system.
+        Gets the energy values for each force applied in the system.
         """
         forceNames = []
         forceValues = []
@@ -2275,6 +2275,17 @@ class MiChroM:
         df = pd.DataFrame(forceValues,forceNames)
         df.columns = ['Values']
         return(df)
+    
+
+    def printForces(self):
+        R"""
+        Prints the energy values for each force applied in the system.
+        """
+
+        df = self.getForces()
+        print(f'\nPotential energy per forceGroup:\n {df}')
+
+        return df
 
 
     def printHeader(self):
