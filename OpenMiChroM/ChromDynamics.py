@@ -268,7 +268,7 @@ class MiChroM:
                 Returns an array of positions.
         """
         
-        return np.asarray(self.data / self.nm, dtype=np.float32)
+        return np.asarray(self.context.getState(getPositions=True).getPositions(asNumpy=True) / self.nm, dtype=np.float32)
 
 
     def getLoops(self, looplists):
