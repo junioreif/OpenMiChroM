@@ -113,17 +113,17 @@ class MiChroM:
         self.gpu = str(gpu)
 
         # Define the platform priority order
-        default_platforms = {'cuda': 'CUDA', 'hip': 'HIP', 'opencl': 'OpenCL', 'cpu':' CPU'}
+        default_platforms = ['CUDA', 'HIP', 'OpenCL', 'CPU']
 
         # Rearrange the platform priority so that the specified platform is first
-        preferred_platform = default_platforms[platform.lower()]
-        platform_priority = [preferred_platform] + [p for p in default_platforms.values() if p != preferred_platform]
+        preferred_platform = platform.upper()
+        platform_priority = [preferred_platform] + [p for p in default_platforms if p != preferred_platform]
 
         # Dictionary to map platform names to their specific property names
         property_names = {
             'CUDA': {'DeviceIndex': 'CudaDeviceIndex', 'Precision': 'CudaPrecision'},
             'HIP': {'DeviceIndex': 'HipDeviceIndex', 'Precision': 'HipPrecision'},
-            'OpenCL': {'DeviceIndex': 'OpenCLDeviceIndex', 'Precision': 'OpenCLPrecision'},
+            'OPENCL': {'DeviceIndex': 'OpenCLDeviceIndex', 'Precision': 'OpenCLPrecision'},
             'CPU': {}
         }
 
@@ -1990,6 +1990,7 @@ class MiChroM:
             if mode != 'auto':
                 raise ValueError("Mode '{:}' not supported!".format(mode))
 
+
     def saveStructure(self, filename=None, mode="gro"):
         R"""
         Saves the 3D positions of beads during the simulation in various file formats.
@@ -2044,7 +2045,7 @@ class MiChroM:
             
             for chainNum, chain in zip(range(len(self.chains)),self.chains):
                 pdb_string = []
-                filename = self.name +"_" + str(chainNum) + "_step%d." % self.step + mode
+                filename = self.name +"_" + str(chainNum) + "_block%d." % self.step + mode
 
                 filename = os.path.join(self.folder, filename)
                 data_chain = data[chain[0]:chain[1]+1]
@@ -2077,7 +2078,7 @@ class MiChroM:
             for chainNum, chain in zip(range(len(self.chains)),self.chains):
                 
                 gro_string = []
-                filename = self.name +"_" + str(chainNum) + "_step%d." % self.step + mode
+                filename = self.name +"_" + str(chainNum) + "_block%d." % self.step + mode
                 filename = os.path.join(self.folder, filename)
                 
                 data_chain = data[chain[0]:chain[1]+1] 
@@ -2118,7 +2119,7 @@ class MiChroM:
                 return ([l[i:i+n] for i in range(0, len(l), n)])
             
             for chainNum, chain in zip(range(len(self.chains)),self.chains):
-                filename = self.name +"_" + str(chainNum) + "_step%d." % self.step + mode
+                filename = self.name +"_" + str(chainNum) + "_block%d." % self.step + mode
                 ndbf = []
                 
                 filename = os.path.join(self.folder, filename)
