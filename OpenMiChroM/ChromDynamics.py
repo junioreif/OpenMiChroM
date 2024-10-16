@@ -113,17 +113,17 @@ class MiChroM:
         self.gpu = str(gpu)
 
         # Define the platform priority order
-        default_platforms = ['CUDA', 'HIP', 'OpenCL', 'CPU']
+        default_platforms = {'cuda': 'CUDA', 'hip': 'HIP', 'opencl': 'OpenCL', 'cpu': ' CPU'}
 
         # Rearrange the platform priority so that the specified platform is first
-        preferred_platform = platform.upper()
-        platform_priority = [preferred_platform] + [p for p in default_platforms if p != preferred_platform]
+        preferred_platform = default_platforms[platform.lower()]
+        platform_priority = [preferred_platform] + [p for p in default_platforms.values() if p != preferred_platform]
 
         # Dictionary to map platform names to their specific property names
         property_names = {
             'CUDA': {'DeviceIndex': 'CudaDeviceIndex', 'Precision': 'CudaPrecision'},
             'HIP': {'DeviceIndex': 'HipDeviceIndex', 'Precision': 'HipPrecision'},
-            'OPENCL': {'DeviceIndex': 'OpenCLDeviceIndex', 'Precision': 'OpenCLPrecision'},
+            'OpenCL': {'DeviceIndex': 'OpenCLDeviceIndex', 'Precision': 'OpenCLPrecision'},
             'CPU': {}
         }
 
