@@ -25,7 +25,7 @@ class SaveStructure(StateDataReporter):
     def __init__(self, filePrefix, reportInterval, mode='cndb', folder='.',
                  chains=None, typeListLetter=None, diffTypes=None):
         #super().__init__(reportInterval)
-        super(SaveStructure, self).__init__(filePrefix, reportInterval)
+        # super(SaveStructure, self).__init__(filePrefix, reportInterval)
         self.filePrefix = filePrefix
         self.reportInterval = reportInterval
         self.mode = mode.lower()
