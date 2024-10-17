@@ -1,0 +1,3 @@
+#Step,RG,Etotal,Epot,Ekin,Temperature
+
+20000,59.178,28.808,26.957,1.851,1.234

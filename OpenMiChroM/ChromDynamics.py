@@ -113,17 +113,17 @@ class MiChroM:
         self.gpu = str(gpu)
 
         # Define the platform priority order
-        default_platforms = ['CUDA', 'HIP', 'OpenCL', 'CPU']
+        default_platforms = {'cuda': 'CUDA', 'hip': 'HIP', 'opencl': 'OpenCL', 'cpu': ' CPU'}
 
         # Rearrange the platform priority so that the specified platform is first
-        preferred_platform = platform.upper()
-        platform_priority = [preferred_platform] + [p for p in default_platforms if p != preferred_platform]
+        preferred_platform = default_platforms[platform.lower()]
+        platform_priority = [preferred_platform] + [p for p in default_platforms.values() if p != preferred_platform]
 
         # Dictionary to map platform names to their specific property names
         property_names = {
             'CUDA': {'DeviceIndex': 'CudaDeviceIndex', 'Precision': 'CudaPrecision'},
             'HIP': {'DeviceIndex': 'HipDeviceIndex', 'Precision': 'HipPrecision'},
-            'OPENCL': {'DeviceIndex': 'OpenCLDeviceIndex', 'Precision': 'OpenCLPrecision'},
+            'OpenCL': {'DeviceIndex': 'OpenCLDeviceIndex', 'Precision': 'OpenCLPrecision'},
             'CPU': {}
         }
 
@@ -268,7 +268,7 @@ class MiChroM:
                 Returns an array of positions.
         """
         
-        return np.asarray(self.data / self.nm, dtype=np.float32)
+        return np.asarray(self.context.getState(getPositions=True).getPositions(asNumpy=True) / self.nm, dtype=np.float32)
 
 
     def getLoops(self, looplists):
@@ -1289,7 +1289,7 @@ class MiChroM:
         # Print information to console
         print(simulationInfo)
         print(energyInfo)
-        print(f'\nPotential energy per forceGroup:\n {self.printForces()}')
+        print(f'\nPotential energy per forceGroup:\n {self.getForces()}')
         
         filePath = Path(self.folder) / 'initialStats.txt'
         with open(filePath, 'w') as f:
@@ -1297,7 +1297,7 @@ class MiChroM:
                 print(info, file=f)
             print(simulationInfo, file=f)
             print(energyInfo, file=f)
-            print(f'\nPotential energy per forceGroup:\n {self.printForces()}', file=f)
+            print(f'\nPotential energy per forceGroup:\n {self.getForces()}', file=f)
 
 
     def createReporters(self, statistics=True, traj=False, trajFormat="cndb", energyComponents=False,
@@ -2012,15 +2012,14 @@ class MiChroM:
         
         data = self.getPositions()
         
-        if filename is None:
-            filename = self.name +"_step%d." % self.step + mode
-
-        filename = os.path.join(self.folder, filename)
-        
         if not hasattr(self, "type_list_letter"):
             raise ValueError("Chromatin sequence not defined!")
         
         if mode == "xyz":
+            if filename is None:
+                filename = self.name +"_step%d." % self.simulation.currentStep + mode
+            filename = os.path.join(self.folder, filename)
+            
             lines = []
             lines.append(str(len(data)) + "\n")
 
@@ -2045,9 +2044,11 @@ class MiChroM:
             
             for chainNum, chain in zip(range(len(self.chains)),self.chains):
                 pdb_string = []
-                filename = self.name +"_" + str(chainNum) + "_block%d." % self.step + mode
 
+                if filename is None:
+                    filename = self.name +"_" + str(chainNum) + "_step%d." % self.simulation.currentStep + mode
                 filename = os.path.join(self.folder, filename)
+
                 data_chain = data[chain[0]:chain[1]+1]
                 types_chain = self.type_list_letter[chain[0]:chain[1]+1] 
 
@@ -2078,7 +2079,9 @@ class MiChroM:
             for chainNum, chain in zip(range(len(self.chains)),self.chains):
                 
                 gro_string = []
-                filename = self.name +"_" + str(chainNum) + "_block%d." % self.step + mode
+
+                if filename is None:
+                    filename = self.name +"_" + str(chainNum) + "_step%d." % self.simulation.currentStep + mode
                 filename = os.path.join(self.folder, filename)
                 
                 data_chain = data[chain[0]:chain[1]+1] 
@@ -2119,10 +2122,12 @@ class MiChroM:
                 return ([l[i:i+n] for i in range(0, len(l), n)])
             
             for chainNum, chain in zip(range(len(self.chains)),self.chains):
-                filename = self.name +"_" + str(chainNum) + "_block%d." % self.step + mode
+                if filename is None:
+                    filename = self.name +"_" + str(chainNum) + "_step%d." % self.simulation.currentStep + mode
+                filename = os.path.join(self.folder, filename)
+                
                 ndbf = []
                 
-                filename = os.path.join(self.folder, filename)
                 data_chain = data[chain[0]:chain[1]+1]
                 
                 ndbf.append(header_string.format('HEADER','NDB File genereted by Open-MiChroM'," ", " "))
@@ -2255,9 +2260,9 @@ class MiChroM:
             return positions
    
 
-    def printForces(self):
+    def getForces(self):
         R"""
-        Prints the energy values for each force applied in the system.
+        Gets the energy values for each force applied in the system.
         """
         forceNames = []
         forceValues = []
@@ -2270,6 +2275,17 @@ class MiChroM:
         df = pd.DataFrame(forceValues,forceNames)
         df.columns = ['Values']
         return(df)
+    
+
+    def printForces(self):
+        R"""
+        Prints the energy values for each force applied in the system.
+        """
+
+        df = self.getForces()
+        print(f'\nPotential energy per forceGroup:\n {df}')
+
+        return df
 
 
     def printHeader(self):
