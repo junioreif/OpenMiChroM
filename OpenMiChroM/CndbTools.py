@@ -209,7 +209,7 @@ class cndbTools:
         return np.asarray(Oijx),np.asarray(Oijy)
 
 
-    def compute_FFT_from_Oij(Oijy,lowcut=1, highcut=500, order=5):
+    def compute_FFT_from_Oij(self, Oijy, lowcut=1, highcut=500, order=5):
         from scipy.signal import butter, lfilter
         from scipy.fftpack import fft
         R"""
@@ -232,30 +232,31 @@ class cndbTools:
             yf:class:`numpy.ndarray`:
                 Returns the Fourier transform of the Orientation Order Parameter OP in space of 1/Chrom_Length.
         """
+
+        def _butter_bandpass(lowcut, highcut, fs, order=5):
+            R"""
+            Internal function for selecting frequencies.
+            """
+            nyq = fs//2
+            low = lowcut / nyq
+            high = highcut / nyq
+            b, a = butter(order, [low, high], btype='band')
+            return b, a
+        
+        def _butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
+            R"""
+            Internal function for filtering bands.
+            """
+            b, a = _butter_bandpass(lowcut, highcut, fs, order=order)
+            y = lfilter(b, a, data)
+            return y
+        
         N=np.shape(Oijy)[0]
-        y = _butter_bandpass_filter(Oijy, lowcut, highcut, N, order=5)
+        y = _butter_bandpass_filter(Oijy, lowcut, highcut, N, order=order)
         xf = np.linspace(1, N//2 , N//2)
         yf=fft(y)/len(y)
         return (xf[0:N//2]-1)/N,np.abs(yf[0:N//2])
-
-    def _butter_bandpass(lowcut, highcut, fs, order=5):
-        R"""
-        Internal function for selecting frequencies.
-        """
-        nyq = fs//2
-        low = lowcut / nyq
-        high = highcut / nyq
-        b, a = butter(order, [low, high], btype='band')
-        return b, a
-
-
-    def _butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
-        R"""
-        Internal function for filtering bands.
-        """
-        b, a = _butter_bandpass(lowcut, highcut, fs, order=order)
-        y = lfilter(b, a, data)
-        return y
+    
 
     def compute_Chirality(self,xyz,neig_beads=4):
         R"""
