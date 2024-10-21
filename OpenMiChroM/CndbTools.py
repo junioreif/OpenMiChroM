@@ -127,17 +127,17 @@ class cndbTools:
         cndbf.close()
         return(name)
     
-    def xyz(self, frames=[1,None,1], beadSelection=None, XYZ=[0,1,2]):
+    def xyz(self, frames=None, beadSelection=None, XYZ=[0,1,2]):
         R"""
         Get the selected beads' 3D position from a **cndb** or **ndb** for multiple frames.
         
         Args:
             frames (list, required):
-                Define the range of frames that the position of the bead will get extracted. The range list is defined by :code:`frames=[initial, final, step]`. (Default value: :code: `[1,None,1]`, all frames)
+                Define which frames to extract the position of the selected beads. The list should include all frames to iterate over, or a iterator that goes over the desired frames. (Default value: `None`, all frames)
             beadSelection (list of ints, required):
-                List of beads to extract the 3D position for each frame. The list is defined by :code: `beadSelection=[0,1,2,...,N-1]`. (Default value: :code: `None`, all beads) 
+                List of beads to extract the 3D position for each frame. The list is defined by `beadSelection=[0,1,2,...,N-1]`. (Default value: `None`, all beads) 
             XYZ (list, required):
-                List of the axis in the Cartesian coordinate system that the position of the bead will get extracted for each frame. The list is defined by :code: `XYZ=[0,1,2]`. where 0, 1 and 2 are the axis X, Y and Z, respectively. (Default value: :code: `XYZ=[0,1,2]`) 
+                List of the axis in the Cartesian coordinate system that the position of the bead will get extracted for each frame. The list is defined by `XYZ=[0,1,2]`. where 0, 1 and 2 are the axis X, Y and Z, respectively. (Default value: `XYZ=[0,1,2]`) 
     
         Returns:
             (:math:`N_{frames}`, :math:`N_{beads}`, 3) :class:`numpy.ndarray`: Returns an array of the 3D position of the selected beads for different frames.
@@ -149,10 +149,10 @@ class cndbTools:
         else:
             selection = np.array(beadSelection)
             
-        if frames[1] == None:
-            frames[1] = self.Nframes
+        if frames == None:
+            frames = range(1,self.Nframes+1,1)
         
-        for i in range(frames[0],frames[1],frames[2]):
+        for i in frames:
             frame_list.append(np.take(np.take(np.array(self.cndb[str(i)]), selection, axis=0), XYZ, axis=1))
         return(np.array(frame_list))
     
@@ -170,7 +170,7 @@ class cndbTools:
         
         Args:
             xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray`, required):
-                Array of the 3D position of the selected beads for different frames extracted by using the :code: `xyz()` function.
+                Array of the 3D position of the selected beads for different frames extracted by using the `xyz()` function.
             chrom_start (int, required):
                 First bead to consider in the calculations (Default value = 0).
             chrom_end (int, required):
@@ -217,7 +217,7 @@ class cndbTools:
         
         Args:
             xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray`, required):
-                Array of the 3D position of the selected beads for different frames extracted by using the :code: `xyz()` function.
+                Array of the 3D position of the selected beads for different frames extracted by using the `xyz()` function.
             lowcut (int, required):
                 Filter to cut low frequencies (Default value = 1).
             highcut (int, required):
@@ -263,7 +263,7 @@ class cndbTools:
         
         Args:
             xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray`, required):
-                Array of the 3D position of the selected beads for different frames extracted by using the :code: `xyz()` function.
+                Array of the 3D position of the selected beads for different frames extracted by using the `xyz()` function.
             neig_beads (int, required):
                 Number of neighbor beads to consider in the calculation (Default value = 4).  
                        
@@ -296,7 +296,7 @@ class cndbTools:
         
         Args:
             xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray` (dim: TxNx3), required):
-                Array of the 3D position of the selected beads for different frames extracted by using the :code: `xyz()` function.  
+                Array of the 3D position of the selected beads for different frames extracted by using the `xyz()` function.  
                        
         Returns:
             :class:`numpy.ndarray` (dim: Tx1):
@@ -320,7 +320,7 @@ class cndbTools:
 
         Args:
             xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray` (dim: TxNx3), required):
-                Array of the 3D position of the selected beads for different frames extracted by using the :code: `xyz()` function.  
+                Array of the 3D position of the selected beads for different frames extracted by using the `xyz()` function.  
                        
         Returns:
             :class:`numpy.ndarray` (dim: Tx3):
@@ -343,7 +343,7 @@ class cndbTools:
         
         Args:
             xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray` (dim: TxNx3), required):
-                Array of the 3D position of the selected beads for different frames extracted by using the :code: `xyz()` function.  
+                Array of the 3D position of the selected beads for different frames extracted by using the `xyz()` function.  
                        
         Returns:
             :class:`numpy.ndarray` (dim: NxT):
@@ -389,7 +389,7 @@ class cndbTools:
         
         Args:
             xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray` (dim: TxNx3), required):
-                Array of the 3D position of the selected beads for different frames extracted by using the :code: `xyz()` function.  
+                Array of the 3D position of the selected beads for different frames extracted by using the `xyz()` function.  
 
             dr (float, required):
                 mesh size of radius for calculating the radial distribution. 
@@ -460,9 +460,9 @@ class cndbTools:
         
         Args:
             xyz (:math:`(frames, XYZ)` :class:`numpy.ndarray`, required):
-                Array of the 3D position of the frames extracted by using the :code: `xyz()` function. 
+                Array of the 3D position of the frames extracted by using the `xyz()` function. 
             beadSelection (:math:`(beadSelection)` :class:`numpy.ndarray`):
-                The index of the beads to be sliced from `xyz` that you want to compute RDP. Usualy, you can use the internal selection using the :code: `dictChromSeq['types']` with 'types' been the selection that you want. 
+                The index of the beads to be sliced from `xyz` that you want to compute RDP. Usualy, you can use the internal selection using the `dictChromSeq['types']` with 'types' been the selection that you want. 
             radius (float, required):
                 Radius of the sphere in units of :math:`\sigma` to be considered in the calculations. The radius value should be modified depending on your simulated chromosome length. (Default value = 20.0).
             bins (int, required):
