@@ -1357,7 +1357,7 @@ class MiChroM:
                 self.simulation.reporters.append(simulation_reporter)
 
 
-    def run(self, nsteps, report=True, interval=10**4):
+    def run(self, nsteps, report=True, interval=10**4, totalSteps=None):
         R"""
         Executes the simulation for a specified number of steps, with optional progress reporting.
 
@@ -1367,7 +1367,7 @@ class MiChroM:
 
         Args:
             nsteps (int):
-                The total number of steps to execute in the simulation. Must be a positive integer.
+                The number of steps to execute in the simulation. Must be a positive integer.
             
             report (bool, optional):
                 Determines whether to enable progress reporting during the simulation run.
@@ -1380,15 +1380,25 @@ class MiChroM:
                 Must be a positive integer.
                 Default is `10**4` (10,000 steps).
 
+            totalSteps (int):
+                The total number of steps planned for the simulation. Must be a positive integer.
+                This defines how many steps will indicate 100% completion. If the simulation pipeline
+                includes multiple `run` calls, this number should be the sum of `nsteps` in all of them.
+                If `None`, `totalSteps = nsteps`.
+                Default is `None`.
+
         Example:
             ```python
             # Run the simulation for 500,000 steps with progress reporting every 5,000 steps
             simulation.run(nsteps=500000, report=True, interval=5000)
             ```
         """
+        if totalSteps is None:
+            totalSteps = nsteps
+            
         if report:
             self.simulation.reporters.append(StateDataReporter(stdout, interval, step=True, remainingTime=True,
-                                                  progress=True, speed=True, totalSteps=nsteps, separator="\t"))
+                                                  progress=True, speed=True, totalSteps=totalSteps, separator="\t"))
         
         self.simulation.step(nsteps)
 
