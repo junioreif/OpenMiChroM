@@ -2025,9 +2025,20 @@ class MiChroM:
         if not hasattr(self, "type_list_letter"):
             raise ValueError("Chromatin sequence not defined!")
         
+        if filename is None:
+            if len(self.chains) > 1:
+                filename_format = "{name}_{chain}_step{step}.{mode}"
+            else:
+                filename_format = "{name}_step{step}.{mode}"
+        else:
+            if len(self.chains) > 1:
+                filename_format = os.path.splitext(filename)[0] + "_{chain}.{mode}"
+            else:
+                filename = os.path.splitext(filename)[0] + ".{mode}"
+        
         if mode == "xyz":
-            if filename is None:
-                filename = self.name +"_step%d." % self.simulation.currentStep + mode
+
+            filename = filename_format.format(name=self.name, chain=0, step=self.simulation.currentStep, mode=mode)
             filename = os.path.join(self.folder, filename)
             
             lines = []
@@ -2055,8 +2066,7 @@ class MiChroM:
             for chainNum, chain in zip(range(len(self.chains)),self.chains):
                 pdb_string = []
 
-                if filename is None:
-                    filename = self.name +"_" + str(chainNum) + "_step%d." % self.simulation.currentStep + mode
+                filename = filename_format.format(name=self.name, chain=chainNum, step=self.simulation.currentStep, mode=mode)
                 filename = os.path.join(self.folder, filename)
 
                 data_chain = data[chain[0]:chain[1]+1]
@@ -2090,8 +2100,7 @@ class MiChroM:
                 
                 gro_string = []
 
-                if filename is None:
-                    filename = self.name +"_" + str(chainNum) + "_step%d." % self.simulation.currentStep + mode
+                filename = filename_format.format(name=self.name, chain=chainNum, step=self.simulation.currentStep, mode=mode)
                 filename = os.path.join(self.folder, filename)
                 
                 data_chain = data[chain[0]:chain[1]+1] 
@@ -2132,8 +2141,7 @@ class MiChroM:
                 return ([l[i:i+n] for i in range(0, len(l), n)])
             
             for chainNum, chain in zip(range(len(self.chains)),self.chains):
-                if filename is None:
-                    filename = self.name +"_" + str(chainNum) + "_step%d." % self.simulation.currentStep + mode
+                filename = filename_format.format(name=self.name, chain=chainNum, step=self.simulation.currentStep, mode=mode)
                 filename = os.path.join(self.folder, filename)
                 
                 ndbf = []
