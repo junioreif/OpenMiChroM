@@ -113,7 +113,7 @@ class MiChroM:
         self.gpu = str(gpu)
 
         # Define the platform priority order
-        default_platforms = {'cuda': 'CUDA', 'hip': 'HIP', 'opencl': 'OpenCL', 'cpu': ' CPU'}
+        default_platforms = {'cuda': 'CUDA', 'hip': 'HIP', 'opencl': 'OpenCL', 'cpu': 'CPU'}
 
         # Rearrange the platform priority so that the specified platform is first
         preferred_platform = default_platforms[platform.lower()]
