@@ -113,7 +113,7 @@ class MiChroM:
         self.gpu = str(gpu)
 
         # Define the platform priority order
-        default_platforms = {'cuda': 'CUDA', 'hip': 'HIP', 'opencl': 'OpenCL', 'cpu': ' CPU'}
+        default_platforms = {'cuda': 'CUDA', 'hip': 'HIP', 'opencl': 'OpenCL', 'cpu': 'CPU'}
 
         # Rearrange the platform priority so that the specified platform is first
         preferred_platform = default_platforms[platform.lower()]
@@ -1357,7 +1357,7 @@ class MiChroM:
                 self.simulation.reporters.append(simulation_reporter)
 
 
-    def run(self, nsteps, report=True, interval=10**4):
+    def run(self, nsteps, report=True, interval=10**4, totalSteps=None):
         R"""
         Executes the simulation for a specified number of steps, with optional progress reporting.
 
@@ -1367,7 +1367,7 @@ class MiChroM:
 
         Args:
             nsteps (int):
-                The total number of steps to execute in the simulation. Must be a positive integer.
+                The number of steps to execute in the simulation. Must be a positive integer.
             
             report (bool, optional):
                 Determines whether to enable progress reporting during the simulation run.
@@ -1380,15 +1380,25 @@ class MiChroM:
                 Must be a positive integer.
                 Default is `10**4` (10,000 steps).
 
+            totalSteps (int):
+                The total number of steps planned for the simulation. Must be a positive integer.
+                This defines how many steps will indicate 100% completion. If the simulation pipeline
+                includes multiple `run` calls, this number should be the sum of `nsteps` in all of them.
+                If `None`, `totalSteps = nsteps`.
+                Default is `None`.
+
         Example:
             ```python
             # Run the simulation for 500,000 steps with progress reporting every 5,000 steps
             simulation.run(nsteps=500000, report=True, interval=5000)
             ```
         """
+        if totalSteps is None:
+            totalSteps = nsteps
+            
         if report:
             self.simulation.reporters.append(StateDataReporter(stdout, interval, step=True, remainingTime=True,
-                                                  progress=True, speed=True, totalSteps=nsteps, separator="\t"))
+                                                  progress=True, speed=True, totalSteps=totalSteps, separator="\t"))
         
         self.simulation.step(nsteps)
 
@@ -2015,9 +2025,20 @@ class MiChroM:
         if not hasattr(self, "type_list_letter"):
             raise ValueError("Chromatin sequence not defined!")
         
+        if filename is None:
+            if len(self.chains) > 1:
+                filename_format = "{name}_{chain}_step{step}.{mode}"
+            else:
+                filename_format = "{name}_step{step}.{mode}"
+        else:
+            if len(self.chains) > 1:
+                filename_format = os.path.splitext(filename)[0] + "_{chain}.{mode}"
+            else:
+                filename = os.path.splitext(filename)[0] + ".{mode}"
+        
         if mode == "xyz":
-            if filename is None:
-                filename = self.name +"_step%d." % self.simulation.currentStep + mode
+
+            filename = filename_format.format(name=self.name, chain=0, step=self.simulation.currentStep, mode=mode)
             filename = os.path.join(self.folder, filename)
             
             lines = []
@@ -2045,8 +2066,7 @@ class MiChroM:
             for chainNum, chain in zip(range(len(self.chains)),self.chains):
                 pdb_string = []
 
-                if filename is None:
-                    filename = self.name +"_" + str(chainNum) + "_step%d." % self.simulation.currentStep + mode
+                filename = filename_format.format(name=self.name, chain=chainNum, step=self.simulation.currentStep, mode=mode)
                 filename = os.path.join(self.folder, filename)
 
                 data_chain = data[chain[0]:chain[1]+1]
@@ -2080,8 +2100,7 @@ class MiChroM:
                 
                 gro_string = []
 
-                if filename is None:
-                    filename = self.name +"_" + str(chainNum) + "_step%d." % self.simulation.currentStep + mode
+                filename = filename_format.format(name=self.name, chain=chainNum, step=self.simulation.currentStep, mode=mode)
                 filename = os.path.join(self.folder, filename)
                 
                 data_chain = data[chain[0]:chain[1]+1] 
@@ -2122,8 +2141,7 @@ class MiChroM:
                 return ([l[i:i+n] for i in range(0, len(l), n)])
             
             for chainNum, chain in zip(range(len(self.chains)),self.chains):
-                if filename is None:
-                    filename = self.name +"_" + str(chainNum) + "_step%d." % self.simulation.currentStep + mode
+                filename = filename_format.format(name=self.name, chain=chainNum, step=self.simulation.currentStep, mode=mode)
                 filename = os.path.join(self.folder, filename)
                 
                 ndbf = []
