@@ -1,4 +1,4 @@
-__version__ = '1.1.0'
+__version__ = '1.1.1rc'
 
 from .ChromDynamics import MiChroM
 from .Optimization import FullTraining, CustomMiChroMTraining
