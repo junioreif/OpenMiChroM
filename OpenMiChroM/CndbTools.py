@@ -506,6 +506,10 @@ class cndbTools:
    
         n_frames = 0 
         g_rdf = np.zeros(bins)
+
+        if beadSelection == None:
+            beadSelection = np.arange(len(xyz[0]))
+            
  
         for i in range(len(xyz)):
             frame = xyz[i]
