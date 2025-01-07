@@ -1014,10 +1014,10 @@ class MiChroM:
         """
         # Initialize the Harmonic Bond force group if it hasn't been initialized yet
         if "HarmonicBond" not in self.forceDict:
-            bondForceExpression = "0.5 * kfb * (r - r0)^2"
+            bondForceExpression = "0.5 * kfb * (r - hR0)^2"
             harmonicBondForce = self.mm.CustomBondForce(bondForceExpression)
             harmonicBondForce.addGlobalParameter("kfb", bondStiffness)
-            harmonicBondForce.addGlobalParameter("r0", equilibriumDistance)
+            harmonicBondForce.addGlobalParameter("hR0", equilibriumDistance)
             self.forceDict["HarmonicBond"] = harmonicBondForce
 
         harmonicBondForce = self.forceDict["HarmonicBond"]
@@ -1059,13 +1059,13 @@ class MiChroM:
                 distance from the center at which the sigmoid is half as strong
         """
 
-        Ecut = Ecut*self.Epsilon
-        repul_energy = ("0.5 * Ecut * (1.0 + tanh(1.0 - (k_rep * (r - r0))))")
+        Ecut = Ecut*self.epsilon
+        repul_energy = ("0.5 * Ecut * (1.0 + tanh(1.0 - (k_rep * (r - sR0))))")
         
         self.forceDict["SelfAvoidance"] = self.mm.CustomNonbondedForce(repul_energy)
         repulforceGr = self.forceDict["SelfAvoidance"]
         repulforceGr.addGlobalParameter('Ecut', Ecut)
-        repulforceGr.addGlobalParameter('r0', r0)
+        repulforceGr.addGlobalParameter('sR0', r0)
         repulforceGr.addGlobalParameter('k_rep', k_rep)
         repulforceGr.setCutoffDistance(3.0)
 
@@ -1357,7 +1357,7 @@ class MiChroM:
                 self.simulation.reporters.append(simulation_reporter)
 
 
-    def run(self, nsteps, report=True, interval=10**4, totalSteps=None):
+    def run(self, nsteps, report=True, interval=10**4, totalSteps=None, checkSystem=False, blockSize=1000):
         R"""
         Executes the simulation for a specified number of steps, with optional progress reporting.
 
@@ -1366,26 +1366,27 @@ class MiChroM:
         to output progress information to the standard output (`stdout`) at every `interval` steps.
 
         Args:
-            nsteps (int):
-                The number of steps to execute in the simulation. Must be a positive integer.
-            
-            report (bool, optional):
-                Determines whether to enable progress reporting during the simulation run.
-                If `True`, a `StateDataReporter` is added to provide real-time updates.
-                Default is `True`.
-            
-            interval (int, optional):
-                The number of simulation steps between each progress report.
-                This defines how frequently the `StateDataReporter` outputs status information.
-                Must be a positive integer.
-                Default is `10**4` (10,000 steps).
+            nsteps : int
+                Number of steps to run the simulation. Must be a positive integer.
 
-            totalSteps (int):
-                The total number of steps planned for the simulation. Must be a positive integer.
-                This defines how many steps will indicate 100% completion. If the simulation pipeline
-                includes multiple `run` calls, this number should be the sum of `nsteps` in all of them.
-                If `None`, `totalSteps = nsteps`.
-                Default is `None`.
+            report : bool, default=True
+                If True, progress will be reported periodically via the `StateDataReporter`.
+            
+            interval : int, default=10000
+                Number of steps between progress reports. Must be a positive integer.
+            
+            totalSteps : int, optional
+                The total number of steps for the entire simulation (used for progress 
+                percentage). If None, defaults to `nsteps`.
+            
+            checkSystem : bool, default=False
+                If True, run the simulation in blocks of size `blockSize`. After each block, 
+                the system is checked for NaN energies; if found, it attempts to reset the 
+                system with a new velocities assignment.
+            
+            blockSize : int, default=1000
+                Size of each simulation block when `checkSystem` is True. Must be a 
+                positive integer.
 
         Example:
             ```python
@@ -1395,13 +1396,32 @@ class MiChroM:
         """
         if totalSteps is None:
             totalSteps = nsteps
-            
-        if report:
-            self.simulation.reporters.append(StateDataReporter(stdout, interval, step=True, remainingTime=True,
-                                                  progress=True, speed=True, totalSteps=totalSteps, separator="\t"))
-        
-        self.simulation.step(nsteps)
 
+        if report:
+            if not (any(isinstance(reporter, StateDataReporter) and not isinstance(reporter, SimulationReporter) and not isinstance(reporter, SaveStructure) for reporter in self.simulation.reporters)):
+                    self.simulation.reporters.append(StateDataReporter(stdout, interval, step=True, remainingTime=True,
+                                                  progress=True, speed=True, totalSteps=totalSteps, separator="\t"))
+
+        if checkSystem:
+            num_blocks = nsteps // blockSize
+            pos = self.data
+
+            for i in range(num_blocks):
+                remaining_steps = nsteps - i * blockSize
+                block_steps = min(blockSize, remaining_steps)
+                self.simulation.step(block_steps)
+                state = self.context.getState(getEnergy=True, getPositions=True)
+                Uenergy = state.getPotentialEnergy()/ self.N / units.kilojoule_per_mole
+                if np.isnan(Uenergy):
+                    print("Warning: NaN energy detected. Reinitializing velocities...", flush=True, end=" ")
+                    self.context.setPositions(pos)
+                    temperature = self.temperature * units.kelvin
+                    self.context.setVelocitiesToTemperature(temperature)
+                    print("Ok!", flush=True)
+
+                pos = state.getPositions(asNumpy=True) / units.nanometers
+        else:
+            self.simulation.step(nsteps)
 
     def addHomoPolymerForces(self, harmonic=False, kFb=30, kA=2.0, eCut= 4.0):
         R"""
