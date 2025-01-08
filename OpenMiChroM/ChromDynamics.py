@@ -1423,7 +1423,7 @@ class MiChroM:
         else:
             self.simulation.step(nsteps)
 
-    def addHomoPolymerForces(self, harmonic=False, kFb=30, kA=2.0, eCut= 4.0):
+    def addHomoPolymerForces(self, harmonic=False, softcoreLJ=False, kFb=30, kA=2.0, eCut= 4.0):
         R"""
         Adds homopolymer forces to the system based on the specified parameters.
 
@@ -1453,9 +1453,12 @@ class MiChroM:
         else:
             self.addFENEBonds(kFb=kFb)
 
-        self.addAngles(kA=kA)
-        self.addRepulsiveSoftCore(eCut= eCut)
+        if softcoreLJ:
+            self.addRepulsiveSoftCore(eCut=eCut)
+        else:
+            self.addSelfAvoidance(Ecut=eCut)
 
+        self.addAngles(kA=kA)
 
     def buildClassicMichrom(self, ChromSeq=None, chromosome=None, CoordFiles=None, mode='auto'):
         R"""
