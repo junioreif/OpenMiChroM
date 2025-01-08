@@ -1405,15 +1405,23 @@ class MiChroM:
         if checkSystem:
             num_blocks = nsteps // blockSize
             pos = self.data
+            attempts = 0
 
             for i in range(num_blocks):
-                remaining_steps = nsteps - i * blockSize
-                block_steps = min(blockSize, remaining_steps)
-                self.simulation.step(block_steps)
+                steps_done = i * blockSize
+                remaining_steps = nsteps - steps_done
+                steps_to_run = min(blockSize, remaining_steps)
+                self.simulation.step(steps_to_run)
+
                 state = self.context.getState(getEnergy=True, getPositions=True)
                 Uenergy = state.getPotentialEnergy()/ self.N / units.kilojoule_per_mole
+
                 if np.isnan(Uenergy):
-                    print("Warning: NaN energy detected. Reinitializing velocities...", flush=True, end=" ")
+                    attempts += 1
+                    if attempts > 5:
+                        raise ValueError("Too many attempts to reinitialize positions and velocities. Simulation terminated.")
+                    
+                    print(f"Warning: NaN energy detected. Attempt {attempts}: reinitializing positions and velocities...", flush=True, end=" ")
                     self.context.setPositions(pos)
                     temperature = self.temperature * units.kelvin
                     self.context.setVelocitiesToTemperature(temperature)
