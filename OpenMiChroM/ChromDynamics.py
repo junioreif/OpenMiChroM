@@ -2065,8 +2065,9 @@ class MiChroM:
             if len(self.chains) > 1:
                 filename_format = os.path.splitext(filename)[0] + "_{chain}.{mode}"
             else:
-                filename = os.path.splitext(filename)[0] + ".{mode}"
+                filename_format = os.path.splitext(filename)[0] + ".{mode}"
         
+
         if mode == "xyz":
 
             filename = filename_format.format(name=self.name, chain=0, step=self.simulation.currentStep, mode=mode)
