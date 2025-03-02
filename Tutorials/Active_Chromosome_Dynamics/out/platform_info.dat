@@ -1,0 +1,13 @@
+Name:  CUDA
+Speed:  100.0
+Property names:  ('DeviceIndex', 'DeviceName', 'UseBlockingSync', 'Precision', 'UseCpuPme', 'CudaCompiler', 'TempDirectory', 'CudaHostCompiler', 'DisablePmeStream', 'DeterministicForces')
+DeviceIndex  value:  0
+DeviceName  value:  NVIDIA GeForce RTX 2060 with Max-Q Design
+UseBlockingSync  value:  false
+Precision  value:  single
+UseCpuPme  value:  false
+CudaCompiler  value:  
+TempDirectory  value:  C:\Users\WANGLE~1\AppData\Local\Temp
+CudaHostCompiler  value:  
+DisablePmeStream  value:  false
+DeterministicForces  value:  false
