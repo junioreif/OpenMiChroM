@@ -23,7 +23,8 @@ Table of Contents
    Tutorials/Tutorial_MiChroM_Optimization
    Tutorials/Tutorial_Full_Inversion_Optimization
    Tutorials/Tutorial_Pulling
-   Tutorials/Tutorial_Active_Polymer
+   ../../Tutorials/Tutorials/Active_Chromosome_Dynamics/Active_Polymer_Tutorial
+
 
 .. toctree::
    :maxdepth: 2
