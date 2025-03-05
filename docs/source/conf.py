@@ -17,7 +17,9 @@ import sys
 sys.path.insert(0, os.path.abspath(".."))
 sys.path.insert(0, os.path.abspath("../.."))
 sys.path.insert(0, os.path.abspath("../../.."))
-autodoc_mock_imports = ["simtk","h5py","numpy","scipy","itertools","pandas","os","sys","time","random","six","sklearn"]
+
+autodoc_mock_imports = ["simtk","h5py","numpy","scipy","itertools","pandas","os","sys","time","random","six","sklearn",
+                        "openmm"]
 
 # Project information
 project = 'OpenMiChroM'
