@@ -1299,6 +1299,30 @@ class MiChroM:
             print(energyInfo, file=f)
             print(f'\nPotential energy per forceGroup:\n {self.getForces()}', file=f)
 
+    def resetSimulation(self, keepforce = False):
+        """ reset the created simulation and  """
+    
+        # delete former Simulation 和 Context
+        if hasattr(self, 'simulation'):
+            del self.simulation
+        if hasattr(self, 'context'):
+            del self.context
+        self.contexted = False  # approve reinitialization
+    
+        # reset forces(avoid iteration) 
+        existing_forces = {type(force).__name__ for force in self.system.getForces()}  # get old force setting
+        for forceName, force in self.forceDict.items():
+            force_type = type(force).__name__
+            if force_type not in existing_forces:
+                self.system.addForce(force)
+                print(f"Force {forceName} added.")
+            else:
+                print(f"Force {forceName} already exists, skipping.")
+
+        # reintialize Simulation
+        self.createSimulation()
+        print("Simulation successfully restarted.")
+
 
     def createReporters(self, statistics=True, traj=False, trajFormat="cndb", energyComponents=False,
                          interval=1000):
