@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2025 The Center for Theoretical Biological Physics (CTBP)
+# Copyright (c) 2020-2024 The Center for Theoretical Biological Physics (CTBP)
 # Rice University
 # This file is from the Open-MiChroM project, released under the MIT License.
 
@@ -1324,7 +1324,7 @@ class MiChroM:
         print("Simulation successfully restarted.")
 
 
-    def createReporters(self, statistics=True, traj=False, trajFormat="cndb", energyComponents=False,
+    def createReporters(self, statistics=True, traj=False, trajFormat="cndb", file_name=None, energyComponents=False,
                          interval=1000):
         R"""
         Configures and attaches reporters to the simulation for data collection during simulation runs.
@@ -1337,6 +1337,9 @@ class MiChroM:
             traj (bool, optional):
                 If `True`, attaches a reporter to save trajectory data during the simulation.
                 (Default: `False`)
+            file_name (str, optional):
+                The file name for saving trajectory data. If `None`, defaults to `self.name`.
+                (Default: `None`)
             trajFormat (str, optional):
                 The file format to save the trajectory data. Options are `'cndb'`, `'swb'`,`'ndb'`, `'pdb'`, `'gro'`, `'xyz'`.
                 (Default: `'cndb'`)
@@ -1348,10 +1351,12 @@ class MiChroM:
                 The interval (in time steps) at which to report data.
                 (Default: `1000`)
         """
-        
+        if file_name is None:
+            file_name = self.name
+
         if traj:
             save_structure_reporter = SaveStructure(
-                filePrefix=f'{self.name}',
+                filePrefix=f'{file_name}',
                 reportInterval=interval,
                 mode=trajFormat, 
                 folder=self.folder,
