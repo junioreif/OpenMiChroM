@@ -1299,32 +1299,39 @@ class MiChroM:
             print(energyInfo, file=f)
             print(f'\nPotential energy per forceGroup:\n {self.getForces()}', file=f)
 
-    def resetSimulation(self, keepforce = False):
-        """ reset the created simulation and  """
-    
-        # delete former Simulation 和 Context
+    def resetSimulation(self, keepforce=False):
+        """ 
+        Reset the created simulation while handling forces properly.
+
+        Args:
+            keepforce (bool, optional): 
+                If True, keeps the current forces in `self.forceDict`. 
+                If False, clears `self.forceDict` before resetting (Default: False).
+        """
+
+        # Step 1: Delete former Simulation and Context
         if hasattr(self, 'simulation'):
             del self.simulation
         if hasattr(self, 'context'):
             del self.context
-        self.contexted = False  # approve reinitialization
+        self.contexted = False  # Approve reinitialization
     
-        # reset forces(avoid iteration) 
-        existing_forces = {type(force).__name__ for force in self.system.getForces()}  # get old force setting
-        for forceName, force in self.forceDict.items():
-            force_type = type(force).__name__
-            if force_type not in existing_forces:
-                self.system.addForce(force)
-                print(f"Force {forceName} added.")
-            else:
-                print(f"Force {forceName} already exists, skipping.")
+        # Step 2: Remove all forces from `self.system`
+        for i in range(self.system.getNumForces()):
+            self.system.removeForce(0)  # Always remove index 0 since they shift left
 
-        # reintialize Simulation
+        # Step 3: Handle forces properly
+        if not keepforce:
+            # Clear all forces from `forceDict`
+            self.forceDict.clear()
+
+        # Step 4: Reinitialize Simulation
         self.createSimulation()
         print("Simulation successfully restarted.")
 
 
-    def createReporters(self, statistics=True, traj=False, trajFormat="cndb", file_name=None, energyComponents=False,
+
+    def createReporters(self, statistics=True, traj=False, trajFormat="cndb", outputName=None, energyComponents=False,
                          interval=1000):
         R"""
         Configures and attaches reporters to the simulation for data collection during simulation runs.
@@ -1351,12 +1358,12 @@ class MiChroM:
                 The interval (in time steps) at which to report data.
                 (Default: `1000`)
         """
-        if file_name is None:
-            file_name = self.name
+        if outputName is None:
+            outputName = self.name
 
         if traj:
             save_structure_reporter = SaveStructure(
-                filePrefix=f'{file_name}',
+                filePrefix=f'{outputName}',
                 reportInterval=interval,
                 mode=trajFormat, 
                 folder=self.folder,
@@ -1384,6 +1391,7 @@ class MiChroM:
                     reportPerForceGroup=False, 
                 )
                 self.simulation.reporters.append(simulation_reporter)
+                
 
 
     def run(self, nsteps, report=True, interval=10**4, totalSteps=None, checkSystem=False, blockSize=1000):
@@ -1854,21 +1862,21 @@ class MiChroM:
         return random.choices(population=[0,1,2,3,4,5], k=Nbeads)
     
 
-    def _translate_type(self, filename, chromosome=None):
+    def _translate_type(self, fileName, chromosome=None):
         R"""Internal function that converts the letters of the types numbers following the rule: 'A1':0, 'A2':1, 'B1':2, 'B2':3,'B3':4,'B4':5, 'NA' :6.
         
          Args:
 
-            filename (file, required):
+            fileName (file, required):
                 Chromatin sequence of types file. The first column should contain the locus index. The second column should have the locus type annotation. A template of the chromatin sequence of types file can be found at the `Nucleome Data Bank (NDB) <https://ndb.rice.edu/static/text/chr10_beads.txt>`_.
 
         """        
         
    
 
-        _, extension = os.path.splitext(filename)
+        _, extension = os.path.splitext(fileName)
         if extension == '.bed':
-            pos = self.loadBed(filename, chromosome)
+            pos = self.loadBed(fileName, chromosome)
             self.type_list_letter = pos
             self.diff_types = list(set(pos))
         else:
@@ -1877,7 +1885,7 @@ class MiChroM:
             self.type_list_letter = []      
             
 
-            af = open(filename,'r')
+            af = open(fileName,'r')
             pos = af.read().splitlines()
             
             for t in range(len(pos)):
@@ -2061,15 +2069,15 @@ class MiChroM:
                 raise ValueError("Mode '{:}' not supported!".format(mode))
 
 
-    def saveStructure(self, filename=None, mode="gro"):
+    def saveStructure(self, fileName=None, mode="gro"):
         R"""
         Saves the 3D positions of beads during the simulation in various file formats.
 
         This method exports the simulation's bead positions to files in formats such as XYZ, PDB, GRO, and NDB. It supports multiple chains and assigns residue names based on bead types. The method ensures that the output directory exists and handles different file formats appropriately.
 
         Args:
-            filename (str, optional):
-                The name of the file to save the structure. If `None`, the filename is automatically generated using the simulation's name and current step number with the specified mode as the file extension.
+            fileName (str, optional):
+                The name of the file to save the structure. If `None`, the fileName is automatically generated using the simulation's name and current step number with the specified mode as the file extension.
                 (Default: `None`)
             mode (str, optional):
                 The file format to save the structure. Supported formats are:
@@ -2085,32 +2093,32 @@ class MiChroM:
         if not hasattr(self, "type_list_letter"):
             raise ValueError("Chromatin sequence not defined!")
         
-        if filename is None:
+        if fileName is None:
             if len(self.chains) > 1:
-                filename_format = "{name}_{chain}_step{step}.{mode}"
+                fileName_format = "{name}_{chain}_step{step}.{mode}"
             else:
-                filename_format = "{name}_step{step}.{mode}"
+                fileName_format = "{name}_step{step}.{mode}"
         else:
             if len(self.chains) > 1:
-                filename_format = os.path.splitext(filename)[0] + "_{chain}.{mode}"
+                fileName_format = os.path.splitext(fileName)[0] + "_{chain}.{mode}"
             else:
-                filename_format = os.path.splitext(filename)[0] + ".{mode}"
+                fileName_format = os.path.splitext(fileName)[0] + ".{mode}"
         
 
         if mode == "xyz":
 
-            filename = filename_format.format(name=self.name, chain=0, step=self.simulation.currentStep, mode=mode)
-            filename = os.path.join(self.folder, filename)
+            fileName = fileName_format.format(name=self.name, chain=0, step=self.simulation.currentStep, mode=mode)
+            fileName = os.path.join(self.folder, fileName)
             
             lines = []
             lines.append(str(len(data)) + "\n")
 
             for particle in data:
                 lines.append("{0:.3f} {1:.3f} {2:.3f}\n".format(*particle))
-            if filename == None:
+            if fileName == None:
                 return lines
-            elif isinstance(filename, str):
-                with open(filename, 'w') as myfile:
+            elif isinstance(fileName, str):
+                with open(fileName, 'w') as myfile:
                     myfile.writelines(lines)
             else:
                 return lines
@@ -2127,8 +2135,8 @@ class MiChroM:
             for chainNum, chain in zip(range(len(self.chains)),self.chains):
                 pdb_string = []
 
-                filename = filename_format.format(name=self.name, chain=chainNum, step=self.simulation.currentStep, mode=mode)
-                filename = os.path.join(self.folder, filename)
+                fileName = fileName_format.format(name=self.name, chain=chainNum, step=self.simulation.currentStep, mode=mode)
+                fileName = os.path.join(self.folder, fileName)
 
                 data_chain = data[chain[0]:chain[1]+1]
                 types_chain = self.type_list_letter[chain[0]:chain[1]+1] 
@@ -2146,7 +2154,7 @@ class MiChroM:
                 
                 pdb_string.append(ter.format(totalAtom,Res_conversion[i],"",totalAtom,""))
                 pdb_string.append("ENDMDL")
-                np.savetxt(filename,pdb_string,fmt="%s")
+                np.savetxt(fileName,pdb_string,fmt="%s")
 
                     
         elif mode == 'gro':
@@ -2161,8 +2169,8 @@ class MiChroM:
                 
                 gro_string = []
 
-                filename = filename_format.format(name=self.name, chain=chainNum, step=self.simulation.currentStep, mode=mode)
-                filename = os.path.join(self.folder, filename)
+                fileName = fileName_format.format(name=self.name, chain=chainNum, step=self.simulation.currentStep, mode=mode)
+                fileName = os.path.join(self.folder, fileName)
                 
                 data_chain = data[chain[0]:chain[1]+1] 
                 types_chain = self.type_list_letter[chain[0]:chain[1]+1] 
@@ -2182,7 +2190,7 @@ class MiChroM:
                     totalAtom += 1
                         
                 gro_string.append(str(gro_box_string.format(0.000,0.000,0.000)))
-                np.savetxt(filename,gro_string,fmt="%s")
+                np.savetxt(fileName,gro_string,fmt="%s")
         
         elif mode == 'ndb':
             ndb_string     = "{0:6s} {1:8d} {2:2s} {3:6s} {4:4s} {5:8d} {6:8.3f} {7:8.3f} {8:8.3f} {9:10d} {10:10d} {11:8.3f}"
@@ -2202,8 +2210,8 @@ class MiChroM:
                 return ([l[i:i+n] for i in range(0, len(l), n)])
             
             for chainNum, chain in zip(range(len(self.chains)),self.chains):
-                filename = filename_format.format(name=self.name, chain=chainNum, step=self.simulation.currentStep, mode=mode)
-                filename = os.path.join(self.folder, filename)
+                fileName = fileName_format.format(name=self.name, chain=chainNum, step=self.simulation.currentStep, mode=mode)
+                fileName = os.path.join(self.folder, fileName)
                 
                 ndbf = []
                 
@@ -2239,7 +2247,7 @@ class MiChroM:
                     for p in loops:
                         ndbf.append(loops_string.format("LOOPS",p[0],p[1]))
                     
-                np.savetxt(filename,ndbf,fmt="%s")
+                np.savetxt(fileName,ndbf,fmt="%s")
    
         
     def initPositions(self):

@@ -54,7 +54,7 @@ The following code snippet shows how to generate a single chromosome polymer mod
       sim.saveFolder('stomach_GRCh38_chr10_simulation')
       sim.buildClassicMichrom(ChromSeq='inputs/stomach_GRCh38.bed', chromosome='chr10')
 
-      sim.createReporters(statistics=True, traj=True, trajFormat="cndb", energyComponents=True, interval=10**3)
+      sim.createReporters(statistics=True, traj=True, outputName=None, trajFormat="cndb", energyComponents=True, interval=10**3)
       sim.run(nsteps=10**5, report=True, interval=10**4)
 
 
