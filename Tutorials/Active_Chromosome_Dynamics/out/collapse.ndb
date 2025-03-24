@@ -1,0 +1,19 @@
+HEADER    NDB File genereted by Open-MiChroM                      
+TITLE     A Scalable Computational Approach for                                           
+TITLE   2 Simulating Complexes of Multiple Chromosomes                                    
+EXPDTA    Cell Line  @50k bp resolution                                                  
+EXPDTA    Simulation - Open-MiChroM                                                      
+AUTHOR    Antonio B. Oliveira Junior - 2020                                              
+SEQCHR   1 C1    10  A1 A1 A1 A1 A1 A1 A1 A1 A1 A1                                        
+MODEL 1
+CHROM         1 A1        C1          1    0.091    1.286   -0.343          1      50000    0.000
+CHROM         2 A1        C1          2    0.153    1.371   -0.629      50001     100000    0.000
+CHROM         3 A1        C1          3    0.036    1.261   -0.591     100001     150000    0.000
+CHROM         4 A1        C1          4   -0.024    0.648   -0.593     150001     200000    0.000
+CHROM         5 A1        C1          5   -0.449    0.240   -1.083     200001     250000    0.000
+CHROM         6 A1        C1          6   -0.585   -0.068   -1.210     250001     300000    0.000
+CHROM         7 A1        C1          7   -0.428    0.069   -1.309     300001     350000    0.000
+CHROM         8 A1        C1          8   -0.473   -0.308   -1.567     350001     400000    0.000
+CHROM         9 A1        C1          9   -0.779   -0.479   -1.570     400001     450000    0.000
+CHROM        10 A1        C1         10   -0.556   -0.977   -1.576     450001     500000    0.000
+END

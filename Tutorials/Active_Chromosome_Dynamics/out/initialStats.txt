@@ -1,0 +1,23 @@
+Platform Name: CUDA
+Platform Speed: 100.0
+Platform Property Names: ('DeviceIndex', 'DeviceName', 'UseBlockingSync', 'Precision', 'UseCpuPme', 'CudaCompiler', 'TempDirectory', 'CudaHostCompiler', 'DisablePmeStream', 'DeterministicForces')
+DeviceIndex Value: 0
+DeviceName Value: NVIDIA GeForce RTX 2060 with Max-Q Design
+UseBlockingSync Value: false
+Precision Value: mixed
+UseCpuPme Value: false
+CudaCompiler Value: 
+TempDirectory Value: C:\Users\WANGLE~1\AppData\Local\Temp
+CudaHostCompiler Value: 
+DisablePmeStream Value: false
+DeterministicForces Value: false
+
+Simulation name: active_Rouse_sim
+Number of beads: 10, Number of chains: 1
+Potential energy: 2.25000, Kinetic Energy: 0.56679 at temperature: 0.2
+
+Potential energy per forceGroup:
+                                 Values
+ActiveForce              -2.980232e-08
+HarmonicBond              2.250000e+01
+Potential Energy (total)  2.250000e+01
