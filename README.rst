@@ -88,11 +88,11 @@ The code below will install **OpenMiChroM** from PyPI:
 
     **OpenMiChroM** relies on the `OpenMM <http://openmm.org/>`_ API to run the chromatin dynamics simulations.
     
-    OpenMM is now available as a pip-installable package. You can install it using pip:
+    OpenMM is now available as a pip-installable package. You can install it using pip openmm[cuda12] to iinstall to use with GPU's or openmm to install for CPU's only:
 
     .. code-block:: bash
 
-        pip install OpenMM
+        pip install openmm[cuda12]
 
     Alternatively, if you prefer to use conda, install OpenMM from the `conda-forge channel <https://conda-forge.org/>`_ with:
 
