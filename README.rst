@@ -28,14 +28,13 @@ OpenMiChroM
 Overview
 ========
 
-`OpenMiChroM <https://www.sciencedirect.com/science/article/pii/S0022283620306185>`_ is a Python library for performing chromatin dynamics simulations and analyses. OpenMiChroM uses the  `OpenMM <http://openmm.org/>`_ Python API employing the `MiChroM (Minimal Chromatin Model) <https://www.pnas.org/content/113/43/12168>`_ energy function. The chromatin dynamics simulations generate an ensemble of 3D chromosomal structures that are consistent with experimental Hi-C maps. OpenMiChroM also allows simulations of a single or multiple chromosome chain using High-Performance Computing in different platforms (GPUs and CPUs). It is a highly flexible framework that can be extended for chromatin modeling and simulations of different species across the tree of life, as well as more general cases of biomolecule simulations.
+`OpenMiChroM <https://www.sciencedirect.com/science/article/pii/S0022283620306185>`_ is a Python library for performing chromatin dynamics simulations and analyses. OpenMiChroM uses the `OpenMM <http://openmm.org/>`_ Python API employing the `MiChroM (Minimal Chromatin Model) <https://www.pnas.org/content/113/43/12168>`_ energy function. The chromatin dynamics simulations generate an ensemble of 3D chromosomal structures that are consistent with experimental Hi-C maps. OpenMiChroM also allows simulations of a single or multiple chromosome chains using high-performance computing on different platforms (GPUs and CPUs). It is a highly flexible framework that can be extended for chromatin modeling and simulations across different species and for general biomolecular simulations.
 
 .. image:: https://raw.githubusercontent.com/junioreif/OpenMiChroM/main/docs/source/images/OpenMiChroM_intro_small.jpg
    :align: center
    :height: 300px
 
-The chromatin dynamics simulations can be performed for different human cell lines, cell phases (interphase to metaphase), and different organisms from  `DNAzoo <https://www.dnazoo.org/>`_. Chromatin subcompartment annotations are available at the  `NDB (Nucleome Data Bank) <https://ndb.rice.edu/>`_.
-OpenMiChroM package receives the chromatin sequence of compartments and subcompartments as input to create and simulate a chromosome polymer model. Examples of running the simulations and generating the *in silico* Hi-C maps can be found `here <https://open-michrom.readthedocs.io/en/latest/Tutorials/Tutorial_Single_Chromosome.html>`_
+The chromatin dynamics simulations can be performed for different human cell lines, cell phases (interphase to metaphase), and various organisms from `DNAzoo <https://www.dnazoo.org/>`_. Chromatin subcompartment annotations are available at the `NDB (Nucleome Data Bank) <https://ndb.rice.edu/>`_. The OpenMiChroM package accepts the chromatin sequence of compartments and subcompartments as input to create and simulate a chromosome polymer model. Examples of running the simulations and generating *in silico* Hi-C maps can be found `here <https://open-michrom.readthedocs.io/en/latest/Tutorials/Tutorial_Single_Chromosome.html>`_.
 
 .. image:: https://raw.githubusercontent.com/junioreif/OpenMiChroM/main/docs/source/images/A549_NDB.jpg
    :align: center
@@ -44,7 +43,7 @@ OpenMiChroM package receives the chromatin sequence of compartments and subcompa
 Usage
 =====
 
-The following code snippet shows how to generate a single chromosome polymer model and run a chromatin dynamics simulation using OpenMiChroM.
+The following code snippet shows how to generate a single chromosome polymer model and run a chromatin dynamics simulation using OpenMiChroM:
 
 ::
 
@@ -57,7 +56,6 @@ The following code snippet shows how to generate a single chromosome polymer mod
       sim.createReporters(statistics=True, traj=True, outputName=None, trajFormat="cndb", energyComponents=True, interval=10**3)
       sim.run(nsteps=10**5, report=True, interval=10**4)
 
-
 Resources
 =========
 
@@ -69,50 +67,61 @@ Resources
 Citation
 ========
 
-When using **OpenMiChroM** to perform chromatin dynamics simulations or analyses, please `use this citation <https://open-michrom.readthedocs.io/en/latest/Reference/citing.html>`__.
-
-We also thank the `Polychrom <https://github.com/open2c/polychrom>`__ where part of this code was inspired. You can use this `citation <https://zenodo.org/records/3579473>`__.
+When using **OpenMiChroM** for chromatin dynamics simulations or analyses, please `use this citation <https://open-michrom.readthedocs.io/en/latest/Reference/citing.html>`_.  
+We also thank `Polychrom <https://github.com/open2c/polychrom>`_, where part of this code was inspired. You can use this `citation <https://zenodo.org/records/3579473>`_.
 
 Installation
 ============
 
-The **OpenMiChroM** library can be installed via `conda <https://conda.io/projects/conda/>`__ or pip, or compiled from source.
-
-Install via conda
------------------
-
-The code below will install **OpenMiChroM** from `conda-forge <https://anaconda.org/conda-forge/OpenMiChroM>`__.
-
-::
-
-    conda install -c conda-forge OpenMiChroM
-
-**Note:** Often, the installation via conda happens to be stuck. If this is the case, it is recommended to update conda/anaconda using the command line below and try to install **OpenMiChroM** again.
-
-::
-
-    conda update --prefix /path/to/anaconda3/ anaconda
+The **OpenMiChroM** library can be installed via `pip <https://pypi.org/project/OpenMiChroM/>`__, `conda <https://conda.io/projects/conda/>`__, or compiled from source.
 
 Install via pip
 ---------------
 
-The code below will install **OpenMiChroM** from `PyPI <https://pypi.org/project/OpenMiChroM/>`__.
+The code below will install **OpenMiChroM** from PyPI:
 
 ::
 
     pip install OpenMiChroM
 
-**Note:**
+.. note::
 
-The **OpenMiChroM** library uses `OpenMM <http://openmm.org/>`__ API to run the chromatin dynamics simulations.
+    **OpenMiChroM** relies on the `OpenMM <http://openmm.org/>`_ API to run the chromatin dynamics simulations.
+    
+    OpenMM is now available as a pip-installable package. You can install it using pip:
 
-These requirements can be met by installing the OpenMM package from the `conda-forge channel <https://conda-forge.org/>`__:
+    .. code-block:: bash
+
+        pip install OpenMM
+
+    Alternatively, if you prefer to use conda, install OpenMM from the `conda-forge channel <https://conda-forge.org/>`_ with:
+
+    .. code-block:: bash
+
+        conda install -c conda-forge openmm
+
+Install via conda
+-----------------
+
+If you prefer using conda, you can install **OpenMiChroM** from
+`conda-forge <https://anaconda.org/conda-forge/OpenMiChroM>`__ with the following command:
 
 ::
 
-    conda install -c conda-forge openmm
+    conda install -c conda-forge OpenMiChroM
 
-The following are libraries **required** for installing **OpenMiChroM**:
+.. hint::
+    
+    Sometimes, the installation via conda may appear to be stuck. If this happens, update conda/anaconda using the command below and try installing **OpenMiChroM** again.
+
+::
+
+    conda update --prefix /path/to/anaconda3/ anaconda
+
+Required Libraries
+------------------
+
+The following libraries are **required** for installing **OpenMiChroM**:
 
 - `Python <https://www.python.org/>`__ (>=3.6)
 - `NumPy <https://www.numpy.org/>`__ (>=1.14)
