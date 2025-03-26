@@ -1514,7 +1514,7 @@ class MiChroM:
         self.createSimulation()
 
 
-    def loadNDB(self, NDBfiles=None):
+    def loadNDB(self, NDBfiles=None, isRing=False):
         R"""
         Loads a single or multiple *.ndb* files and gets position and types of the chromosome beads.
         Details about the NDB file format can be found at the `Nucleome Data Bank <https://ndb.rice.edu/ndb-format>`__.
@@ -1525,6 +1525,10 @@ class MiChroM:
 
             NDBfiles (file, required):
                 Single or multiple files in *.ndb* file format.  (Default value: :code:`None`).
+                
+            isRing (bool, optional):
+                Whether the chromosome chain is circular or not (used to simulate bacteria genome, for example). If :code:`bool(isRing)` is :code:`True` , the first and last particles of the chain are linked, forming a ring. (Default value = :code:`False`).
+                
         Returns:
             :math:`(N, 3)` :class:`numpy.ndarray`:
                 Returns an array of positions.
@@ -1557,8 +1561,12 @@ class MiChroM:
                     sizeChain += 1
                 elif line[0] == "TER" or line[0] == "END":
                     break
-
-            chains.append((start, sizeChain-1, 0))
+            
+            if (isRing):
+                chains.append((start, sizeChain-1, 1))
+            else:
+                chains.append((start, sizeChain-1, 0))
+                
             start = sizeChain 
 
         print("Chains: ", chains)
@@ -1575,7 +1583,7 @@ class MiChroM:
         return np.vstack([x,y,z]).T
     
     
-    def loadGRO(self, GROfiles=None, ChromSeq=None):
+    def loadGRO(self, GROfiles=None, ChromSeq=None, isRing=False):
         R"""
         Loads a single or multiple *.gro* files and gets position and types of the chromosome beads.
         Initially, the MiChroM energy function was implemented in GROMACS. Details on how to run and use these files can be found at the `Nucleome Data Bank <https://ndb.rice.edu/GromacsInput-Documentation>`__.
@@ -1589,6 +1597,9 @@ class MiChroM:
             ChromSeq (list of files, optional):
                 List of files with sequence information for each chromosomal chain. The first column should contain the locus index. The second column should have the locus type annotation. A template of the chromatin sequence of types file can be found at the `Nucleome Data Bank (NDB) <https://ndb.rice.edu/static/text/chr10_beads.txt>`__.
                 If the chromatin types considered are different from the ones used in the original MiChroM (A1, A2, B1, B2, B3, B4, and NA), the sequence file must be provided, otherwise all the chains will be defined with 'NA' type.
+            
+            isRing (bool, optional):
+                Whether the chromosome chain is circular or not (used to simulate bacteria genome, for example). If :code:`bool(isRing)` is :code:`True` , the first and last particles of the chain are linked, forming a ring. (Default value = :code:`False`).
                 
         Returns:
             :math:`(N, 3)` :class:`numpy.ndarray`:
@@ -1624,7 +1635,11 @@ class MiChroM:
                 typesLetter.append(self._aa2types(pos[t][0][-3:]))
                 sizeChain += 1
 
-            chains.append((start, sizeChain-1, 0))
+            if (isRing):
+                chains.append((start, sizeChain-1, 1))
+            else:
+                chains.append((start, sizeChain-1, 0))
+            
             start = sizeChain 
             
         if not ChromSeq is None:
@@ -1662,7 +1677,7 @@ class MiChroM:
             return 'NA'
 
 
-    def loadPDB(self, PDBfiles=None, ChromSeq=None):
+    def loadPDB(self, PDBfiles=None, ChromSeq=None, isRing=False):
         R"""
         Loads a single or multiple *.pdb* files and gets position and types of the chromosome beads.
         Here we consider the chromosome beads as the carbon-alpha to mimic a protein. This trick helps to use the standard macromolecules visualization software. 
@@ -1675,6 +1690,9 @@ class MiChroM:
             ChromSeq (list of files, optional):
                 List of files with sequence information for each chromosomal chain. The first column should contain the locus index. The second column should have the locus type annotation. A template of the chromatin sequence of types file can be found at the `Nucleome Data Bank (NDB) <https://ndb.rice.edu/static/text/chr10_beads.txt>`__.
                 If the chromatin types considered are different from the ones used in the original MiChroM (A1, A2, B1, B2, B3, B4, and NA), the sequence file must be provided, otherwise all the chains will be defined with 'NA' type.
+            
+            isRing (bool, optional):
+                Whether the chromosome chain is circular or not (used to simulate bacteria genome, for example). If :code:`bool(isRing)` is :code:`True` , the first and last particles of the chain are linked, forming a ring. (Default value = :code:`False`).
 
         Returns:
             :math:`(N, 3)` :class:`numpy.ndarray`:
@@ -1709,7 +1727,11 @@ class MiChroM:
                     typesLetter.append(self._aa2types(pos[t][3]))
                     sizeChain += 1
 
-            chains.append((start, sizeChain-1, 0))
+            if (isRing):
+                chains.append((start, sizeChain-1, 1))
+            else:
+                chains.append((start, sizeChain-1, 0))
+                
             start = sizeChain 
 
         if not ChromSeq is None:
@@ -1960,7 +1982,7 @@ class MiChroM:
             If the chromatin types considered are different from the ones used in the original MiChroM (A1, A2, B1, B2, B3, B4, and NA), the sequence file must be provided when loading .pdb or .gro files, otherwise, all the chains will be defined with 'NA' type. For the .ndb files, the sequence used is the one provided in the file.
         
         isRing (bool, optional):
-            Whether the chromosome chain is circular or not (used to simulate bacteria genome, for example). To be used with the option :code:`'random'`. If :code:`bool(isRing)` is :code:`True` , the first and last particles of the chain are linked, forming a ring. (Default value = :code:`False`).
+            Whether the chromosome chain is circular or not (used to simulate bacteria genome, for example). To be used with the option :code:`'spring'`. If :code:`bool(isRing)` is :code:`True` , the first and last particles of the chain are linked, forming a ring. (Default value = :code:`False`).
  
         Returns:
             :math:`(N, 3)` :class:`numpy.ndarray`:
@@ -2017,20 +2039,20 @@ class MiChroM:
             if CoordFiles is None:
                 raise ValueError("Coordinate files required for mode '{:}'!".format(mode))
 
-            return self.loadNDB(NDBfiles=CoordFiles)
+            return self.loadNDB(NDBfiles=CoordFiles, isRing=isRing)
             
         elif mode == 'pdb':
             if CoordFiles is None:
                 raise ValueError("Coordinate files required for mode '{:}'!".format(mode))
 
-            return self.loadPDB(PDBfiles=CoordFiles,ChromSeq=ChromSeq)
+            return self.loadPDB(PDBfiles=CoordFiles,ChromSeq=ChromSeq, isRing=isRing)
 
         elif mode == 'gro':
 
             if CoordFiles is None:
                 raise ValueError("Coordinate files required for mode '{:}'!".format(mode))
 
-            return self.loadGRO(GROfiles=CoordFiles,ChromSeq=ChromSeq)
+            return self.loadGRO(GROfiles=CoordFiles,ChromSeq=ChromSeq, isRing=isRing)
 
         else:
             if mode != 'auto':
