@@ -116,6 +116,19 @@ class cndbTools:
                 x = []
                 y = []
                 z = []
+                
+            elif 'END' in entry:
+                if types_bool:
+                    typelist = [Type_conversion[x] for x in types]
+                    print("typelist", typelist)
+                    cndbf['types'] = typelist
+                    types_bool = False
+
+                positions = np.vstack([x,y,z]).T
+                cndbf[str(frame)] = positions
+                x = []
+                y = []
+                z = []
 
             elif 'LOOPS' in entry:
                 loop_list.append([int(info[1]), int(info[2])])
