@@ -59,21 +59,16 @@ The following code snippet shows how to generate a single chromosome polymer mod
 Streaming remote CNDB files
 ===========================
 
-CNDBTools can also stream remote indexed CNDB/HDF5 files through the optional
-`cndb-stream <https://github.com/contessoto/cndb-stream>`__ backend. This extends
-CNDBTools without changing existing local ``h5py`` workflows.
+Remote CNDB streaming is included in CNDBTools. CNDBTools uses an internal
+indexed HDF5 streaming backend to read embedded CNDB indexes and fetch
+coordinate byte ranges over HTTP. This extends CNDBTools without changing
+existing local ``h5py`` workflows.
 
-Install the optional backend:
-
-::
-
-      pip install cndb-stream
-
-or, when the optional extra is available:
+Install OpenMiChroM:
 
 ::
 
-      pip install "OpenMiChroM[stream]"
+      pip install OpenMiChroM
 
 Example using a real ENCODE CNDB file:
 
@@ -103,6 +98,8 @@ contiguous bead ranges are read with exact byte ranges. Non-contiguous bead
 selections may read the smallest enclosing bead range and then subset in memory.
 Remote streaming currently focuses on coordinate access; type dictionaries such
 as ``dictChromSeq`` are still populated only by the local ``h5py`` workflow.
+The embedded HDF5 metadata reader includes MIT-licensed vendored components from
+``hdf5-indexed-reader``/``pyfive`` under ``OpenMiChroM/_cndb_stream/_vendor``.
 
 Resources
 =========
