@@ -2,6 +2,7 @@ import h5py
 import numpy as np
 
 import OpenMiChroM._cndb_stream as internal_stream
+from OpenMiChroM._cndb_stream import IndexedCNDB
 from OpenMiChroM.CndbTools import CndbTools, cndbTools
 
 
@@ -61,6 +62,13 @@ def _install_fake_internal_stream(monkeypatch):
     monkeypatch.setattr(internal_stream, "IndexedCNDB", _FakeIndexedCNDB)
     _FakeIndexedCNDB.last_instance = None
     _FakeIndexedCNDB.last_kwargs = None
+
+
+def test_internal_stream_backend_is_packaged():
+    from OpenMiChroM._cndb_stream._vendor.hdf5_indexed_reader.pyfive.high_level import File
+
+    assert internal_stream.IndexedCNDB is IndexedCNDB
+    assert File is not None
 
 
 def test_local_cndbtools_xyz_behavior_is_preserved(tmp_path):
