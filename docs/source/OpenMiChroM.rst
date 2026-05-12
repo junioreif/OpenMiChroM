@@ -28,21 +28,15 @@ OpenMiChroM.CndbTools
 Streaming remote CNDB files
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``CndbTools`` can stream remote indexed CNDB/HDF5 files with the optional
-``cndb-stream`` backend. Existing local CNDBTools behavior is unchanged; local
+``CndbTools`` can stream remote indexed CNDB/HDF5 files with an internal indexed
+HDF5 backend. Existing local CNDBTools behavior is unchanged; local
 ``cndbTools().load("trajectory.cndb")`` continues to use ``h5py``.
 
-Install the optional backend with:
+Install OpenMiChroM:
 
 .. code-block:: bash
 
-   pip install cndb-stream
-
-or, when using OpenMiChroM extras:
-
-.. code-block:: bash
-
-   pip install "OpenMiChroM[stream]"
+   pip install OpenMiChroM
 
 Example:
 
@@ -71,7 +65,9 @@ can be cached locally. Contiguous bead ranges are fetched with exact HTTP Range
 requests. Non-contiguous bead selections may read the smallest enclosing range
 and then subset in memory. Remote streaming currently focuses on coordinate
 access; type dictionaries such as ``dictChromSeq`` are still populated only by
-the local ``h5py`` workflow.
+the local ``h5py`` workflow. The embedded HDF5 metadata reader includes
+MIT-licensed vendored components from ``hdf5-indexed-reader``/``pyfive`` under
+``OpenMiChroM/_cndb_stream/_vendor``.
 
 
 OpenMiChroM.Integrators

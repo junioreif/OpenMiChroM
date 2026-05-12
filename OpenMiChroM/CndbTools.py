@@ -13,16 +13,10 @@ from scipy.spatial import distance
 
 
 class _CNDBStreamBackend:
-    """Thin adapter around cndb-stream for remote indexed CNDB access."""
+    """Thin adapter around the internal indexed CNDB streaming backend."""
 
     def __init__(self, h5_url, trajectory=None, index_cache_path=None, **kwargs):
-        try:
-            from cndb_stream import IndexedCNDB
-        except ImportError as exc:
-            raise ImportError(
-                "Remote indexed CNDB streaming requires cndb-stream. "
-                "Install it with: pip install cndb-stream"
-            ) from exc
+        from OpenMiChroM._cndb_stream import IndexedCNDB
 
         self.traj = IndexedCNDB.from_embedded_index(
             h5_url=h5_url,
@@ -75,7 +69,7 @@ class cndbTools:
     @classmethod
     def from_remote(cls, h5_url, trajectory=None, index_cache_path=None, **kwargs):
         R"""
-        Open a remote indexed CNDB/HDF5 file using the optional cndb-stream backend.
+        Open a remote indexed CNDB/HDF5 file using the internal streaming backend.
 
         This mode reads embedded HDF5 index metadata and selected coordinate byte
         ranges with HTTP Range requests. Existing local ``load()`` behavior is
@@ -90,7 +84,7 @@ class cndbTools:
                 Local JSON.gz cache for the parsed embedded index.
             **kwargs:
                 Additional keyword arguments passed to
-                ``cndb_stream.IndexedCNDB.from_embedded_index``.
+                ``OpenMiChroM._cndb_stream.IndexedCNDB.from_embedded_index``.
         """
         tool = cls()
         tool._stream_backend = _CNDBStreamBackend(
@@ -261,7 +255,7 @@ class cndbTools:
 
     def _xyz_stream(self, frames=None, beadSelection=None, XYZ=[0,1,2]):
         R"""
-        Streaming implementation of ``xyz`` using cndb-stream.
+        Streaming implementation of ``xyz`` using the internal CNDB backend.
 
         Contiguous bead ranges are read with exact byte ranges. Non-contiguous
         selections read the minimal enclosing bead interval and subset in memory.

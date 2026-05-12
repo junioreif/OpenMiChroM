@@ -27,9 +27,6 @@ setup(
     include_package_data=True,
     packages=find_packages(),
     install_requires=['numpy', 'scipy', 'scikit-learn', 'h5py', 'pandas'],
-    extras_require={
-        "stream": ["cndb-stream>=0.1.0"],
-    },
     entry_points={"console_scripts": ["CLINAME=OpenMiChroM._cli:main"]},
     zip_safe=True,
     long_description=long_description,

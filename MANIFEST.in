@@ -1,1 +1,4 @@
 include OpenMiChroM/share/MiChroM.ff
+include OpenMiChroM/_cndb_stream/py.typed
+include OpenMiChroM/_cndb_stream/_vendor/README.md
+include OpenMiChroM/_cndb_stream/_vendor/hdf5_indexed_reader/LICENSE

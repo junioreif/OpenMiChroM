@@ -1,10 +1,7 @@
-import sys
-import types
-
 import h5py
 import numpy as np
-import pytest
 
+import OpenMiChroM._cndb_stream as internal_stream
 from OpenMiChroM.CndbTools import CndbTools, cndbTools
 
 
@@ -60,10 +57,8 @@ class _FakeIndexedCNDB:
         return coords
 
 
-def _install_fake_cndb_stream(monkeypatch):
-    fake_module = types.ModuleType("cndb_stream")
-    fake_module.IndexedCNDB = _FakeIndexedCNDB
-    monkeypatch.setitem(sys.modules, "cndb_stream", fake_module)
+def _install_fake_internal_stream(monkeypatch):
+    monkeypatch.setattr(internal_stream, "IndexedCNDB", _FakeIndexedCNDB)
     _FakeIndexedCNDB.last_instance = None
     _FakeIndexedCNDB.last_kwargs = None
 
@@ -87,8 +82,8 @@ def test_local_cndbtools_xyz_behavior_is_preserved(tmp_path):
     assert tools.stream_stats()["bytes_read"] == 0
 
 
-def test_from_remote_uses_cndb_stream_backend(monkeypatch):
-    _install_fake_cndb_stream(monkeypatch)
+def test_from_remote_uses_internal_stream_backend(monkeypatch):
+    _install_fake_internal_stream(monkeypatch)
 
     tools = CndbTools.from_remote(
         h5_url="https://example.org/test.cndb",
@@ -107,7 +102,7 @@ def test_from_remote_uses_cndb_stream_backend(monkeypatch):
 
 
 def test_streaming_xyz_contiguous_range_reads_exact_coordinate_bytes(monkeypatch):
-    _install_fake_cndb_stream(monkeypatch)
+    _install_fake_internal_stream(monkeypatch)
     tools = cndbTools.from_remote("https://example.org/test.cndb", trajectory="replica1_chr1")
 
     xyz = tools.xyz(frames=[1, 2], beadSelection=range(0, 10), XYZ=[0, 1, 2])
@@ -122,7 +117,7 @@ def test_streaming_xyz_contiguous_range_reads_exact_coordinate_bytes(monkeypatch
 
 
 def test_streaming_xyz_noncontiguous_selection_reads_enclosing_range(monkeypatch):
-    _install_fake_cndb_stream(monkeypatch)
+    _install_fake_internal_stream(monkeypatch)
     tools = cndbTools.from_remote("https://example.org/test.cndb", trajectory="replica1_chr1")
 
     xyz = tools.xyz(frames=[1], beadSelection=[1, 3, 4], XYZ=[0, 2])
@@ -131,10 +126,3 @@ def test_streaming_xyz_noncontiguous_selection_reads_enclosing_range(monkeypatch
     assert _FakeIndexedCNDB.last_instance.requests == [("1", 1, 5)]
     expected = _FakeIndexedCNDB.last_instance.data["1"][[1, 3, 4]][:, [0, 2]]
     np.testing.assert_array_equal(xyz[0], expected)
-
-
-def test_remote_mode_missing_cndb_stream_has_clear_error(monkeypatch):
-    monkeypatch.setitem(sys.modules, "cndb_stream", None)
-
-    with pytest.raises(ImportError, match="Remote indexed CNDB streaming requires cndb-stream"):
-        cndbTools.from_remote("https://example.org/test.cndb", trajectory="replica1_chr1")

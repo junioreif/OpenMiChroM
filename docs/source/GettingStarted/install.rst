@@ -68,21 +68,16 @@ The following libraries are **required** for installing **OpenMiChroM**:
 - `pandas <https://pandas.pydata.org/>`_ (>=1.0.0)
 - `scikit-learn <https://scikit-learn.org/>`_ (>=0.20.0)
 
-Optional streaming backend
---------------------------
+Remote CNDB streaming
+---------------------
 
-Remote indexed CNDB/HDF5 streaming in ``CndbTools.from_remote`` requires the
-optional ``cndb-stream`` backend:
-
-.. code-block:: bash
-
-    pip install cndb-stream
-
-or, when installing OpenMiChroM with optional extras:
+Remote indexed CNDB/HDF5 streaming in ``CndbTools.from_remote`` is included in
+OpenMiChroM. No separate streaming package is required:
 
 .. code-block:: bash
 
-    pip install "OpenMiChroM[stream]"
+    pip install OpenMiChroM
 
-The standard local ``h5py`` CNDB workflow does not require this optional
-dependency.
+The standard local ``h5py`` CNDB workflow remains the default. Remote streaming
+uses an internal indexed HDF5 backend only when ``CndbTools.from_remote`` is
+called.
