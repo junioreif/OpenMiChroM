@@ -276,7 +276,7 @@ class cndbTools:
         for frame in range(len(xyz)):
             XYZ = xyz[frame]
             Psi_per_bead=[]
-            for i in range(0,np.shape(xyz)[0] - np.ceil(1.25*neig_beads).astype('int')):
+            for i in range(0,np.shape(XYZ)[0] - np.ceil(1.25*neig_beads).astype('int')):
                 a=i
                 b=int(np.round(i+0.5*neig_beads))
                 c=int(np.round(i+0.75*neig_beads))
