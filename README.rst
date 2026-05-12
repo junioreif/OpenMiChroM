@@ -112,6 +112,27 @@ Resources
 - `GitHub repository <https://github.com/junioreif/OpenMiChroM/>`__: Download the **OpenMiChroM** source code.
 - `Issue tracker <https://github.com/junioreif/OpenMiChroM/issues>`__: Report issues/bugs or request features.
 
+Tutorial notebook synchronization
+=================================
+
+Canonical user-facing tutorial notebooks live under the top-level
+``Tutorials/`` folder. Sphinx uses flattened copies under
+``docs/source/Tutorials/``. Keep them synchronized with:
+
+::
+
+      python scripts/sync_tutorials.py
+
+Before committing tutorial changes, check consistency with:
+
+::
+
+      python scripts/sync_tutorials.py --check
+
+The sync script copies mapped ``.ipynb`` files, skips checkpoint files, preserves
+notebook metadata and cell IDs, and refuses source notebooks with very large
+embedded outputs.
+
 Citation
 ========
 
