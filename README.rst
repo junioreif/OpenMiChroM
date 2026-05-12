@@ -56,6 +56,54 @@ The following code snippet shows how to generate a single chromosome polymer mod
       sim.createReporters(statistics=True, traj=True, outputName=None, trajFormat="cndb", energyComponents=True, interval=10**3)
       sim.run(nsteps=10**5, report=True, interval=10**4)
 
+Streaming remote CNDB files
+===========================
+
+CNDBTools can also stream remote indexed CNDB/HDF5 files through the optional
+`cndb-stream <https://github.com/contessoto/cndb-stream>`__ backend. This extends
+CNDBTools without changing existing local ``h5py`` workflows.
+
+Install the optional backend:
+
+::
+
+      pip install cndb-stream
+
+or, when the optional extra is available:
+
+::
+
+      pip install "OpenMiChroM[stream]"
+
+Example using a real ENCODE CNDB file:
+
+::
+
+      from OpenMiChroM.CndbTools import CndbTools
+
+      ENCODE_URL = "https://encode-public.s3.amazonaws.com/2023/02/02/7f75d816-342a-4b49-adbd-aaa499dc5201/ENCFF161DID.cndb"
+
+      tools = CndbTools.from_remote(
+          h5_url=ENCODE_URL,
+          trajectory="replica1_chr1",
+          index_cache_path="ENCFF161DID.embedded-index.json.gz",
+      )
+
+      coords = tools.xyz(
+          frames=[1, 10, 100],
+          beadSelection=range(0, 100),
+      )
+
+      print(coords.shape)
+      print(tools.stream_stats())
+
+The full 139 GB CNDB file is not downloaded. The embedded HDF5 index is read
+once and can be cached locally. Coordinate reads use HTTP Range requests, and
+contiguous bead ranges are read with exact byte ranges. Non-contiguous bead
+selections may read the smallest enclosing bead range and then subset in memory.
+Remote streaming currently focuses on coordinate access; type dictionaries such
+as ``dictChromSeq`` are still populated only by the local ``h5py`` workflow.
+
 Resources
 =========
 

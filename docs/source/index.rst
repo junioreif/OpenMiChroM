@@ -22,6 +22,7 @@
    Tutorials/Tutorial_Full_Inversion_Optimization
    Tutorials/Tutorial_Pulling
    Tutorials/Tutorial_Active_Polymer
+   Tutorials/stream_remote_cndb
 
 
 .. toctree::
