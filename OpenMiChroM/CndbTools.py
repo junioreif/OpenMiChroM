@@ -12,12 +12,104 @@ import os
 from scipy.spatial import distance
 
 
+class _CNDBStreamBackend:
+    """Thin adapter around cndb-stream for remote indexed CNDB access."""
+
+    def __init__(self, h5_url, trajectory=None, index_cache_path=None, **kwargs):
+        try:
+            from cndb_stream import IndexedCNDB
+        except ImportError as exc:
+            raise ImportError(
+                "Remote indexed CNDB streaming requires cndb-stream. "
+                "Install it with: pip install cndb-stream"
+            ) from exc
+
+        self.traj = IndexedCNDB.from_embedded_index(
+            h5_url=h5_url,
+            trajectory=trajectory,
+            index_cache_path=index_cache_path,
+            **kwargs,
+        )
+
+    @property
+    def n_frames(self):
+        return self.traj.n_frames
+
+    @property
+    def n_beads(self):
+        return self.traj.n_beads
+
+    @property
+    def frame_ids(self):
+        return self.traj.frame_ids
+
+    @property
+    def trajectories(self):
+        return self.traj.trajectories
+
+    @property
+    def current_trajectory(self):
+        return self.traj.current_trajectory
+
+    def get_coordinates(self, frame, start=None, stop=None):
+        return self.traj.get_coordinates(frame=frame, start=start, stop=stop)
+
+    def stats(self):
+        return {
+            "index_bytes_read": self.traj.index_bytes_read,
+            "metadata_bytes_read": self.traj.metadata_bytes_read,
+            "data_bytes_read": self.traj.data_bytes_read,
+            "bytes_read": self.traj.bytes_read,
+            "index_cache_hit": self.traj.index_cache_hit,
+        }
+
 
 class cndbTools:
 
     def __init__(self):
         self.Type_conversion = {'A1':0, 'A2':1, 'B1':2, 'B2':3, 'B3':4, 'B4':5, 'NA':6}
         self.Type_conversionInv = {y:x for x,y in self.Type_conversion.items()}
+        self._stream_backend = None
+        self.is_remote = False
+
+    @classmethod
+    def from_remote(cls, h5_url, trajectory=None, index_cache_path=None, **kwargs):
+        R"""
+        Open a remote indexed CNDB/HDF5 file using the optional cndb-stream backend.
+
+        This mode reads embedded HDF5 index metadata and selected coordinate byte
+        ranges with HTTP Range requests. Existing local ``load()`` behavior is
+        unchanged.
+
+        Args:
+            h5_url (str, required):
+                HTTP(S) URL to the remote CNDB/HDF5 file.
+            trajectory (str, optional):
+                Nested trajectory group, for example ``"replica1_chr1"``.
+            index_cache_path (str, optional):
+                Local JSON.gz cache for the parsed embedded index.
+            **kwargs:
+                Additional keyword arguments passed to
+                ``cndb_stream.IndexedCNDB.from_embedded_index``.
+        """
+        tool = cls()
+        tool._stream_backend = _CNDBStreamBackend(
+            h5_url=h5_url,
+            trajectory=trajectory,
+            index_cache_path=index_cache_path,
+            **kwargs,
+        )
+        tool.is_remote = True
+        tool.cndb = None
+        tool.ChromSeq = []
+        tool.uniqueChromSeq = set()
+        tool.dictChromSeq = {}
+        tool.Nbeads = tool._stream_backend.n_beads
+        tool.Nframes = tool._stream_backend.n_frames
+        tool.frame_ids = tool._stream_backend.frame_ids
+        tool.trajectories = tool._stream_backend.trajectories
+        tool.current_trajectory = tool._stream_backend.current_trajectory
+        return tool
     
     def load(self, fileName):
         R"""
@@ -33,6 +125,8 @@ class cndbTools:
             fileName = Chrom_utils.ndb2cndb(f_name)   
 
         self.cndb = h5py.File(fileName, 'r')
+        self._stream_backend = None
+        self.is_remote = False
         
         self.ChromSeq = list(self.cndb['types'])
         self.uniqueChromSeq = set(self.ChromSeq)
@@ -44,6 +138,12 @@ class cndbTools:
         
         self.Nbeads = len(self.ChromSeq)
         self.Nframes = len(self.cndb.keys()) -1
+        self.frame_ids = sorted(
+            [key for key in self.cndb.keys() if str(key).isdigit()],
+            key=lambda frame: int(frame),
+        )
+        self.trajectories = []
+        self.current_trajectory = None
         
         return(self)
     
@@ -142,6 +242,9 @@ class cndbTools:
         Returns:
             (:math:`N_{frames}`, :math:`N_{beads}`, 3) :class:`numpy.ndarray`: Returns an array of the 3D position of the selected beads for different frames.
         """
+        if self._stream_backend is not None:
+            return self._xyz_stream(frames=frames, beadSelection=beadSelection, XYZ=XYZ)
+
         frame_list = []
         
         if beadSelection == None:
@@ -155,6 +258,109 @@ class cndbTools:
         for i in frames:
             frame_list.append(np.take(np.take(np.array(self.cndb[str(i)]), selection, axis=0), XYZ, axis=1))
         return(np.array(frame_list))
+
+    def _xyz_stream(self, frames=None, beadSelection=None, XYZ=[0,1,2]):
+        R"""
+        Streaming implementation of ``xyz`` using cndb-stream.
+
+        Contiguous bead ranges are read with exact byte ranges. Non-contiguous
+        selections read the minimal enclosing bead interval and subset in memory.
+        """
+        frame_list = []
+        if frames is None:
+            frames = self.frame_ids
+        elif isinstance(frames, (int, np.integer, str)):
+            frames = [frames]
+
+        start, stop, post_selection = self._stream_bead_window(beadSelection)
+        axis_selection = np.array(XYZ)
+
+        for frame in frames:
+            coords = self._stream_backend.get_coordinates(frame=frame, start=start, stop=stop)
+            if post_selection is not None:
+                coords = np.take(coords, post_selection, axis=0)
+            frame_list.append(np.take(coords, axis_selection, axis=1))
+        return(np.array(frame_list))
+
+    def _stream_bead_window(self, beadSelection):
+        if beadSelection is None:
+            return None, None, None
+
+        if isinstance(beadSelection, slice):
+            step = 1 if beadSelection.step is None else beadSelection.step
+            start = 0 if beadSelection.start is None else beadSelection.start
+            stop = self.Nbeads if beadSelection.stop is None else beadSelection.stop
+            if step == 1:
+                return start, stop, None
+            return start, stop, np.arange(0, stop - start, step)
+
+        if isinstance(beadSelection, range):
+            if beadSelection.step == 1:
+                return beadSelection.start, beadSelection.stop, None
+            selection = np.array(list(beadSelection), dtype=int)
+        else:
+            selection = np.array(beadSelection, dtype=int)
+
+        if selection.size == 0:
+            return 0, 0, None
+
+        if np.any(selection < 0):
+            selection = np.where(selection < 0, selection + self.Nbeads, selection)
+
+        sorted_selection = np.sort(selection)
+        start = int(sorted_selection[0])
+        stop = int(sorted_selection[-1]) + 1
+
+        if np.array_equal(selection, np.arange(start, stop)):
+            return start, stop, None
+
+        return start, stop, selection - start
+
+    @property
+    def stream_data_bytes_read(self):
+        if self._stream_backend is None:
+            return 0
+        return self._stream_backend.traj.data_bytes_read
+
+    @property
+    def stream_index_bytes_read(self):
+        if self._stream_backend is None:
+            return 0
+        return self._stream_backend.traj.index_bytes_read
+
+    @property
+    def stream_metadata_bytes_read(self):
+        if self._stream_backend is None:
+            return 0
+        return self._stream_backend.traj.metadata_bytes_read
+
+    @property
+    def stream_bytes_read(self):
+        if self._stream_backend is None:
+            return 0
+        return self._stream_backend.traj.bytes_read
+
+    @property
+    def stream_index_cache_hit(self):
+        if self._stream_backend is None:
+            return False
+        return self._stream_backend.traj.index_cache_hit
+
+    def stream_stats(self):
+        R"""
+        Return byte-accounting diagnostics for remote streaming mode.
+
+        Local h5py mode returns zeros and ``index_cache_hit=False``.
+        """
+        if self._stream_backend is None:
+            return {
+                "index_bytes_read": 0,
+                "metadata_bytes_read": 0,
+                "data_bytes_read": 0,
+                "bytes_read": 0,
+                "index_cache_hit": False,
+            }
+        return self._stream_backend.stats()
     
     
     
@@ -560,3 +766,6 @@ class cndbTools:
     def __repr__(self):
         return '<{0}.{1} object at {2}>\nCndb file has {3} frames, with {4} beads and {5} types '.format(
       self.__module__, type(self).__name__, hex(id(self)), self.Nframes, self.Nbeads, self.uniqueChromSeq)
+
+
+CndbTools = cndbTools
