@@ -25,6 +25,8 @@ OpenMiChroM
 | `Tutorials <https://open-michrom.readthedocs.io/en/latest/Tutorials/Tutorial_Single_Chromosome.html>`__
 | `Forum <https://groups.google.com/g/open-michrom>`__
 
+Português: Sim, o OpenMiChroM é mantido por falantes de português.
+
 Overview
 ========
 

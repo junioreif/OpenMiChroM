@@ -23,6 +23,7 @@ setup(
         "Programming Language :: Python :: 3",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Natural Language :: English",
+        "Natural Language :: Portuguese",
     ],
     include_package_data=True,
     packages=find_packages(),
