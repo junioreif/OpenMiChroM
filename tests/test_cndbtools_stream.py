@@ -4,6 +4,7 @@ import numpy as np
 import OpenMiChroM._cndb_stream as internal_stream
 from OpenMiChroM._cndb_stream import IndexedCNDB
 from OpenMiChroM.CndbTools import CndbTools, cndbTools
+from OpenMiChroM._structural_io import coalesce_indices
 
 
 def _make_simple_cndb(path):
@@ -129,13 +130,38 @@ def test_streaming_xyz_contiguous_range_reads_exact_coordinate_bytes(monkeypatch
     np.testing.assert_array_equal(xyz[0], _FakeIndexedCNDB.last_instance.data["1"][:10])
 
 
-def test_streaming_xyz_noncontiguous_selection_reads_enclosing_range(monkeypatch):
+def test_streaming_xyz_noncontiguous_selection_reads_coalesced_ranges(monkeypatch):
     _install_fake_internal_stream(monkeypatch)
     tools = cndbTools.from_remote("https://example.org/test.cndb", trajectory="replica1_chr1")
 
     xyz = tools.xyz(frames=[1], beadSelection=[1, 3, 4], XYZ=[0, 2])
 
     assert xyz.shape == (1, 3, 2)
-    assert _FakeIndexedCNDB.last_instance.requests == [("1", 1, 5)]
+    assert _FakeIndexedCNDB.last_instance.requests == [("1", 1, 2), ("1", 3, 5)]
     expected = _FakeIndexedCNDB.last_instance.data["1"][[1, 3, 4]][:, [0, 2]]
     np.testing.assert_array_equal(xyz[0], expected)
+    stats = tools.stream_stats()
+    assert stats["coordinate_range_requests"] == 2
+    assert stats["requested_data_bytes"] == 3 * 3 * np.dtype("float32").itemsize
+    assert stats["transferred_data_bytes"] == stats["requested_data_bytes"]
+    assert stats["overfetch_bytes"] == 0
+
+
+def test_streaming_xyz_sparse_selection_can_fall_back_to_enclosing_range(monkeypatch):
+    _install_fake_internal_stream(monkeypatch)
+    tools = cndbTools.from_remote("https://example.org/test.cndb", trajectory="replica1_chr1")
+
+    xyz = tools.xyz(frames=[1], beadSelection=[1, 3, 4], XYZ=[0, 2], max_ranges=1)
+
+    assert xyz.shape == (1, 3, 2)
+    assert _FakeIndexedCNDB.last_instance.requests == [("1", 1, 5)]
+    stats = tools.stream_stats()
+    assert stats["coordinate_range_requests"] == 1
+    assert stats["requested_data_bytes"] == 3 * 3 * np.dtype("float32").itemsize
+    assert stats["transferred_data_bytes"] == 4 * 3 * np.dtype("float32").itemsize
+    assert stats["overfetch_bytes"] == 1 * 3 * np.dtype("float32").itemsize
+
+
+def test_coalesce_indices_groups_adjacent_blocks():
+    assert coalesce_indices([0, 1, 2, 10, 11, 12]) == [(0, 3), (10, 13)]
+    assert coalesce_indices([0, 10, 20], max_gap=10) == [(0, 21)]

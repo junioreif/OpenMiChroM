@@ -96,6 +96,12 @@ class cndbTools:
         self.current_trajectory = None
         self.genomic_positions = None
         self.types = []
+        self._stream_selection_stats = {
+            "coordinate_range_requests": 0,
+            "requested_data_bytes": 0,
+            "transferred_data_bytes": 0,
+            "overfetch_bytes": 0,
+        }
 
     @classmethod
     def from_remote(cls, h5_url, trajectory=None, index_cache_path=None, **kwargs):
@@ -328,7 +334,15 @@ class cndbTools:
         cndbf.close()
         return(name)
     
-    def xyz(self, frames=None, beadSelection=None, XYZ=[0,1,2]):
+    def xyz(
+        self,
+        frames=None,
+        beadSelection=None,
+        XYZ=[0,1,2],
+        coalesce=True,
+        max_gap=0,
+        max_ranges=128,
+    ):
         R"""
         Get the selected beads' 3D position from a **cndb** or **ndb** for multiple frames.
         
@@ -344,7 +358,14 @@ class cndbTools:
             (:math:`N_{frames}`, :math:`N_{beads}`, 3) :class:`numpy.ndarray`: Returns an array of the 3D position of the selected beads for different frames.
         """
         if self._stream_backend is not None:
-            return self._xyz_stream(frames=frames, beadSelection=beadSelection, XYZ=XYZ)
+            return self._xyz_stream(
+                frames=frames,
+                beadSelection=beadSelection,
+                XYZ=XYZ,
+                coalesce=coalesce,
+                max_gap=max_gap,
+                max_ranges=max_ranges,
+            )
 
         frame_list = []
         
@@ -360,7 +381,15 @@ class cndbTools:
             frame_list.append(np.take(np.take(np.array(self.cndb[str(i)]), selection, axis=0), XYZ, axis=1))
         return(np.array(frame_list))
 
-    def _xyz_stream(self, frames=None, beadSelection=None, XYZ=[0,1,2]):
+    def _xyz_stream(
+        self,
+        frames=None,
+        beadSelection=None,
+        XYZ=[0,1,2],
+        coalesce=True,
+        max_gap=0,
+        max_ranges=128,
+    ):
         R"""
         Streaming implementation of ``xyz`` using the internal CNDB backend.
 
@@ -373,37 +402,70 @@ class cndbTools:
         elif isinstance(frames, (int, np.integer, str)):
             frames = [frames]
 
-        start, stop, post_selection = self._stream_bead_window(beadSelection)
+        ranges, post_selection, requested_rows = self._stream_bead_plan(
+            beadSelection,
+            coalesce=coalesce,
+            max_gap=max_gap,
+            max_ranges=max_ranges,
+        )
         axis_selection = np.array(XYZ)
 
         for frame in frames:
-            coords = self._stream_backend.get_coordinates(frame=frame, start=start, stop=stop)
+            coords = self._stream_read_ranges(frame, ranges)
             if post_selection is not None:
                 coords = np.take(coords, post_selection, axis=0)
             frame_list.append(np.take(coords, axis_selection, axis=1))
+            if coords.size:
+                itemsize = coords.dtype.itemsize
+            else:
+                itemsize = np.dtype(np.float32).itemsize
+            transferred_rows = sum(stop - start for start, stop in ranges)
+            transferred_bytes = transferred_rows * 3 * itemsize
+            requested_bytes = requested_rows * 3 * itemsize
+            self._stream_selection_stats["coordinate_range_requests"] += len(ranges)
+            self._stream_selection_stats["requested_data_bytes"] += requested_bytes
+            self._stream_selection_stats["transferred_data_bytes"] += transferred_bytes
+            self._stream_selection_stats["overfetch_bytes"] += max(
+                0,
+                transferred_bytes - requested_bytes,
+            )
         return(np.array(frame_list))
 
-    def _stream_bead_window(self, beadSelection):
+    def _stream_read_ranges(self, frame, ranges):
+        blocks = []
+        for start, stop in ranges:
+            blocks.append(self._stream_backend.get_coordinates(frame=frame, start=start, stop=stop))
+        if not blocks:
+            return np.empty((0, 3), dtype=np.float32)
+        if len(blocks) == 1:
+            return blocks[0]
+        return np.concatenate(blocks, axis=0)
+
+    def _stream_bead_plan(self, beadSelection, coalesce=True, max_gap=0, max_ranges=128):
         if beadSelection is None:
-            return None, None, None
+            return [(0, self.Nbeads)], None, self.Nbeads
 
         if isinstance(beadSelection, slice):
             step = 1 if beadSelection.step is None else beadSelection.step
             start = 0 if beadSelection.start is None else beadSelection.start
             stop = self.Nbeads if beadSelection.stop is None else beadSelection.stop
             if step == 1:
-                return start, stop, None
-            return start, stop, np.arange(0, stop - start, step)
+                return [(start, stop)], None, max(0, stop - start)
+            selection = np.arange(start, stop, step, dtype=int)
 
         if isinstance(beadSelection, range):
             if beadSelection.step == 1:
-                return beadSelection.start, beadSelection.stop, None
+                return (
+                    [(beadSelection.start, beadSelection.stop)],
+                    None,
+                    max(0, beadSelection.stop - beadSelection.start),
+                )
             selection = np.array(list(beadSelection), dtype=int)
         else:
             selection = np.array(beadSelection, dtype=int)
 
         if selection.size == 0:
-            return 0, 0, None
+            return [(0, 0)], None, 0
 
         if np.any(selection < 0):
             selection = np.where(selection < 0, selection + self.Nbeads, selection)
@@ -413,9 +475,23 @@ class cndbTools:
         stop = int(sorted_selection[-1]) + 1
 
         if np.array_equal(selection, np.arange(start, stop)):
-            return start, stop, None
+            return [(start, stop)], None, int(selection.size)
 
-        return start, stop, selection - start
+        if coalesce:
+            from OpenMiChroM._structural_io import coalesce_indices
+
+            ranges = coalesce_indices(selection, max_gap=max_gap)
+            if len(ranges) <= max_ranges:
+                offsets = {}
+                cursor = 0
+                for range_start, range_stop in ranges:
+                    for absolute in range(range_start, range_stop):
+                        offsets[absolute] = cursor + absolute - range_start
+                    cursor += range_stop - range_start
+                post_selection = np.array([offsets[int(index)] for index in selection], dtype=int)
+                return ranges, post_selection, int(selection.size)
+
+        return [(start, stop)], selection - start, int(selection.size)
 
     @property
     def stream_data_bytes_read(self):
@@ -460,8 +536,14 @@ class cndbTools:
                 "data_bytes_read": 0,
                 "bytes_read": 0,
                 "index_cache_hit": False,
+                "coordinate_range_requests": 0,
+                "requested_data_bytes": 0,
+                "transferred_data_bytes": 0,
+                "overfetch_bytes": 0,
             }
-        return self._stream_backend.stats()
+        stats = self._stream_backend.stats()
+        stats.update(self._stream_selection_stats)
+        return stats
     
     
     
