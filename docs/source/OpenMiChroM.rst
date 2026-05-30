@@ -62,12 +62,39 @@ Example:
 
 The full 139 GB CNDB file is not downloaded. The embedded index is read once and
 can be cached locally. Contiguous bead ranges are fetched with exact HTTP Range
-requests. Non-contiguous bead selections may read the smallest enclosing range
-and then subset in memory. Remote streaming currently focuses on coordinate
-access; type dictionaries such as ``dictChromSeq`` are still populated only by
-the local ``h5py`` workflow. The embedded HDF5 metadata reader includes
-MIT-licensed vendored components from ``hdf5-indexed-reader``/``pyfive`` under
+requests. Non-contiguous bead selections are coalesced into small byte ranges
+when practical, with a safe fallback to the smallest enclosing range. Remote
+streaming currently focuses on coordinate access; metadata such as ``types`` and
+``dictChromSeq`` is populated when the remote embedded index exposes small
+metadata datasets. The embedded HDF5 metadata reader includes MIT-licensed
+vendored components from ``hdf5-indexed-reader``/``pyfive`` under
 ``OpenMiChroM/_cndb_stream/_vendor``.
+
+Structural file detection
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``CndbTools.open(...)`` adds a conservative routing layer for local and remote
+structural files:
+
+.. code-block:: python
+
+   from OpenMiChroM.CndbTools import CndbTools
+
+   tools = CndbTools.open("trajectory.cndb")
+
+The lower-level detector can be used to inspect files before opening them:
+
+.. code-block:: python
+
+   from OpenMiChroM._structural_io import detect_structural_file
+
+   info = detect_structural_file("trajectory.cndb")
+   print(info.file_type, info.layout, info.direct_streaming_supported)
+
+For remote files, detection uses HEAD and small HTTP Range probes. It does not
+download the full file. Remote HDF5 streaming is enabled only when the endpoint
+supports ``206 Partial Content`` and an embedded index is available. Non-indexed
+remote HDF5 files are rejected by default.
 
 
 OpenMiChroM.Integrators

@@ -95,11 +95,41 @@ Example using a real ENCODE CNDB file:
 The full 139 GB CNDB file is not downloaded. The embedded HDF5 index is read
 once and can be cached locally. Coordinate reads use HTTP Range requests, and
 contiguous bead ranges are read with exact byte ranges. Non-contiguous bead
-selections may read the smallest enclosing bead range and then subset in memory.
-Remote streaming currently focuses on coordinate access; type dictionaries such
-as ``dictChromSeq`` are still populated only by the local ``h5py`` workflow.
+selections are coalesced into small byte ranges when practical, with a safe
+fallback to the smallest enclosing bead range. Remote streaming currently
+focuses on coordinate access; metadata such as ``types`` and ``dictChromSeq``
+is populated when the remote embedded index exposes small metadata datasets.
 The embedded HDF5 metadata reader includes MIT-licensed vendored components from
 ``hdf5-indexed-reader``/``pyfive`` under ``OpenMiChroM/_cndb_stream/_vendor``.
+
+Structural file I/O
+===================
+
+CNDBTools includes an experimental structural-file detection layer for local and
+remote CNDB, NDB, and SpaceWalk/SW-style files:
+
+::
+
+      from OpenMiChroM.CndbTools import CndbTools
+      from OpenMiChroM._structural_io import detect_structural_file
+
+      info = detect_structural_file("trajectory.cndb")
+      print(info.file_type, info.layout, info.direct_streaming_supported)
+
+      tools = CndbTools.open("trajectory.cndb")
+
+For remote files, detection uses HEAD and small HTTP Range probes and does not
+download the full file. Remote HDF5 streaming is enabled only when the endpoint
+supports ``206 Partial Content`` and an embedded index is available. Non-indexed
+remote HDF5 files are rejected by default so users do not accidentally download
+large public datasets.
+
+Command-line inspection is also available:
+
+::
+
+      python scripts/inspect_structural_file.py --path trajectory.cndb
+      python scripts/inspect_structural_file.py --url https://example.org/file.cndb
 
 Resources
 =========
