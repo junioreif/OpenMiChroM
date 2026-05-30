@@ -13,7 +13,7 @@ from .analysis import distance_matrix, radius_of_gyration
 from .exceptions import CNDBIndexError, CNDBStreamError, FrameNotFoundError, UnsupportedLayoutError
 from .index import INDEX_FORMAT
 from .remote import RemoteByteReader
-from .utils import coerce_frame_id
+from .utils import coerce_frame_id, json_safe_value
 
 
 class LocalByteReader:
@@ -97,6 +97,8 @@ class IndexedCNDB:
         self._validate_index()
         self.current_trajectory = self._resolve_trajectory(trajectory)
         self._coordinate_index = self._resolve_coordinate_index()
+        self._metadata_cache: dict[str, Any] = {}
+        self._metadata_errors: dict[str, str] = {}
 
     @classmethod
     def from_embedded_index(
@@ -170,9 +172,23 @@ class IndexedCNDB:
 
     @property
     def types(self) -> list[Any] | None:
-        """Chromatin type labels embedded by ``build_index`` when available."""
+        """Chromatin type labels when available."""
 
-        return self._coordinate_index.get("types")
+        if "types" in self._coordinate_index:
+            return self._coordinate_index.get("types")
+        values = self._read_metadata_values(self._coordinate_index.get("types_path"))
+        if values is None:
+            return None
+        safe_values = json_safe_value(values)
+        if isinstance(safe_values, list):
+            return safe_values
+        return [safe_values]
+
+    @property
+    def genomic_positions(self) -> Any | None:
+        """Genomic position metadata when available."""
+
+        return self._read_metadata_values(self._coordinate_index.get("genomic_position_path"))
 
     @property
     def data_bytes_read(self) -> int:
@@ -393,6 +409,21 @@ class IndexedCNDB:
                 f"Frame {frame_id!r} was not found. Available frames: {self.frame_ids[:10]}"
             )
         return frames[frame_id]
+
+    def _read_metadata_values(self, path: str | None) -> Any | None:
+        if path is None:
+            return None
+        if path in self._metadata_cache:
+            return self._metadata_cache[path]
+        if self._embedded_provider is None:
+            return None
+        try:
+            values = self._embedded_provider.read_dataset(path)
+        except Exception as exc:
+            self._metadata_errors[path] = str(exc)
+            return None
+        self._metadata_cache[path] = values
+        return values
 
     @staticmethod
     def _ensure_supported(frame_info: dict[str, Any]) -> None:

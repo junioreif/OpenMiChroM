@@ -12,6 +12,24 @@ import os
 from scipy.spatial import distance
 
 
+def _metadata_value(value):
+    if isinstance(value, bytes):
+        return value.decode("utf-8")
+    if isinstance(value, np.bytes_):
+        return bytes(value).decode("utf-8")
+    if isinstance(value, np.generic):
+        return value.item()
+    return value
+
+
+def _metadata_list(values):
+    if values is None:
+        return []
+    if isinstance(values, np.ndarray):
+        return [_metadata_value(value) for value in values.tolist()]
+    return [_metadata_value(value) for value in list(values)]
+
+
 class _CNDBStreamBackend:
     """Thin adapter around the internal indexed CNDB streaming backend."""
 
@@ -45,6 +63,14 @@ class _CNDBStreamBackend:
     def current_trajectory(self):
         return self.traj.current_trajectory
 
+    @property
+    def types(self):
+        return self.traj.types
+
+    @property
+    def genomic_positions(self):
+        return self.traj.genomic_positions
+
     def get_coordinates(self, frame, start=None, stop=None):
         return self.traj.get_coordinates(frame=frame, start=start, stop=stop)
 
@@ -65,6 +91,11 @@ class cndbTools:
         self.Type_conversionInv = {y:x for x,y in self.Type_conversion.items()}
         self._stream_backend = None
         self.is_remote = False
+        self.frame_ids = []
+        self.trajectories = []
+        self.current_trajectory = None
+        self.genomic_positions = None
+        self.types = []
 
     @classmethod
     def from_remote(cls, h5_url, trajectory=None, index_cache_path=None, **kwargs):
@@ -95,14 +126,18 @@ class cndbTools:
         )
         tool.is_remote = True
         tool.cndb = None
-        tool.ChromSeq = []
-        tool.uniqueChromSeq = set()
-        tool.dictChromSeq = {}
+        tool.ChromSeq = _metadata_list(tool._stream_backend.types)
         tool.Nbeads = tool._stream_backend.n_beads
         tool.Nframes = tool._stream_backend.n_frames
         tool.frame_ids = tool._stream_backend.frame_ids
         tool.trajectories = tool._stream_backend.trajectories
         tool.current_trajectory = tool._stream_backend.current_trajectory
+        tool.types = tool.ChromSeq
+        tool.genomic_positions = tool._stream_backend.genomic_positions
+        tool.uniqueChromSeq = set(tool.ChromSeq)
+        tool.dictChromSeq = {}
+        for tt in tool.uniqueChromSeq:
+            tool.dictChromSeq[tt] = [i for i, value in enumerate(tool.ChromSeq) if value == tt]
         return tool
 
     @classmethod
@@ -194,6 +229,8 @@ class cndbTools:
         
         self.ChromSeq = list(self.cndb['types'])
         self.uniqueChromSeq = set(self.ChromSeq)
+        self.types = self.ChromSeq
+        self.genomic_positions = None
         
         self.dictChromSeq = {}
         

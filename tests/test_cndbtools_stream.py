@@ -33,6 +33,8 @@ class _FakeIndexedCNDB:
         self.frame_ids = ["1", "2"]
         self.trajectories = ["replica1_chr1"]
         self.current_trajectory = "replica1_chr1"
+        self.types = ["A1", "B1"] * 10
+        self.genomic_positions = np.arange(40).reshape(20, 2)
         self.index_bytes_read = 100
         self.metadata_bytes_read = 40
         self.data_bytes_read = 0
@@ -104,6 +106,9 @@ def test_from_remote_uses_internal_stream_backend(monkeypatch):
     assert tools.Nbeads == 20
     assert tools.frame_ids == ["1", "2"]
     assert tools.trajectories == ["replica1_chr1"]
+    assert tools.dictChromSeq["A1"] == list(range(0, 20, 2))
+    assert tools.dictChromSeq["B1"] == list(range(1, 20, 2))
+    np.testing.assert_array_equal(tools.genomic_positions, np.arange(40).reshape(20, 2))
     assert _FakeIndexedCNDB.last_kwargs["h5_url"] == "https://example.org/test.cndb"
     assert _FakeIndexedCNDB.last_kwargs["trajectory"] == "replica1_chr1"
     assert _FakeIndexedCNDB.last_kwargs["index_cache_path"] == "/tmp/test-index.json.gz"

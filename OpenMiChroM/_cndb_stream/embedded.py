@@ -192,6 +192,7 @@ class EmbeddedIndexProvider:
         self.embedded_index_compressed_nbytes = embedded["compressed_nbytes"]
         self.current_trajectory = self._resolve_trajectory(trajectory)
         self._frame_info_cache: dict[str, dict[str, Any]] = {}
+        self._dataset_value_cache: dict[str, Any] = {}
 
     @property
     def index_bytes_read(self) -> int:
@@ -386,6 +387,24 @@ class EmbeddedIndexProvider:
         parent = posixpath.dirname(normalized) or "/"
         name = posixpath.basename(normalized)
         return name in self.object_index.get(parent, {})
+
+    def read_dataset(self, path: str) -> Any:
+        """Read a small indexed metadata dataset by path.
+
+        This is intended for metadata such as ``types`` or
+        ``genomic_position``. Coordinate frame payloads should continue through
+        the exact byte-range coordinate reader.
+        """
+
+        normalized = posixpath.normpath(path)
+        if normalized in self._dataset_value_cache:
+            return self._dataset_value_cache[normalized]
+        if not self.path_is_indexed(normalized):
+            raise CNDBIndexError(f"Path {normalized!r} is not present in the embedded index.")
+        dataset = self._h5[normalized]
+        value = dataset[()]
+        self._dataset_value_cache[normalized] = value
+        return value
 
     def _resolve_trajectory(self, trajectory: str | None) -> str | None:
         trajectories = self.trajectories
