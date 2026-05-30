@@ -242,10 +242,10 @@ class EmbeddedIndexProvider:
 
         if self.current_trajectory is None:
             root_children = self.object_index.get("/", {})
-            return sort_frame_ids([name for name in root_children if str(name).isdigit()])
+            return sort_frame_ids([name for name in root_children if _is_frame_id(name)])
         spatial_path = self._spatial_position_path(self.current_trajectory)
         return sort_frame_ids(
-            [name for name in self.object_index.get(spatial_path, {}) if str(name).isdigit()]
+            [name for name in self.object_index.get(spatial_path, {}) if _is_frame_id(name)]
         )
 
     def to_lazy_cndb_index(self) -> dict[str, Any]:
@@ -588,6 +588,11 @@ def _layout_name(layout_class: int) -> str:
     if layout_class == 2:
         return "chunked"
     return f"unknown-{layout_class}"
+
+
+def _is_frame_id(name: str) -> bool:
+    text = str(name)
+    return text.isdigit() or (text.startswith("t_") and text[2:].isdigit())
 
 
 def _json_int(value: Any) -> int | None:

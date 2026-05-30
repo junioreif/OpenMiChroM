@@ -46,6 +46,26 @@ def test_detect_nested_hdf5_spacewalk_layout(tmp_path):
     assert info.coordinate_paths == ["/replica1_chr1/spatial_position/1"]
 
 
+def test_cndbtools_open_reads_local_nested_spacewalk_layout(tmp_path):
+    path = tmp_path / "nested.sw"
+    coords = np.arange(12, dtype=np.float32).reshape(4, 3)
+    with h5py.File(path, "w") as handle:
+        handle.create_group("Header")
+        group = handle.create_group("replica1_chr1")
+        group.create_dataset("types", data=np.array([b"A1", b"B1", b"A1", b"B1"]))
+        spatial = group.create_group("spatial_position")
+        spatial.create_dataset("t_0", data=coords)
+
+    tools = CndbTools.open(str(path), trajectory="replica1_chr1")
+    xyz = tools.xyz(frames=[0], beadSelection=range(1, 3))
+
+    assert tools.is_remote is False
+    assert tools.frame_ids == ["t_0"]
+    assert tools.dictChromSeq["A1"] == [0, 2]
+    assert xyz.shape == (1, 2, 3)
+    np.testing.assert_array_equal(xyz[0], coords[1:3])
+
+
 def test_detect_text_ndb(tmp_path):
     path = tmp_path / "toy.ndb"
     path.write_text(

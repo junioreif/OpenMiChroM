@@ -122,11 +122,16 @@ def _build_nested_index(
 def _is_simple_frame_dataset(name: str, obj: h5py.Dataset | h5py.Group) -> bool:
     if not isinstance(obj, h5py.Dataset):
         return False
-    if not name.isdigit():
+    if not _is_frame_id(name):
         return False
     if len(obj.shape) != 2:
         return False
     return int(obj.shape[1]) == 3
+
+
+def _is_frame_id(name: str) -> bool:
+    text = str(name)
+    return text.isdigit() or (text.startswith("t_") and text[2:].isdigit())
 
 
 def _is_nested_trajectory_group(obj: h5py.Dataset | h5py.Group) -> bool:

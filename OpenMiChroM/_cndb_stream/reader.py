@@ -316,7 +316,7 @@ class IndexedCNDB:
     def prefetch_frame_metadata(self, frames: Iterable[int | str]) -> dict[str, dict[str, Any]]:
         """Resolve and cache frame dataset metadata without reading coordinates."""
 
-        return {coerce_frame_id(frame): self._get_frame_info(frame) for frame in frames}
+        return {self._resolve_frame_id(frame): self._get_frame_info(frame) for frame in frames}
 
     def get_distance_matrix(
         self,
@@ -400,7 +400,7 @@ class IndexedCNDB:
         return self.index["trajectories"][self.current_trajectory]
 
     def _get_frame_info(self, frame: int | str) -> dict[str, Any]:
-        frame_id = coerce_frame_id(frame)
+        frame_id = self._resolve_frame_id(frame)
         frames = self._coordinate_index["frames"]
         if frame_id not in frames and self._embedded_provider is not None:
             frames[frame_id] = self._embedded_provider.frame_info(frame_id)
@@ -409,6 +409,15 @@ class IndexedCNDB:
                 f"Frame {frame_id!r} was not found. Available frames: {self.frame_ids[:10]}"
             )
         return frames[frame_id]
+
+    def _resolve_frame_id(self, frame: int | str) -> str:
+        frame_id = coerce_frame_id(frame)
+        if frame_id in self.frame_ids:
+            return frame_id
+        t_frame_id = f"t_{frame_id}"
+        if t_frame_id in self.frame_ids:
+            return t_frame_id
+        return frame_id
 
     def _read_metadata_values(self, path: str | None) -> Any | None:
         if path is None:

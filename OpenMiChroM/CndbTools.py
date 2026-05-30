@@ -84,6 +84,57 @@ class _CNDBStreamBackend:
         }
 
 
+class _CNDBLocalIndexedBackend:
+    """Thin adapter around the internal indexed reader for local nested files."""
+
+    def __init__(self, h5_path, trajectory=None):
+        from OpenMiChroM._cndb_stream import IndexedCNDB
+        from OpenMiChroM._cndb_stream.index import build_index
+
+        index = build_index(h5_path, trajectories=[trajectory] if trajectory else None)
+        self.traj = IndexedCNDB(h5_path=h5_path, _index=index, trajectory=trajectory)
+
+    @property
+    def n_frames(self):
+        return self.traj.n_frames
+
+    @property
+    def n_beads(self):
+        return self.traj.n_beads
+
+    @property
+    def frame_ids(self):
+        return self.traj.frame_ids
+
+    @property
+    def trajectories(self):
+        return self.traj.trajectories
+
+    @property
+    def current_trajectory(self):
+        return self.traj.current_trajectory
+
+    @property
+    def types(self):
+        return self.traj.types
+
+    @property
+    def genomic_positions(self):
+        return self.traj.genomic_positions
+
+    def get_coordinates(self, frame, start=None, stop=None):
+        return self.traj.get_coordinates(frame=frame, start=start, stop=stop)
+
+    def stats(self):
+        return {
+            "index_bytes_read": 0,
+            "metadata_bytes_read": 0,
+            "data_bytes_read": self.traj.data_bytes_read,
+            "bytes_read": self.traj.bytes_read,
+            "index_cache_hit": False,
+        }
+
+
 class cndbTools:
 
     def __init__(self):
@@ -204,6 +255,24 @@ class cndbTools:
                 "Use a file with an embedded index, or download/index the file locally."
             )
 
+        if info.detected_hdf5 and info.layout == "nested-ndb-swb":
+            tool = cls()
+            tool._stream_backend = _CNDBLocalIndexedBackend(source, trajectory=trajectory)
+            tool.is_remote = False
+            tool.cndb = None
+            tool.ChromSeq = _metadata_list(tool._stream_backend.types)
+            tool.Nbeads = tool._stream_backend.n_beads
+            tool.Nframes = tool._stream_backend.n_frames
+            tool.frame_ids = tool._stream_backend.frame_ids
+            tool.trajectories = tool._stream_backend.trajectories
+            tool.current_trajectory = tool._stream_backend.current_trajectory
+            tool.types = tool.ChromSeq
+            tool.genomic_positions = tool._stream_backend.genomic_positions
+            tool.uniqueChromSeq = set(tool.ChromSeq)
+            tool.dictChromSeq = {}
+            for tt in tool.uniqueChromSeq:
+                tool.dictChromSeq[tt] = [i for i, value in enumerate(tool.ChromSeq) if value == tt]
+            return tool
         if info.detected_hdf5 and info.file_type in {"cndb", "hdf5", "sw"}:
             return cls().load(source)
         if info.detected_text_ndb:
