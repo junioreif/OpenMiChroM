@@ -121,6 +121,25 @@ download the full file. Remote HDF5 streaming is enabled only when the endpoint
 supports ``206 Partial Content`` and an embedded index is available. Non-indexed
 remote HDF5 files are rejected by default.
 
+Structural file conversion
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+OpenMiChroM includes small local converters for common structural-file
+interoperability tasks:
+
+.. code-block:: python
+
+   from OpenMiChroM.CndbTools import CndbTools, convert_structure_file
+
+   convert_structure_file("trajectory.ndb", "trajectory.cndb")
+   convert_structure_file("trajectory.cndb", "trajectory.ndb")
+   CndbTools.convert("trajectory.ndb", "trajectory.pdb")
+
+Supported conversions currently include simple ``ndb -> cndb``,
+``cndb -> ndb``, ``ndb -> pdb``, simple ``pdb -> ndb``, and supported HDF5
+``sw/swb -> ndb``. Converters are local-file only and do not download remote
+files.
+
 
 OpenMiChroM.Integrators
 -------------------------------

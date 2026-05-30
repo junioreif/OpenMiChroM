@@ -162,6 +162,19 @@ Command-line inspection is also available:
       python scripts/inspect_structural_file.py --path trajectory.cndb
       python scripts/inspect_structural_file.py --url https://example.org/file.cndb
 
+Small local structural conversions are also available:
+
+::
+
+      from OpenMiChroM.CndbTools import convert_structure_file
+
+      convert_structure_file("trajectory.ndb", "trajectory.cndb")
+      convert_structure_file("trajectory.cndb", "trajectory.ndb")
+      convert_structure_file("trajectory.ndb", "trajectory.pdb")
+
+Converters are local-file only and are intended for small interoperability
+workflows. They do not download remote files.
+
 Resources
 =========
 

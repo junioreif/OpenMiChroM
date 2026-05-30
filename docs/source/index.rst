@@ -24,6 +24,7 @@
    Tutorials/Tutorial_Active_Polymer
    Tutorials/stream_remote_cndb
    Tutorials/write_indexed_cndb
+   Tutorials/structural_file_conversion
 
 
 .. toctree::
@@ -38,7 +39,10 @@
    :maxdepth: 2
    :caption: Developer Notes
 
+   Developer/structural_file_io_design
    Developer/structural_file_formats
+   Developer/structural_file_io_credits
+   Developer/structural_file_io_changelog
 
 Indices and tables
 ==================

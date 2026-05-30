@@ -67,6 +67,10 @@ TUTORIALS = [
         Path("write_indexed_cndb.ipynb"),
         "write_indexed_cndb.ipynb",
     ),
+    TutorialNotebook(
+        Path("structural_file_conversion.ipynb"),
+        "structural_file_conversion.ipynb",
+    ),
 ]
 
 

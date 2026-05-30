@@ -11,6 +11,8 @@ import numpy as np
 import os
 from scipy.spatial import distance
 
+from OpenMiChroM._structural_io.converters import convert_structure_file
+
 
 def _metadata_value(value):
     if isinstance(value, bytes):
@@ -196,6 +198,19 @@ class cndbTools:
         for tt in tool.uniqueChromSeq:
             tool.dictChromSeq[tt] = [i for i, value in enumerate(tool.ChromSeq) if value == tt]
         return tool
+
+    @staticmethod
+    def convert(input_path, output_path=None, **kwargs):
+        R"""
+        Convert a small local structural trajectory file.
+
+        This is a convenience wrapper around
+        ``OpenMiChroM._structural_io.convert_structure_file``. Supported
+        conversions include simple NDB, CNDB/HDF5, PDB, and supported HDF5
+        SW/SWB layouts. Remote URLs are not downloaded by the converter.
+        """
+
+        return convert_structure_file(input_path, output_path, **kwargs)
 
     @classmethod
     def open(

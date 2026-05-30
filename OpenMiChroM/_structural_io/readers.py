@@ -135,6 +135,24 @@ class NDBTextReader:
 
 
 def _parse_chrom_line(line: str) -> dict[str, Any]:
+    parts = line.split()
+    if len(parts) >= 10:
+        # Two common NDB variants are used in OpenMiChroM examples:
+        # CHROM bead type chain bead x y z start end score
+        # CHROM bead type chain chain_id bead x y z start end score
+        coord_start = 6 if len(parts) >= 12 else 5
+        try:
+            return {
+                "type": parts[2] if len(parts) > 2 else "UN",
+                "x": float(parts[coord_start]),
+                "y": float(parts[coord_start + 1]),
+                "z": float(parts[coord_start + 2]),
+                "start": int(float(parts[coord_start + 3])),
+                "end": int(float(parts[coord_start + 4])),
+            }
+        except (ValueError, IndexError):
+            pass
+
     try:
         return {
             "type": line[16:18].strip() or "UN",
@@ -145,7 +163,6 @@ def _parse_chrom_line(line: str) -> dict[str, Any]:
             "end": int(line[78:88]),
         }
     except (ValueError, IndexError):
-        parts = line.split()
         return {
             "type": parts[2] if len(parts) > 2 else "UN",
             "x": float(parts[5]),
