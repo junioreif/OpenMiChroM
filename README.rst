@@ -56,6 +56,37 @@ The following code snippet shows how to generate a single chromosome polymer mod
       sim.createReporters(statistics=True, traj=True, outputName=None, trajFormat="cndb", energyComponents=True, interval=10**3)
       sim.run(nsteps=10**5, report=True, interval=10**4)
 
+Writing streamable CNDB files
+=============================
+
+New OpenMiChroM CNDB trajectories include a small ``/Header`` metadata group
+and an embedded HDF5 object index by default. The coordinate layout remains
+compatible with existing CNDBTools workflows: ``/types`` plus root-level numeric
+frame datasets such as ``/0``, ``/1``, and ``/2``. The embedded index is stored
+as a gzip-compressed JSON dataset at ``/_index`` and the root attribute
+``_index_offset`` points to that dataset's HDF5 object header.
+
+This makes newly written CNDB files directly streamable when hosted on an HTTP
+server that supports Range requests:
+
+::
+
+      sim.createReporters(
+          statistics=True,
+          traj=True,
+          trajFormat="cndb",
+          interval=10**3,
+          trajIndexed=True,
+          trajMetadata=True,
+      )
+
+      # If using SaveStructure directly, call close() when writing is done so
+      # n_frames and the embedded index are finalized.
+
+Use ``trajIndexed=False`` or ``SaveStructure(..., indexed=False)`` only when
+you need to write the historical minimal CNDB layout without ``/Header`` or
+``/_index``.
+
 Streaming remote CNDB files
 ===========================
 

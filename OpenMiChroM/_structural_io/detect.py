@@ -200,7 +200,11 @@ def _inspect_h5py_layout(h5: h5py.File, info: StructuralFileInfo) -> None:
     nested = _nested_trajectory_names(h5)
 
     if simple_frames:
-        info.layout = "openmichrom-simple-cndb"
+        info.layout = (
+            "openmichrom-cndb-v2"
+            if _is_openmichrom_cndb_v2_h5py(h5)
+            else "openmichrom-simple-cndb"
+        )
         info.frame_count = len(simple_frames)
         first = h5[simple_frames[0]]
         _record_dataset_info(first, info)
@@ -260,7 +264,11 @@ def _inspect_remote_embedded_hdf5(url: str, info: StructuralFileInfo, *, timeout
 
     if simple_frames:
         frame_ids = _sorted_frame_names(simple_frames)
-        info.layout = "openmichrom-simple-cndb"
+        info.layout = (
+            "openmichrom-cndb-v2"
+            if "Header" in root_children
+            else "openmichrom-simple-cndb"
+        )
         info.frame_count = len(frame_ids)
         info.coordinate_paths.append(f"/{frame_ids[0]}")
     elif trajectories:
@@ -337,6 +345,26 @@ def _record_dataset_info(dataset: h5py.Dataset, info: StructuralFileInfo) -> Non
         and int(dataset.shape[1]) == 3
     )
     info.direct_streaming_supported = bool(direct and (not info.is_remote or info.has_embedded_index))
+
+
+def _is_openmichrom_cndb_v2_h5py(h5: h5py.File) -> bool:
+    if "Header" not in h5 or not isinstance(h5["Header"], h5py.Group):
+        return False
+    attrs = h5["Header"].attrs
+    format_name = _decode_attr(attrs.get("format_name"))
+    format_version = _decode_attr(attrs.get("format_version"))
+    return format_name == "OpenMiChroM-CNDB" and str(format_version).startswith("2")
+
+
+def _decode_attr(value: Any) -> Any:
+    if isinstance(value, bytes):
+        return value.decode("utf-8")
+    if hasattr(value, "item"):
+        try:
+            return _decode_attr(value.item())
+        except (ValueError, TypeError):
+            return value
+    return value
 
 
 def _read_local_sample(path: Path, sample_size: int) -> bytes:

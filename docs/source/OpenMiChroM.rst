@@ -25,6 +25,31 @@ OpenMiChroM.CndbTools
    :undoc-members: 
    :show-inheritance:
 
+Writing streamable CNDB files
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+New OpenMiChroM CNDB trajectories are written in a stream-friendly CNDB v2
+layout by default. The coordinate data stay in the historical root-level format
+(``/types`` plus numeric frame datasets such as ``/0`` and ``/1``), while a
+``/Header`` metadata group and embedded HDF5 object index make the file
+directly streamable over HTTP Range requests after it is hosted.
+
+.. code-block:: python
+
+   sim.createReporters(
+       statistics=True,
+       traj=True,
+       trajFormat="cndb",
+       interval=1000,
+       trajIndexed=True,
+       trajMetadata=True,
+   )
+
+When using ``SaveStructure`` directly, call ``close()`` after writing frames so
+``n_frames``, ``/_index``, and ``_index_offset`` are finalized. Use
+``trajIndexed=False`` or ``SaveStructure(..., indexed=False)`` only when the
+historical minimal CNDB layout is required.
+
 Streaming remote CNDB files
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -328,11 +328,11 @@ class cndbTools:
             self.dictChromSeq[tt] = ([i for i, e in enumerate(self.ChromSeq) if e == tt])
         
         self.Nbeads = len(self.ChromSeq)
-        self.Nframes = len(self.cndb.keys()) -1
         self.frame_ids = sorted(
             [key for key in self.cndb.keys() if str(key).isdigit()],
             key=lambda frame: int(frame),
         )
+        self.Nframes = len(self.frame_ids)
         self.trajectories = []
         self.current_trajectory = None
         
@@ -459,7 +459,7 @@ class cndbTools:
             selection = np.array(beadSelection)
             
         if frames == None:
-            frames = range(1,self.Nframes+1,1)
+            frames = self.frame_ids
         
         for i in frames:
             frame_list.append(np.take(np.take(np.array(self.cndb[str(i)]), selection, axis=0), XYZ, axis=1))

@@ -1300,7 +1300,7 @@ class MiChroM:
             print(f'\nPotential energy per forceGroup:\n {self.getForces()}', file=f)
 
     def createReporters(self, statistics=True, traj=False, trajFormat="cndb", outputName=None, energyComponents=False,
-                         interval=1000):
+                         interval=1000, trajIndexed=True, trajMetadata=True, trajCoordinateDtype=None):
         R"""
         Configures and attaches reporters to the simulation for data collection during simulation runs.
         This method sets up custom reporters for the OpenMM `Simulation` object to collect simulation statistics and/or save trajectory data at specified intervals. It supports saving energies per force group and various trajectory file formats.
@@ -1325,6 +1325,18 @@ class MiChroM:
             interval (int, optional):
                 The interval (in time steps) at which to report data.
                 (Default: `1000`)
+            trajIndexed (bool, optional):
+                If `True`, new CNDB trajectory files include an embedded HDF5
+                object index for remote byte-range streaming.
+                (Default: `True`)
+            trajMetadata (bool, optional):
+                If `True`, new CNDB trajectory files include a `/Header`
+                metadata group.
+                (Default: `True`)
+            trajCoordinateDtype (str or numpy dtype, optional):
+                Optional dtype conversion for CNDB coordinates. If `None`,
+                OpenMM's position dtype is preserved.
+                (Default: `None`)
         """
         if outputName is None:
             outputName = self.name
@@ -1336,7 +1348,10 @@ class MiChroM:
                 mode=trajFormat, 
                 folder=self.folder,
                 chains=self.chains,
-                typeListLetter=self.type_list_letter
+                typeListLetter=self.type_list_letter,
+                indexed=trajIndexed,
+                metadata=trajMetadata,
+                coordinate_dtype=trajCoordinateDtype,
             )
             self.simulation.reporters.append(save_structure_reporter)
         if statistics:

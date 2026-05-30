@@ -63,6 +63,10 @@ TUTORIALS = [
         Path("stream_remote_cndb.ipynb"),
         "stream_remote_cndb.ipynb",
     ),
+    TutorialNotebook(
+        Path("write_indexed_cndb.ipynb"),
+        "write_indexed_cndb.ipynb",
+    ),
 ]
 
 

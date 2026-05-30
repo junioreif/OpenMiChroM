@@ -23,6 +23,7 @@
    Tutorials/Tutorial_Pulling
    Tutorials/Tutorial_Active_Polymer
    Tutorials/stream_remote_cndb
+   Tutorials/write_indexed_cndb
 
 
 .. toctree::
@@ -32,6 +33,12 @@
    Reference/citing
    Reference/references
    Reference/license
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Developer Notes
+
+   Developer/structural_file_formats
 
 Indices and tables
 ==================

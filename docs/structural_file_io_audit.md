@@ -54,8 +54,9 @@ Remote streaming behavior:
 - Contiguous selections are read as exact byte ranges.
 - Non-contiguous selections currently read the smallest enclosing bead interval
   and then subset in memory.
-- `dictChromSeq` is intentionally empty in remote mode today; remote metadata
-  and type dictionaries are not yet populated.
+- `dictChromSeq` is populated when the remote embedded index exposes a small
+  `types` dataset. If that metadata is absent or unreadable, coordinate
+  streaming can still work.
 
 ## Current Writer/Reporter Behavior
 
@@ -72,7 +73,13 @@ Current `.cndb` reporter behavior:
 - Uses default h5py dataset creation without explicit compression or chunking.
   For fixed-size numeric arrays, h5py normally writes contiguous uncompressed
   datasets unless defaults are changed.
-- Does not write `/Header`, `_index`, or `_index_offset`.
+- By default writes CNDB v2 metadata in `/Header` and finalizes an embedded
+  object-offset index at `/_index`, with root attribute `_index_offset`.
+- `SaveStructure(..., indexed=False, metadata=False)` can still write the
+  historical minimal layout.
+- `SaveStructure.close()` is now the explicit finalization hook. `__del__`
+  calls it best-effort for backward compatibility, but direct users should
+  call `close()` so `n_frames`, `/_index`, and `_index_offset` are finalized.
 
 Current `.swb` reporter behavior:
 
@@ -105,14 +112,11 @@ each directory has an `__init__.py`.
 
 No external `cndb-stream` dependency or `stream` extra remains.
 
-Important import limitation:
+Important import behavior:
 
-- `OpenMiChroM/__init__.py` imports `ChromDynamics`, `Optimization`,
-  `Integrators`, and `CustomReporter` at package import time.
-- Those modules import OpenMM.
-- Therefore `from OpenMiChroM.CndbTools import CndbTools` may require OpenMM
-  even for analysis-only users, because Python executes package `__init__.py`
-  before loading the submodule.
+- `OpenMiChroM/__init__.py` lazily imports OpenMM-dependent simulation modules.
+- `from OpenMiChroM.CndbTools import CndbTools` is intended to remain usable in
+  analysis-only environments without importing OpenMM.
 
 ## Internal Streaming Backend
 

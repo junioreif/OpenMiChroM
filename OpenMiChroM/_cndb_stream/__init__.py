@@ -9,6 +9,7 @@ from .exceptions import (
     UnsupportedLayoutError,
 )
 from .reader import IndexedCNDB
+from .embedded_writer import write_embedded_index
 
 __all__ = [
     "CNDBIndexError",
@@ -19,4 +20,5 @@ __all__ = [
     "UnsupportedLayoutError",
     "distance_matrix",
     "radius_of_gyration",
+    "write_embedded_index",
 ]
