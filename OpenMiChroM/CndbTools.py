@@ -104,6 +104,76 @@ class cndbTools:
         tool.trajectories = tool._stream_backend.trajectories
         tool.current_trajectory = tool._stream_backend.current_trajectory
         return tool
+
+    @classmethod
+    def open(
+        cls,
+        source,
+        trajectory=None,
+        index_cache_path=None,
+        mode="auto",
+        allow_remote_without_index=False,
+        **kwargs,
+    ):
+        R"""
+        Open a local or remote structural trajectory file.
+
+        This is a conservative routing layer. Local CNDB files continue to use
+        the existing ``load()`` implementation. Remote HDF5/CNDB/SW files use
+        streaming only when an embedded index and direct coordinate byte reads
+        are detected. Non-indexed remote HDF5 files are rejected by default to
+        avoid accidental full-file downloads.
+        """
+        if mode != "auto":
+            raise ValueError("Only mode='auto' is currently supported by CndbTools.open().")
+
+        from OpenMiChroM._structural_io import detect_structural_file
+
+        detect_kwargs = {
+            key: kwargs[key]
+            for key in ("timeout", "sample_size", "verify_ssl")
+            if key in kwargs
+        }
+        stream_kwargs = {
+            key: value
+            for key, value in kwargs.items()
+            if key not in {"sample_size", "verify_ssl"}
+        }
+
+        info = detect_structural_file(source, **detect_kwargs)
+        if info.is_remote:
+            if info.detected_hdf5 and info.has_embedded_index and info.direct_streaming_supported:
+                return cls.from_remote(
+                    h5_url=source,
+                    trajectory=trajectory,
+                    index_cache_path=index_cache_path,
+                    **stream_kwargs,
+                )
+            if allow_remote_without_index:
+                raise ValueError(
+                    "Remote fallback reading is not implemented yet. The file was detected "
+                    f"as file_type={info.file_type!r}, layout={info.layout!r}."
+                )
+            raise ValueError(
+                "Remote structural file cannot be streamed safely. "
+                f"file_type={info.file_type!r}, layout={info.layout!r}, "
+                f"range_supported={info.range_supported!r}, "
+                f"has_embedded_index={info.has_embedded_index!r}, "
+                f"direct_streaming_supported={info.direct_streaming_supported!r}. "
+                "Use a file with an embedded index, or download/index the file locally."
+            )
+
+        if info.detected_hdf5 and info.file_type in {"cndb", "hdf5", "sw"}:
+            return cls().load(source)
+        if info.detected_text_ndb:
+            raise ValueError(
+                "Text NDB parsing through CndbTools.open() is not implemented yet. "
+                "Use existing local conversion workflows for now."
+            )
+        raise ValueError(
+            f"Could not open structural file {source!r}. "
+            f"Detected file_type={info.file_type!r}, layout={info.layout!r}."
+        )
     
     def load(self, fileName):
         R"""
