@@ -276,10 +276,25 @@ class cndbTools:
         if info.detected_hdf5 and info.file_type in {"cndb", "hdf5", "sw"}:
             return cls().load(source)
         if info.detected_text_ndb:
-            raise ValueError(
-                "Text NDB parsing through CndbTools.open() is not implemented yet. "
-                "Use existing local conversion workflows for now."
-            )
+            from OpenMiChroM._structural_io.readers import NDBTextReader
+
+            tool = cls()
+            tool._stream_backend = NDBTextReader(source)
+            tool.is_remote = False
+            tool.cndb = None
+            tool.ChromSeq = _metadata_list(tool._stream_backend.types)
+            tool.Nbeads = tool._stream_backend.n_beads
+            tool.Nframes = tool._stream_backend.n_frames
+            tool.frame_ids = tool._stream_backend.frame_ids
+            tool.trajectories = tool._stream_backend.trajectories
+            tool.current_trajectory = tool._stream_backend.current_trajectory
+            tool.types = tool.ChromSeq
+            tool.genomic_positions = tool._stream_backend.genomic_positions
+            tool.uniqueChromSeq = set(tool.ChromSeq)
+            tool.dictChromSeq = {}
+            for tt in tool.uniqueChromSeq:
+                tool.dictChromSeq[tt] = [i for i, value in enumerate(tool.ChromSeq) if value == tt]
+            return tool
         raise ValueError(
             f"Could not open structural file {source!r}. "
             f"Detected file_type={info.file_type!r}, layout={info.layout!r}."
