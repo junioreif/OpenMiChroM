@@ -60,6 +60,38 @@ payloads. Coordinate byte reads are exact for contiguous, uncompressed
 The backend refuses ``200 OK`` responses to Range requests. This is a safety
 rule: a server that ignores ``Range`` may send the whole file.
 
+Public URL compatibility
+------------------------
+
+Development probes used only HEAD requests and small
+``Range: bytes=0-1023`` requests. Results can change if hosting endpoints are
+reconfigured, so rerun ``scripts/inspect_structural_file.py`` before relying on
+a public URL in production.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Public example
+     - Current support status
+   * - NDB Rice non-indexed CNDB files
+     - Detected as HDF5/CNDB, but tested endpoints returned ``200 OK`` to
+       Range requests. These URLs are unsafe for direct remote streaming unless
+       the server begins honoring Range requests and an embedded index is
+       available.
+   * - ENCODE indexed CNDB
+     - S3 URL supports Range requests, exposes an embedded index, and direct
+       coordinate streaming is supported for contiguous uncompressed frames.
+   * - NCBI Mammoth Direct SW
+     - Direct HTTPS/FTP endpoint supports Range requests and is suitable for
+       indexed HDF5 inspection/streaming when an embedded index is present.
+   * - NCBI GEO download SW
+     - ``www.ncbi.nlm.nih.gov/geo/download`` may return ``200 OK`` to Range
+       requests; that endpoint is unsafe for direct streaming unless a
+       redirected/direct file URL supports Range requests.
+   * - Bintu NDB
+     - Detected as text NDB. Remote full parsing is not attempted by default,
+       because it would require downloading the text file.
+
 Writing CNDB v2
 ---------------
 
@@ -113,6 +145,10 @@ Supported conversions in this initial layer:
 Limitations
 -----------
 
+- Direct remote coordinate streaming requires an embedded index and contiguous,
+  uncompressed ``(n_beads, 3)`` coordinate datasets.
+- Remote non-indexed HDF5 files are rejected by default rather than streamed
+  unsafely.
 - Converters are local-file only and do not download remote files.
 - PDB conversion is intentionally simple and uses residue names as approximate
   bead type labels.

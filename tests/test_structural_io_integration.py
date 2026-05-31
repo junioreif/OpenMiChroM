@@ -56,6 +56,10 @@ def test_public_structural_url_detection(name, url, expected_type):
     assert info.is_remote is True
     assert info.file_type == expected_type
     assert info.file_size is None or info.file_size > 0
+    if not (info.detected_hdf5 or info.detected_text_ndb or info.detected_spacewalk):
+        notes = " ".join(info.notes).lower()
+        if "timed out" in notes or "timeout" in notes:
+            pytest.skip(f"{name} did not respond to public URL probes: {info.notes}")
     assert info.detected_hdf5 or info.detected_text_ndb or info.detected_spacewalk
 
     if name in {"encode_cndb", "mammoth_direct_sw"}:

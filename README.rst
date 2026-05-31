@@ -175,6 +175,21 @@ Small local structural conversions are also available:
 Converters are local-file only and are intended for small interoperability
 workflows. They do not download remote files.
 
+Known structural I/O limitations
+================================
+
+- Direct remote coordinate streaming requires an embedded HDF5 object index and
+  contiguous, uncompressed coordinate datasets with shape ``(n_beads, 3)``.
+- Chunked or compressed HDF5 coordinate datasets can be detected, but direct
+  byte-range decoding is not implemented yet.
+- Remote non-indexed HDF5 files are not streamed by default; users should
+  download/index them locally or host an indexed version.
+- Structural converters are local-file only.
+- PDB conversion is simple and approximate, intended for CA-like bead records.
+- Text SpaceWalk conversion is not implemented yet.
+- Large structural conversions should be run explicitly because they load the
+  converted trajectory into memory.
+
 Resources
 =========
 

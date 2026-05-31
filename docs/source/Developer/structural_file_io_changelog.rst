@@ -3,6 +3,21 @@ Structural File I/O Changelog
 
 This changelog summarizes the structural-file I/O work added around CNDBTools.
 
+Merge note: Structural file I/O and CNDBTools streaming
+-------------------------------------------------------
+
+This branch adds structural file I/O and CNDBTools streaming without requiring
+an external ``cndb-stream`` dependency. Highlights:
+
+- ``CndbTools.open(...)`` for conservative local/remote structural-file
+  detection and routing.
+- Remote indexed CNDB/SW streaming through the internal HDF5 byte-range backend.
+- Local CNDB, nested HDF5/SW, and text NDB reading paths.
+- CNDB v2 writer metadata with ``/Header``, ``/_index``, and
+  ``_index_offset``.
+- Small local structural converters.
+- Student-facing tutorials and developer provenance documentation.
+
 Structural detection and opening
 --------------------------------
 
