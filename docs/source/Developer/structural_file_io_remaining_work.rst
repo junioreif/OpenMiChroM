@@ -150,3 +150,147 @@ streaming stable while completing practical hardening tasks:
   in this pass; if not, keep chunked/compressed support detection-only and
   documented;
 - keep all tutorials output-free, synced, and small.
+
+Advanced polish branch plan
+---------------------------
+
+The ``feature/structural-io-polish-advanced`` branch should improve remaining
+limitations without weakening the safety guarantees of the completed structural
+I/O branch.
+
+Unsupported HDF5 filters
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Current behavior:
+  Contiguous uncompressed, chunked uncompressed, and chunked gzip-compressed
+  coordinate datasets are supported. Unknown or unsupported HDF5 filters raise
+  an error during remote chunk decoding.
+
+Why it matters:
+  Public HDF5 files may use shuffle, Fletcher32, LZF, scale-offset, SZIP, or
+  site-specific plugin filters. Returning incorrect coordinates would be worse
+  than refusing to stream.
+
+Available metadata:
+  The vendored pyfive backend exposes filter id, filter name, client data
+  values, filter mask, ``shuffle``, ``fletcher32``, ``compression`` and
+  ``compression_opts`` for chunked datasets. Built-in filter ids observed in the
+  vendored code include gzip/deflate ``1``, shuffle ``2``, Fletcher32 ``3``,
+  SZIP ``4``, n-bit ``5``, scale-offset ``6``, and LZF ``32000``.
+
+Plan:
+  Add a small internal filter helper that documents and tests the supported
+  decode path for raw chunks: no filter, gzip/deflate, shuffle plus gzip, and
+  Fletcher32 validation when present. Keep SZIP, scale-offset, n-bit, LZF
+  without its optional codec, and unknown filters as explicit unsupported
+  layouts.
+
+Tests needed:
+  Synthetic chunked datasets for uncompressed, gzip, shuffle+gzip, and
+  gzip+Fletcher32. Compare remote Range-backed reads with local ``h5py`` slices.
+
+Feasibility:
+  Feasible for gzip, shuffle+gzip, and Fletcher32 because the vendored backend
+  already contains the necessary logic. Unknown plugin filters remain out of
+  scope.
+
+Text SpaceWalk conversion
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Current behavior:
+  HDF5 SW/SWB layouts with nested ``spatial_position`` groups can be converted
+  locally. Text SpaceWalk-like files are detected from small samples but not
+  converted.
+
+Why it matters:
+  Users may have older text SpaceWalk files and want NDB/CNDB interoperability.
+
+Risks:
+  SpaceWalk text dialects are less well pinned down in this branch than
+  CNDB/NDB. NDB-Converters was inspected only as inspiration because the
+  available copy has no license file; no code should be copied.
+
+Plan:
+  Search the repository for representative text SW examples. If a minimal,
+  unambiguous ``trace``-style format is present, implement a clean-room parser
+  and tests. Otherwise, improve the unsupported error and document what example
+  data is needed.
+
+Tests needed:
+  Tiny synthetic text SW fixtures if the format is implemented, including
+  ``sw -> ndb`` and ``sw -> cndb`` conversions.
+
+Feasibility:
+  Conditional. Detection-only documentation is safer if representative examples
+  are unavailable.
+
+Converter memory use
+~~~~~~~~~~~~~~~~~~~~
+
+Current behavior:
+  Converters use an in-memory ``StructureTrajectory`` representation and are
+  intended for small local files.
+
+Why it matters:
+  Large CNDB/SW/NDB conversions can consume substantial memory if every frame is
+  loaded before writing.
+
+Plan:
+  Add explicit frame and bead selection options plus a memory guard
+  (``max_memory_mb`` and ``allow_large``). Improve HDF5-to-text conversion so
+  selected frames can be written frame-by-frame where feasible. Keep full
+  streaming rewrite of arbitrary text formats out of scope unless it remains
+  simple.
+
+Tests needed:
+  Frame subset, bead subset, and memory-guard tests with tiny HDF5 fixtures.
+
+Feasibility:
+  Feasible for local HDF5/CNDB/SW inputs. Large text NDB streaming can remain
+  future work if it complicates the clean reader.
+
+Approximate PDB conversion
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Current behavior:
+  NDB-to-PDB writes one CA-like bead per residue and PDB-to-NDB parses simple
+  ATOM/HETATM records.
+
+Why it matters:
+  PDB is often used for visualization. Coarse-grained bead semantics should be
+  clear and output formatting should be stable.
+
+Plan:
+  Tighten PDB formatting, preserve model records, chain id, residue numbering,
+  atom name, residue name, and element where possible. Add explicit options for
+  atom/residue naming if they can be threaded without disrupting existing
+  converter calls.
+
+Tests needed:
+  Multi-model PDB parsing, formatting assertions, and coordinate round trips
+  with tolerances.
+
+Feasibility:
+  Feasible for simple coarse-grained PDB files. Exact biological residue
+  semantics remain out of scope.
+
+Setuptools warnings
+~~~~~~~~~~~~~~~~~~~
+
+Current behavior:
+  ``python -m build`` succeeds but reports pre-existing warnings about the
+  deprecated license classifier and ``OpenMiChroM.share`` package discovery.
+
+Why it matters:
+  A quieter build is easier to trust before a public PR.
+
+Plan:
+  Update packaging metadata only if doing so is safe for the existing
+  distribution. Ensure ``OpenMiChroM.share/MiChroM.ff`` remains included.
+
+Tests needed:
+  ``python -m build``, ``python -m twine check dist/*``, and wheel/sdist
+  content inspection.
+
+Feasibility:
+  Likely feasible, but packaging changes should be small and reversible.
