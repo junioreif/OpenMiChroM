@@ -17,6 +17,10 @@ def main(argv: list[str] | None = None) -> int:
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--path", help="Local structural file path.")
     source.add_argument("--url", help="Remote structural file URL.")
+    source.add_argument(
+        "--urls",
+        help="Text file containing one local path or remote URL per line.",
+    )
     parser.add_argument("--timeout", type=float, default=30.0, help="Network timeout in seconds.")
     parser.add_argument(
         "--sample-size",
@@ -30,20 +34,53 @@ def main(argv: list[str] | None = None) -> int:
         help="Disable SSL certificate verification for inspection probes.",
     )
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    parser.add_argument(
+        "--json-output",
+        help="Write machine-readable JSON to this path. Useful with --urls.",
+    )
     args = parser.parse_args(argv)
 
-    target = args.url or args.path
-    info = detect_structural_file(
-        target,
-        timeout=args.timeout,
-        sample_size=args.sample_size,
-        verify_ssl=not args.no_verify_ssl,
-    )
+    targets = _targets_from_args(args)
+    infos = [
+        detect_structural_file(
+            target,
+            timeout=args.timeout,
+            sample_size=args.sample_size,
+            verify_ssl=not args.no_verify_ssl,
+        )
+        for target in targets
+    ]
+    payload = [info.to_dict() for info in infos]
+
+    if args.json_output:
+        with open(args.json_output, "w", encoding="utf-8") as handle:
+            json.dump(payload if len(payload) > 1 else payload[0], handle, indent=2, sort_keys=True)
+            handle.write("\n")
+
     if args.json:
-        print(json.dumps(info.to_dict(), indent=2, sort_keys=True))
+        print(json.dumps(payload if len(payload) > 1 else payload[0], indent=2, sort_keys=True))
     else:
-        print_human(info)
+        for index, info in enumerate(infos):
+            if index:
+                print()
+                print("-" * 72)
+            print_human(info)
     return 0
+
+
+def _targets_from_args(args: argparse.Namespace) -> list[str]:
+    if args.urls:
+        targets: list[str] = []
+        with open(args.urls, "r", encoding="utf-8") as handle:
+            for line in handle:
+                stripped = line.strip()
+                if not stripped or stripped.startswith("#"):
+                    continue
+                targets.append(stripped)
+        if not targets:
+            raise SystemExit(f"No URLs or paths found in {args.urls}.")
+        return targets
+    return [args.url or args.path]
 
 
 def print_human(info: StructuralFileInfo) -> None:
