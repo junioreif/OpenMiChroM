@@ -301,13 +301,20 @@ def _inspect_pyfive_dataset(h5: Any, path: str, info: StructuralFileInfo) -> Non
         info.chunks = [int(dim) for dim in dataset.chunks] if dataset.chunks is not None else None
         layout = _layout_name(dataset.id.layout_class)
         data_offset = getattr(dataset.id, "data_offset", None)
-        info.direct_streaming_supported = bool(
+        contiguous_supported = (
             layout == "contiguous"
             and info.compression is None
             and data_offset is not None
             and len(shape) == 2
             and shape[1] == 3
         )
+        chunked_supported = (
+            layout == "chunked"
+            and len(shape) == 2
+            and shape[1] == 3
+            and info.compression in {None, "gzip", "lzf"}
+        )
+        info.direct_streaming_supported = bool(contiguous_supported or chunked_supported)
     except Exception as exc:
         info.notes.append(f"First coordinate dataset inspection failed: {exc}")
 
@@ -337,14 +344,23 @@ def _record_dataset_info(dataset: h5py.Dataset, info: StructuralFileInfo) -> Non
     info.chunks = list(dataset.chunks) if dataset.chunks is not None else None
     if len(dataset.shape) >= 1:
         info.bead_count = int(dataset.shape[0])
-    direct = (
+    contiguous_supported = (
         dataset.chunks is None
         and dataset.compression is None
         and dataset.id.get_offset() is not None
         and len(dataset.shape) == 2
         and int(dataset.shape[1]) == 3
     )
-    info.direct_streaming_supported = bool(direct and (not info.is_remote or info.has_embedded_index))
+    chunked_supported = (
+        dataset.chunks is not None
+        and len(dataset.shape) == 2
+        and int(dataset.shape[1]) == 3
+        and dataset.compression in {None, "gzip", "lzf"}
+    )
+    info.direct_streaming_supported = bool(
+        (contiguous_supported or chunked_supported)
+        and (not info.is_remote or info.has_embedded_index)
+    )
 
 
 def _is_openmichrom_cndb_v2_h5py(h5: h5py.File) -> bool:

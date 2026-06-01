@@ -18,8 +18,10 @@ historical coordinate layout so existing local readers remain usable:
    /_index
 
 ``/types`` contains bead type labels. Numeric root-level datasets contain frame
-coordinates with shape ``(n_beads, 3)``. For direct remote streaming, these
-frame datasets must be contiguous and uncompressed.
+coordinates with shape ``(n_beads, 3)``. Contiguous, uncompressed frame
+datasets provide the fastest exact byte-range streaming path. Chunked
+uncompressed or gzip-compressed datasets can also be read through the embedded
+backend, but whole chunks may be transferred.
 
 Metadata header
 ---------------
@@ -93,6 +95,11 @@ dataset, the backend computes the exact bead range:
    byte_start = data_offset + start * 3 * dtype.itemsize
    byte_length = (stop - start) * 3 * dtype.itemsize
 
+For chunked coordinate datasets, the backend reads whole intersecting chunks and
+then slices/reassembles the requested rows in memory. This is still Range-based
+and avoids downloading the whole file, but transferred coordinate bytes can
+exceed the requested payload.
+
 If a server ignores a Range request and returns ``200 OK`` instead of
 ``206 Partial Content``, OpenMiChroM raises an error rather than risking an
 accidental full-file download.
@@ -124,6 +131,8 @@ That finalization updates ``n_frames``, writes ``/_index``, and records
 Current limitations
 -------------------
 
-Direct byte-range coordinate reads currently require contiguous, uncompressed
-frame datasets with shape ``(n_beads, 3)``. Chunked or compressed frame
-datasets can be detected, but they are not decoded by the streaming backend.
+Direct byte-range coordinate reads require coordinate datasets with shape
+``(n_beads, 3)`` and an embedded object index for remote use. Contiguous,
+uncompressed datasets are exact. Chunked uncompressed and gzip-compressed
+datasets may transfer whole chunks. Unsupported HDF5 filters are rejected rather
+than decoded or downloaded wholesale.

@@ -1,10 +1,89 @@
 import h5py
 import numpy as np
+import pytest
+import functools
+import os
+import re
+import threading
+from contextlib import contextmanager
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 import OpenMiChroM._cndb_stream as internal_stream
 from OpenMiChroM._cndb_stream import IndexedCNDB
+from OpenMiChroM._cndb_stream.embedded_writer import write_embedded_index
 from OpenMiChroM.CndbTools import CndbTools, cndbTools
 from OpenMiChroM._structural_io import coalesce_indices
+
+
+class _RangeRequestHandler(SimpleHTTPRequestHandler):
+    def log_message(self, format, *args):
+        return
+
+    def send_head(self):
+        path = self.translate_path(self.path)
+        if not os.path.isfile(path):
+            self.send_error(404, "File not found")
+            return None
+
+        file_size = os.path.getsize(path)
+        range_header = self.headers.get("Range")
+        handle = open(path, "rb")
+        if range_header:
+            match = re.match(r"bytes=(\d+)-(\d+)$", range_header)
+            if match is None:
+                handle.close()
+                self.send_error(416, "Invalid Range")
+                return None
+            start = int(match.group(1))
+            stop_inclusive = min(int(match.group(2)), file_size - 1)
+            if start >= file_size or stop_inclusive < start:
+                handle.close()
+                self.send_error(416, "Range Not Satisfiable")
+                return None
+            length = stop_inclusive - start + 1
+            self.send_response(206)
+            self.send_header("Content-type", "application/octet-stream")
+            self.send_header("Accept-Ranges", "bytes")
+            self.send_header("Content-Range", f"bytes {start}-{stop_inclusive}/{file_size}")
+            self.send_header("Content-Length", str(length))
+            self.end_headers()
+            handle.seek(start)
+            self._range_length = length
+            return handle
+
+        self.send_response(200)
+        self.send_header("Content-type", "application/octet-stream")
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Content-Length", str(file_size))
+        self.end_headers()
+        self._range_length = None
+        return handle
+
+    def copyfile(self, source, outputfile):
+        if getattr(self, "_range_length", None) is None:
+            return super().copyfile(source, outputfile)
+        remaining = self._range_length
+        while remaining:
+            chunk = source.read(min(64 * 1024, remaining))
+            if not chunk:
+                break
+            outputfile.write(chunk)
+            remaining -= len(chunk)
+
+
+@contextmanager
+def _serve_directory(directory):
+    factory = functools.partial(_RangeRequestHandler, directory=str(directory))
+    server = ThreadingHTTPServer(("127.0.0.1", 0), factory)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        yield f"http://{host}:{port}"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
 
 
 def _make_simple_cndb(path):
@@ -216,3 +295,28 @@ def test_coalesce_indices_groups_adjacent_blocks():
     assert coalesce_indices([0, 1, 2, 10, 11, 12]) == [(0, 3), (10, 13)]
     assert coalesce_indices([0, 10, 20], max_gap=10) == [(0, 21)]
     assert coalesce_indices([0, 10, 20], max_ranges=2) == [(0, 11), (20, 21)]
+
+
+@pytest.mark.parametrize("compression", [None, "gzip"])
+def test_remote_chunked_cndb_streams_with_embedded_backend(tmp_path, compression):
+    cndb_path = tmp_path / f"chunked-{compression or 'none'}.cndb"
+    coords = np.arange(30, dtype=np.float32).reshape(10, 3)
+    with h5py.File(cndb_path, "w") as handle:
+        handle.create_dataset("types", data=np.array([b"A1"] * 10))
+        handle.create_dataset("1", data=coords, chunks=(4, 3), compression=compression)
+    write_embedded_index(cndb_path)
+
+    with _serve_directory(tmp_path) as base_url:
+        tools = CndbTools.from_remote(
+            h5_url=f"{base_url}/{cndb_path.name}",
+            fetch_size=512,
+            cache_size=2048,
+        )
+        xyz = tools.xyz(frames=[1], beadSelection=range(2, 7))
+
+    np.testing.assert_array_equal(xyz[0], coords[2:7])
+    stats = tools.stream_stats()
+    assert stats["requested_coordinate_bytes"] == 5 * 3 * np.dtype("float32").itemsize
+    assert stats["transferred_coordinate_bytes"] >= stats["requested_coordinate_bytes"]
+    assert stats["data_bytes_read"] >= stats["requested_coordinate_bytes"]
+    assert stats["data_bytes_read"] < cndb_path.stat().st_size

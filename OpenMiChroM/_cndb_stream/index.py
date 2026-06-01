@@ -188,6 +188,7 @@ def _dataset_index_entry(dataset: h5py.Dataset, frame_id: str) -> dict[str, Any]
     shape = [int(dim) for dim in dataset.shape]
     compression = dataset.compression
     chunks = [int(dim) for dim in dataset.chunks] if dataset.chunks is not None else None
+    filters = _dataset_filters(dataset)
     data_offset = dataset.id.get_offset()
     storage_size = int(dataset.id.get_storage_size())
     nbytes = int(np.prod(shape, dtype=np.int64) * dtype.itemsize)
@@ -208,11 +209,13 @@ def _dataset_index_entry(dataset: h5py.Dataset, frame_id: str) -> dict[str, Any]
         "dtype": dtype.name,
         "layout": layout,
         "compression": compression,
+        "filters": filters,
         "chunks": chunks,
         "data_offset": int(data_offset) if data_offset is not None else None,
         "storage_size": storage_size,
         "nbytes": nbytes,
         "direct_read_supported": direct_read_supported,
+        "chunked_read_supported": bool(layout == "chunked" and len(shape) == 2 and shape[1] == 3),
     }
 
 
@@ -222,3 +225,22 @@ def _read_types(dataset: h5py.Dataset) -> list[Any]:
     if isinstance(safe_values, list):
         return safe_values
     return [safe_values]
+
+
+def _dataset_filters(dataset: h5py.Dataset) -> list[dict[str, Any]]:
+    filters: list[dict[str, Any]] = []
+    plist = dataset.id.get_create_plist()
+    for index in range(plist.get_nfilters()):
+        try:
+            filter_id, flags, cd_values, name = plist.get_filter(index)
+        except ValueError:
+            continue
+        filters.append(
+            {
+                "id": int(filter_id),
+                "flags": int(flags),
+                "client_data": [int(value) for value in cd_values],
+                "name": name.decode("utf-8", errors="replace") if isinstance(name, bytes) else str(name),
+            }
+        )
+    return filters

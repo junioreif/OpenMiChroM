@@ -610,7 +610,9 @@ class cndbTools:
         axis_selection = np.array(XYZ)
 
         for frame in frames:
+            data_bytes_before = self.stream_data_bytes_read
             coords = self._stream_read_ranges(frame, ranges)
+            data_bytes_after = self.stream_data_bytes_read
             if post_selection is not None:
                 coords = np.take(coords, post_selection, axis=0)
             frame_list.append(np.take(coords, axis_selection, axis=1))
@@ -619,7 +621,9 @@ class cndbTools:
             else:
                 itemsize = np.dtype(np.float32).itemsize
             transferred_rows = sum(stop - start for start, stop in ranges)
-            transferred_bytes = transferred_rows * 3 * itemsize
+            planned_transferred_bytes = transferred_rows * 3 * itemsize
+            measured_transferred_bytes = max(0, data_bytes_after - data_bytes_before)
+            transferred_bytes = max(planned_transferred_bytes, measured_transferred_bytes)
             requested_bytes = requested_rows * 3 * itemsize
             self._stream_selection_stats["coordinate_range_requests"] += len(ranges)
             self._stream_selection_stats["requested_data_bytes"] += requested_bytes
@@ -707,31 +711,36 @@ class cndbTools:
     def stream_data_bytes_read(self):
         if self._stream_backend is None:
             return 0
-        return self._stream_backend.traj.data_bytes_read
+        backend = getattr(self._stream_backend, "traj", self._stream_backend)
+        return getattr(backend, "data_bytes_read", 0)
 
     @property
     def stream_index_bytes_read(self):
         if self._stream_backend is None:
             return 0
-        return self._stream_backend.traj.index_bytes_read
+        backend = getattr(self._stream_backend, "traj", self._stream_backend)
+        return getattr(backend, "index_bytes_read", 0)
 
     @property
     def stream_metadata_bytes_read(self):
         if self._stream_backend is None:
             return 0
-        return self._stream_backend.traj.metadata_bytes_read
+        backend = getattr(self._stream_backend, "traj", self._stream_backend)
+        return getattr(backend, "metadata_bytes_read", 0)
 
     @property
     def stream_bytes_read(self):
         if self._stream_backend is None:
             return 0
-        return self._stream_backend.traj.bytes_read
+        backend = getattr(self._stream_backend, "traj", self._stream_backend)
+        return getattr(backend, "bytes_read", 0)
 
     @property
     def stream_index_cache_hit(self):
         if self._stream_backend is None:
             return False
-        return self._stream_backend.traj.index_cache_hit
+        backend = getattr(self._stream_backend, "traj", self._stream_backend)
+        return getattr(backend, "index_cache_hit", False)
 
     def stream_stats(self):
         R"""

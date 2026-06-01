@@ -79,16 +79,16 @@ The core behavior is covered by small local fixtures:
 Known gaps and risks
 --------------------
 
-Chunked and compressed HDF5 datasets are the main technical risk. The current
-remote reader computes exact byte offsets for contiguous, uncompressed
-``(n_beads, 3)`` datasets. Chunked datasets require locating each intersecting
-chunk in the HDF5 chunk index, reading whole chunk payloads, and reassembling
-requested rows. Compressed chunks additionally require a correct implementation
-of the HDF5 filter pipeline. Gzip/deflate may be feasible with ``zlib``;
-shuffle, scale-offset, SZIP, LZF, or user filters should remain unsupported
-until they are explicitly decoded and tested. The safe behavior today is to
-detect these layouts and raise a clear unsupported-layout error rather than
-downloading the full file.
+Chunked and compressed HDF5 datasets remain more complex than contiguous
+datasets. The remote reader computes exact byte offsets for contiguous,
+uncompressed ``(n_beads, 3)`` datasets. Chunked uncompressed and gzip-compressed
+datasets can be read through the embedded pyfive backend, which locates
+intersecting chunks, reads whole chunk payloads, applies supported filters, and
+reassembles requested rows. This can transfer more bytes than the requested bead
+payload. Unsupported filters such as scale-offset, SZIP, or user filters should
+remain unsupported until they are explicitly decoded and tested. The safe
+behavior is to raise a clear unsupported-layout error rather than downloading
+the full file.
 
 Remote non-indexed HDF5 files are intentionally conservative. If a remote CNDB
 or SW file lacks ``/_index``/``_index_offset``, the code does not walk the whole

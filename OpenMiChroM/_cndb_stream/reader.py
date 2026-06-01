@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Iterable
 from urllib.request import urlopen
 
+import h5py
 import numpy as np
 
 from .analysis import distance_matrix, radius_of_gyration
@@ -194,7 +195,10 @@ class IndexedCNDB:
     def data_bytes_read(self) -> int:
         """Coordinate payload bytes read by direct frame byte-range requests."""
 
-        return int(self._byte_reader.bytes_read)
+        embedded_data = 0
+        if self._embedded_provider is not None:
+            embedded_data = int(getattr(self._embedded_provider, "data_bytes_read", 0))
+        return int(self._byte_reader.bytes_read) + embedded_data
 
     @property
     def index_bytes_read(self) -> int:
@@ -264,12 +268,14 @@ class IndexedCNDB:
         """
 
         frame_info = self._get_frame_info(frame)
-        self._ensure_supported(frame_info)
 
         shape = tuple(int(dim) for dim in frame_info["shape"])
         start_row, stop_row = self._normalize_rows(start, stop, n_rows=shape[0])
         rows = stop_row - start_row
         dtype = np.dtype(frame_info["dtype"])
+        if frame_info.get("direct_read_supported") is not True:
+            return self._read_noncontiguous_layout(frame_info, start_row, stop_row)
+
         row_size = int(shape[1] * dtype.itemsize)
         byte_start = int(frame_info["data_offset"]) + start_row * row_size
         byte_stop = byte_start + rows * row_size
@@ -439,11 +445,43 @@ class IndexedCNDB:
         if frame_info.get("direct_read_supported") is True:
             return
         raise UnsupportedLayoutError(
-            "Frame dataset cannot be read with direct byte ranges in the MVP. "
+            "Frame dataset cannot be read with direct contiguous byte ranges. "
             f"path={frame_info.get('path')!r}, layout={frame_info.get('layout')!r}, "
             f"compression={frame_info.get('compression')!r}, "
+            f"filters={frame_info.get('filters')!r}, "
             f"data_offset={frame_info.get('data_offset')!r}."
         )
+
+    def _read_noncontiguous_layout(
+        self,
+        frame_info: dict[str, Any],
+        start_row: int,
+        stop_row: int,
+    ) -> np.ndarray:
+        """Read non-contiguous layouts only through safe local/embedded backends."""
+
+        path = frame_info.get("path")
+        layout = frame_info.get("layout")
+        if (
+            layout == "chunked"
+            and frame_info.get("chunked_read_supported") is True
+            and path
+        ):
+            if self._embedded_provider is not None:
+                try:
+                    return self._embedded_provider.read_dataset_rows(path, start_row, stop_row).copy()
+                except Exception as exc:
+                    raise UnsupportedLayoutError(
+                        "Chunked dataset could not be streamed by the embedded HDF5 backend. "
+                        f"path={path!r}, compression={frame_info.get('compression')!r}, "
+                        f"filters={frame_info.get('filters')!r}."
+                    ) from exc
+            h5_path = Path(self.h5_source)
+            if h5_path.exists():
+                with h5py.File(h5_path, "r") as h5:
+                    return np.asarray(h5[path][start_row:stop_row, :]).copy()
+        self._ensure_supported(frame_info)
+        raise AssertionError("unreachable")
 
     @staticmethod
     def _normalize_rows(
