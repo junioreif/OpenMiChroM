@@ -28,6 +28,20 @@ def _write_tiny_ndb(path):
     )
 
 
+def _write_tiny_spacewalk(path):
+    path.write_text(
+        "##format=sw1 name=tiny_spacewalk genome=hg38\n"
+        "chromosome\tstart\tend\tx\ty\tz\n"
+        "trace 0\n"
+        "chr21\t1\t50000\t0.000\t1.000\t2.000\n"
+        "chr21\t50001\t100000\t3.000\t4.000\t5.000\n"
+        "trace 1\n"
+        "chr21\t1\t50000\t10.000\t11.000\t12.000\n"
+        "chr21\t50001\t100000\t13.000\t14.000\t15.000\n",
+        encoding="utf-8",
+    )
+
+
 def test_tiny_ndb_to_cndb_to_ndb_roundtrip(tmp_path):
     ndb_path = tmp_path / "tiny.ndb"
     cndb_path = tmp_path / "tiny.cndb"
@@ -110,6 +124,60 @@ def test_supported_hdf5_sw_to_ndb(tmp_path):
     reader = NDBTextReader(ndb_path)
     assert reader.types == ["A1", "B1"]
     np.testing.assert_array_equal(reader.get_coordinates(1), coords)
+
+
+def test_text_spacewalk_to_ndb(tmp_path):
+    sw_path = tmp_path / "toy.spw"
+    ndb_path = tmp_path / "toy.ndb"
+    _write_tiny_spacewalk(sw_path)
+
+    convert_structure_file(sw_path, ndb_path)
+
+    reader = NDBTextReader(ndb_path)
+    assert reader.frame_ids == ["1", "2"]
+    assert reader.types == ["UN", "UN"]
+    np.testing.assert_array_equal(
+        reader.get_coordinates(2),
+        np.array([[10, 11, 12], [13, 14, 15]], dtype=np.float32),
+    )
+
+
+def test_text_spacewalk_to_cndb(tmp_path):
+    sw_path = tmp_path / "toy.sw"
+    cndb_path = tmp_path / "toy.cndb"
+    _write_tiny_spacewalk(sw_path)
+
+    convert_structure_file(sw_path, cndb_path)
+
+    with h5py.File(cndb_path, "r") as h5:
+        assert "Header" in h5
+        assert "_index" in h5
+        np.testing.assert_array_equal(
+            h5["1"][()],
+            np.array([[0, 1, 2], [3, 4, 5]], dtype=np.float32),
+        )
+        assert [value.decode("utf-8") for value in h5["types"][()]] == ["UN", "UN"]
+
+
+def test_ndb_to_text_spacewalk_roundtrip(tmp_path):
+    ndb_path = tmp_path / "tiny.ndb"
+    sw_path = tmp_path / "tiny.spw"
+    roundtrip_path = tmp_path / "roundtrip.ndb"
+    _write_tiny_ndb(ndb_path)
+
+    convert_structure_file(ndb_path, sw_path)
+
+    text = sw_path.read_text(encoding="utf-8")
+    assert text.startswith("##format=sw1")
+    assert "trace 0" in text
+    assert "chr1" in text
+
+    convert_structure_file(sw_path, roundtrip_path)
+    reader = NDBTextReader(roundtrip_path)
+    np.testing.assert_array_equal(
+        reader.get_coordinates(1),
+        np.array([[0, 1, 2], [3, 4, 5], [6, 7, 8]], dtype=np.float32),
+    )
 
 
 def test_converter_rejects_remote_urls():

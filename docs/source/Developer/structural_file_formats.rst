@@ -106,6 +106,25 @@ If a server ignores a Range request and returns ``200 OK`` instead of
 ``206 Partial Content``, OpenMiChroM raises an error rather than risking an
 accidental full-file download.
 
+Text SpaceWalk
+--------------
+
+OpenMiChroM detects and converts a small text SpaceWalk dialect used for local
+interoperability. Supported files have an optional ``##format=sw1`` header,
+optional column header, ``trace`` frame markers, and whitespace-delimited rows:
+
+.. code-block:: text
+
+   ##format=sw1 name=example
+   chromosome start end x y z
+   trace 0
+   chr1 1 50000 0.0 1.0 2.0
+
+When converting text SpaceWalk to NDB/CNDB, bead type labels are set to ``UN``
+because this text format does not encode OpenMiChroM chromatin types. When
+writing SpaceWalk text from NDB/CNDB, coordinates are written as ``chr1`` rows
+with the available genomic intervals.
+
 Writer options
 --------------
 

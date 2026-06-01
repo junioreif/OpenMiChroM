@@ -100,10 +100,10 @@ size limit.
 Converters are local-file only and in-memory. They are suitable for tiny
 fixtures and small interoperability tasks, not large production rewrites. PDB
 conversion is approximate because bead type labels and genomic coordinates are
-not native PDB concepts. Text SpaceWalk conversion is not implemented yet
-because the exact text dialect needs representative examples and should remain
-clean-room. NDB-Converters has no license file in the inspected copy, so no
-code has been copied from it.
+not native PDB concepts. Simple trace-style text SpaceWalk conversion is
+implemented clean-room, but richer SpaceWalk dialects still need representative
+licensed examples. NDB-Converters has no license file in the inspected copy, so
+no code has been copied from it.
 
 Public URL status
 -----------------
@@ -199,8 +199,8 @@ Text SpaceWalk conversion
 
 Current behavior:
   HDF5 SW/SWB layouts with nested ``spatial_position`` groups can be converted
-  locally. Text SpaceWalk-like files are detected from small samples but not
-  converted.
+  locally. Simple text SpaceWalk-like files with ``trace`` sections and
+  ``chromosome start end x y z`` rows can be converted locally.
 
 Why it matters:
   Users may have older text SpaceWalk files and want NDB/CNDB interoperability.
@@ -211,18 +211,17 @@ Risks:
   available copy has no license file; no code should be copied.
 
 Plan:
-  Search the repository for representative text SW examples. If a minimal,
-  unambiguous ``trace``-style format is present, implement a clean-room parser
-  and tests. Otherwise, improve the unsupported error and document what example
-  data is needed.
+  Implemented a clean-room parser/writer for the minimal trace-style dialect
+  used by common SpaceWalk examples. Richer dialects should be added only with
+  licensed examples and focused tests.
 
 Tests needed:
-  Tiny synthetic text SW fixtures if the format is implemented, including
-  ``sw -> ndb`` and ``sw -> cndb`` conversions.
+  Tiny synthetic text SW fixtures cover ``sw -> ndb``, ``sw -> cndb``, and
+  ``ndb -> sw -> ndb`` conversions.
 
 Feasibility:
-  Conditional. Detection-only documentation is safer if representative examples
-  are unavailable.
+  Feasible for the simple trace-style dialect. Broader SpaceWalk variants
+  remain future work.
 
 Converter memory use
 ~~~~~~~~~~~~~~~~~~~~

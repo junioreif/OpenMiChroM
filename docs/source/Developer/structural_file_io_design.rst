@@ -48,6 +48,8 @@ Current local layouts include:
      - HDF5 layout with ``/<trajectory>/spatial_position/<frame>``
    * - ``text-ndb``
      - Text NDB records with ``MODEL`` and ``CHROM`` entries
+   * - ``spacewalk-sw``
+     - Text SpaceWalk records with ``trace`` sections and coordinate rows
 
 Remote streaming
 ----------------
@@ -162,6 +164,11 @@ Supported conversions in this initial layer:
      - Supports simple ATOM/HETATM PDB files
    * - ``sw/swb -> ndb``
      - Supports HDF5 nested ``spatial_position`` layouts
+   * - ``sw/spw -> ndb`` and ``sw/spw -> cndb``
+     - Supports simple text SpaceWalk trace files. Bead types are set to
+       ``UN`` because the text format does not encode OpenMiChroM type labels.
+   * - ``ndb -> sw/spw``
+     - Writes a simple trace-style text SpaceWalk file with ``chr1`` rows
 
 Limitations
 -----------
@@ -177,7 +184,9 @@ Limitations
 - Converters are local-file only and do not download remote files.
 - PDB conversion is intentionally simple and uses residue names as approximate
   bead type labels.
-- Text SpaceWalk conversion is not implemented yet.
+- Text SpaceWalk support is intentionally narrow: trace-style
+  ``chromosome start end x y z`` rows are supported, but richer or
+  application-specific SpaceWalk dialects may need a small adapter.
 - Unsupported HDF5 filters, including scale-offset, SZIP, n-bit, unavailable
   LZF codecs, and custom plugin filters, are detected at read time and not
   decoded by the streaming byte-range backend.

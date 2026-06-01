@@ -190,6 +190,7 @@ Small local structural conversions are also available:
       convert_structure_file("trajectory.ndb", "trajectory.cndb")
       convert_structure_file("trajectory.cndb", "trajectory.ndb")
       convert_structure_file("trajectory.ndb", "trajectory.pdb")
+      convert_structure_file("trajectory.spw", "trajectory.ndb")
 
 Command-line conversion uses the same local converter:
 
@@ -218,7 +219,9 @@ Known structural I/O limitations
   download/index them locally or host an indexed version.
 - Structural converters are local-file only.
 - PDB conversion is simple and approximate, intended for CA-like bead records.
-- Text SpaceWalk conversion is not implemented yet.
+- Simple text SpaceWalk ``.sw/.spw`` conversion is supported for trace-style
+  files with ``chromosome start end x y z`` rows. Text SpaceWalk does not carry
+  OpenMiChroM chromatin type labels, so converted beads are assigned ``UN``.
 - Large structural conversions should be run explicitly because they load the
   converted trajectory into memory.
 

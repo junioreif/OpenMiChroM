@@ -2,7 +2,7 @@
 
 The converters here are intentionally conservative and local-file only. They
 support small interoperability tasks among simple NDB, CNDB/HDF5, PDB, and
-supported HDF5 SpaceWalk/SW-style layouts without downloading remote files.
+supported SpaceWalk/SW-style layouts without downloading remote files.
 """
 
 from __future__ import annotations
@@ -89,9 +89,9 @@ def convert_structure_file(
     """Convert a small local structural trajectory file.
 
     Supported conversions are simple local ``ndb -> cndb``, ``cndb -> ndb``,
-    ``ndb -> pdb``, simple ``pdb -> ndb``, and supported HDF5 ``sw/swb -> ndb``.
-    Remote URLs are rejected because conversion is intentionally a local-file
-    operation.
+    ``ndb -> pdb``, simple ``pdb -> ndb``, supported HDF5 ``sw/swb -> ndb``,
+    and simple text SpaceWalk ``sw/spw`` conversions. Remote URLs are rejected
+    because conversion is intentionally a local-file operation.
     """
 
     input_value = str(input_path)
@@ -121,10 +121,12 @@ def convert_structure_file(
         _write_ndb(trajectory_data, output_path)
     elif resolved_output == "pdb":
         _write_pdb(trajectory_data, output_path)
+    elif resolved_output == "sw":
+        _write_text_spacewalk(trajectory_data, output_path)
     else:
         raise ValueError(
             f"Unsupported output format {resolved_output!r}. "
-            "Supported outputs are 'cndb', 'ndb', and 'pdb'."
+            "Supported outputs are 'cndb', 'ndb', 'pdb', and 'sw'."
         )
     return output_path
 
@@ -134,11 +136,18 @@ def _read_structure(path: Path, input_format: str, *, trajectory: str | None) ->
         return _read_ndb(path)
     if input_format == "pdb":
         return _read_pdb(path)
-    if input_format in {"cndb", "hdf5", "sw", "swb"}:
+    if input_format == "sw":
+        info = detect_structural_file(path)
+        if info.detected_hdf5:
+            return _read_hdf5(path, trajectory=trajectory)
+        if info.detected_spacewalk:
+            return _read_text_spacewalk(path)
+        raise ValueError(f"Unsupported SpaceWalk layout in {path}.")
+    if input_format in {"cndb", "hdf5"}:
         return _read_hdf5(path, trajectory=trajectory)
     raise ValueError(
         f"Unsupported input format {input_format!r}. "
-        "Supported inputs are 'ndb', 'pdb', 'cndb', 'hdf5', 'sw', and 'swb'."
+        "Supported inputs are 'ndb', 'pdb', 'cndb', 'hdf5', 'sw', 'spw', and 'swb'."
     )
 
 
@@ -202,6 +211,92 @@ def _read_pdb(path: Path) -> StructureTrajectory:
         types=types or ["UN"] * next(iter(frames.values())).shape[0],
         genomic_positions=_default_genomic_positions(next(iter(frames.values())).shape[0]),
         title=path.stem,
+    )
+
+
+def _read_text_spacewalk(path: Path) -> StructureTrajectory:
+    """Read a simple trace-style SpaceWalk text file.
+
+    The supported clean-room dialect is the common tab/space-delimited form:
+    ``##format=sw1 ...``, an optional ``chromosome start end x y z`` header,
+    ``trace N`` frame markers, and rows containing chromosome/start/end plus
+    Cartesian coordinates. SpaceWalk text rows do not carry OpenMiChroM type
+    labels, so converted beads are assigned ``UN``.
+    """
+
+    frames: "OrderedDict[str, np.ndarray]" = OrderedDict()
+    first_genomic: list[tuple[int, int]] = []
+    current_frame: str | None = None
+    current_coords: list[list[float]] = []
+    current_genomic: list[tuple[int, int]] = []
+    title = path.stem
+
+    def commit() -> None:
+        nonlocal current_frame, current_coords, current_genomic, first_genomic
+        if current_frame is None or not current_coords:
+            return
+        frame_key = str(int(current_frame))
+        coords = np.array(current_coords, dtype=np.float32)
+        if frames and coords.shape[0] != next(iter(frames.values())).shape[0]:
+            raise ValueError(
+                f"Inconsistent bead count in SpaceWalk file {path}: "
+                f"frame {frame_key} has {coords.shape[0]} beads."
+            )
+        frames[frame_key] = coords
+        if not first_genomic:
+            first_genomic = list(current_genomic)
+
+    with path.open("r", encoding="utf-8", errors="replace") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            lower = stripped.lower()
+            if stripped.startswith("##"):
+                title = _spacewalk_title_from_header(stripped, default=title)
+                continue
+            if lower.startswith("#"):
+                continue
+            if lower.startswith("chromosome"):
+                continue
+            if lower.startswith("trace"):
+                commit()
+                parts = stripped.split()
+                trace_index = len(frames)
+                if len(parts) > 1:
+                    try:
+                        trace_index = int(float(parts[1]))
+                    except ValueError:
+                        trace_index = len(frames)
+                current_frame = str(trace_index + 1)
+                current_coords = []
+                current_genomic = []
+                continue
+
+            if current_frame is None:
+                current_frame = str(len(frames) + 1)
+                current_coords = []
+                current_genomic = []
+            try:
+                parsed = _parse_spacewalk_row(stripped)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Could not parse SpaceWalk row {line_number} in {path}: {stripped}"
+                ) from exc
+            current_genomic.append((parsed["start"], parsed["end"]))
+            current_coords.append([parsed["x"], parsed["y"], parsed["z"]])
+
+    commit()
+    if not frames:
+        raise ValueError(f"No trace coordinate rows were found in SpaceWalk file {path}.")
+
+    n_beads = next(iter(frames.values())).shape[0]
+    genomic = np.array(first_genomic, dtype=np.int64) if first_genomic else _default_genomic_positions(n_beads)
+    return StructureTrajectory(
+        frames=frames,
+        types=["UN"] * n_beads,
+        genomic_positions=genomic,
+        title=title,
     )
 
 
@@ -312,6 +407,24 @@ def _write_pdb(trajectory: StructureTrajectory, output_path: Path) -> None:
         handle.write("END\n")
 
 
+def _write_text_spacewalk(trajectory: StructureTrajectory, output_path: Path) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    genomic = _genomic_positions_or_default(trajectory)
+    title = _spacewalk_safe_field(trajectory.title)
+    with output_path.open("w", encoding="utf-8") as handle:
+        handle.write(f"##format=sw1 name={title}\n")
+        handle.write("chromosome\tstart\tend\tx\ty\tz\n")
+        for frame_id, coords in trajectory.frames.items():
+            handle.write(f"trace {_spacewalk_trace_number(frame_id)}\n")
+            for bead_index, row in enumerate(np.asarray(coords), start=1):
+                start, end = genomic[bead_index - 1]
+                handle.write(
+                    "chr1\t"
+                    f"{int(start)}\t{int(end)}\t"
+                    f"{float(row[0]):.6f}\t{float(row[1]):.6f}\t{float(row[2]):.6f}\n"
+                )
+
+
 def _resolve_input_format(path: Path, input_format: str) -> str:
     if input_format != "auto":
         return _normalize_format(input_format)
@@ -338,7 +451,7 @@ def _resolve_output_format(output_path: str | Path | None, output_format: str | 
 
 def _normalize_format(value: str) -> str:
     text = value.lower().lstrip(".")
-    if text == "swb":
+    if text in {"swb", "spw"}:
         return "sw"
     if text in {"h5", "hdf5"}:
         return "hdf5"
@@ -489,3 +602,34 @@ def _parse_pdb_atom_line(line: str) -> dict[str, Any]:
             except (IndexError, ValueError):
                 continue
     raise ValueError(f"Could not parse PDB ATOM line: {line.rstrip()}")
+
+
+def _parse_spacewalk_row(line: str) -> dict[str, Any]:
+    parts = line.split()
+    if len(parts) < 6:
+        raise ValueError("SpaceWalk rows require chromosome, start, end, x, y, z fields.")
+    return {
+        "chromosome": parts[0],
+        "start": int(float(parts[1])),
+        "end": int(float(parts[2])),
+        "x": float(parts[3]),
+        "y": float(parts[4]),
+        "z": float(parts[5]),
+    }
+
+
+def _spacewalk_title_from_header(line: str, *, default: str) -> str:
+    for token in line[2:].split():
+        if token.startswith("name="):
+            value = token.split("=", 1)[1].strip()
+            return value or default
+    return default
+
+
+def _spacewalk_trace_number(frame_id: str) -> int:
+    return max(0, _model_number(frame_id) - 1)
+
+
+def _spacewalk_safe_field(value: str) -> str:
+    text = str(value).strip().replace("\t", "_").replace("\n", "_")
+    return text.replace(" ", "_") or "converted"

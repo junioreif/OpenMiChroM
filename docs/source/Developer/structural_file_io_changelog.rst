@@ -77,6 +77,9 @@ Converters
   - ``ndb -> pdb``
   - simple ``pdb -> ndb``
   - supported HDF5 ``sw/swb -> ndb``
+  - simple text SpaceWalk ``sw/spw -> ndb``
+  - simple text SpaceWalk ``sw/spw -> cndb``
+  - ``ndb -> sw/spw``
 
 Tutorials and documentation
 ---------------------------
@@ -97,5 +100,6 @@ Known limitations
 - Unsupported HDF5 filters are rejected rather than decoded or downloaded
   wholesale.
 - Converters are intended for local files and small fixtures.
-- Text SpaceWalk conversion is not implemented yet.
+- Text SpaceWalk support is limited to simple trace-style rows and assigns
+  ``UN`` bead types when converting to NDB/CNDB.
 - PDB conversion is approximate and focused on simple CA-like bead records.
