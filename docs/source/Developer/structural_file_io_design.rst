@@ -66,6 +66,12 @@ enclosing bead interval and reports the overfetch in ``stream_stats()``.
 The backend refuses ``200 OK`` responses to Range requests. This is a safety
 rule: a server that ignores ``Range`` may send the whole file.
 
+Remote HDF5 files that cannot stream safely are rejected by default. A user may
+explicitly opt into local fallback with ``allow_download=True`` and
+``max_download_size_mb=...``. That path downloads only after checking the remote
+``Content-Length`` against the configured limit, then opens the file through the
+normal local readers.
+
 Public URL compatibility
 ------------------------
 
@@ -129,6 +135,12 @@ representation:
 This keeps conversions explicit and small. The converters are intended for
 local files and small fixtures, not for streaming or rewriting very large
 remote datasets.
+
+The same converter is available from the command line:
+
+.. code-block:: bash
+
+   python scripts/convert_structure_file.py input.ndb output.cndb
 
 Supported conversions in this initial layer:
 

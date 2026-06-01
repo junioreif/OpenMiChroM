@@ -1,6 +1,8 @@
 import h5py
 import numpy as np
 import pytest
+import subprocess
+import sys
 
 from OpenMiChroM.CndbTools import CndbTools, convert_structure_file
 from OpenMiChroM._structural_io.readers import NDBTextReader
@@ -116,3 +118,48 @@ def test_converter_rejects_remote_urls():
             "https://example.org/file.cndb",
             output_format="ndb",
         )
+
+
+def test_convert_structure_file_cli(tmp_path):
+    ndb_path = tmp_path / "tiny.ndb"
+    cndb_path = tmp_path / "tiny.cndb"
+    _write_tiny_ndb(ndb_path)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/convert_structure_file.py",
+            str(ndb_path),
+            str(cndb_path),
+        ],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    assert str(cndb_path) in result.stdout
+    with h5py.File(cndb_path, "r") as h5:
+        assert "Header" in h5
+        assert "_index" in h5
+
+
+def test_convert_structure_file_cli_refuses_unimplemented_filters(tmp_path):
+    ndb_path = tmp_path / "tiny.ndb"
+    cndb_path = tmp_path / "tiny.cndb"
+    _write_tiny_ndb(ndb_path)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/convert_structure_file.py",
+            str(ndb_path),
+            str(cndb_path),
+            "--frames",
+            "1",
+        ],
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode != 0
+    assert "not implemented yet" in result.stderr

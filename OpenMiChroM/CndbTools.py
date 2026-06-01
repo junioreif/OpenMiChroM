@@ -9,7 +9,11 @@ Details about the NDB/CNDB file format can be found at the `Nucleome Data Bank <
 import h5py
 import numpy as np
 import os
+import ssl
+import tempfile
 from scipy.spatial import distance
+from pathlib import Path
+from urllib.request import Request, urlopen
 
 from OpenMiChroM._structural_io.converters import convert_structure_file
 
@@ -30,6 +34,76 @@ def _metadata_list(values):
     if isinstance(values, np.ndarray):
         return [_metadata_value(value) for value in values.tolist()]
     return [_metadata_value(value) for value in list(values)]
+
+
+def _download_remote_structural_file(
+    url,
+    *,
+    file_size,
+    max_download_size_mb,
+    download_cache_path=None,
+    timeout=30.0,
+    verify_ssl=True,
+):
+    """Download a remote structural file only after explicit size-limited opt-in."""
+
+    if max_download_size_mb is None:
+        raise ValueError(
+            "Remote download fallback requires max_download_size_mb. "
+            "This prevents accidental large CNDB/HDF5 downloads."
+        )
+    max_bytes = int(float(max_download_size_mb) * 1024 * 1024)
+    if max_bytes < 1:
+        raise ValueError("max_download_size_mb is too small to permit any download.")
+    if file_size is None:
+        raise ValueError(
+            "Remote file size is unknown; refusing download fallback. "
+            "Use a URL that reports Content-Length or download the file manually."
+        )
+    if int(file_size) > max_bytes:
+        raise ValueError(
+            f"Remote file is {int(file_size)} bytes, which exceeds the configured "
+            f"download limit of {max_bytes} bytes."
+        )
+
+    if download_cache_path is None:
+        suffix = Path(str(url).split("?", 1)[0]).suffix or ".structural"
+        handle = tempfile.NamedTemporaryFile(
+            prefix="openmichrom-structural-",
+            suffix=suffix,
+            delete=False,
+        )
+        target_path = Path(handle.name)
+        handle.close()
+    else:
+        target_path = Path(download_cache_path)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+
+    context = None if verify_ssl else ssl._create_unverified_context()
+    request = Request(url)
+    total = 0
+    try:
+        with urlopen(request, timeout=timeout, context=context) as response:
+            with target_path.open("wb") as output:
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    total += len(chunk)
+                    if total > max_bytes:
+                        raise ValueError(
+                            "Remote download exceeded max_download_size_mb; "
+                            "aborting before opening the file."
+                        )
+                    output.write(chunk)
+    except Exception:
+        try:
+            target_path.unlink()
+        except OSError:
+            pass
+        raise
+
+    return target_path
 
 
 class _CNDBStreamBackend:
@@ -226,6 +300,9 @@ class cndbTools:
         index_cache_path=None,
         mode="auto",
         allow_remote_without_index=False,
+        allow_download=False,
+        max_download_size_mb=None,
+        download_cache_path=None,
         **kwargs,
     ):
         R"""
@@ -234,8 +311,9 @@ class cndbTools:
         This is a conservative routing layer. Local CNDB files continue to use
         the existing ``load()`` implementation. Remote HDF5/CNDB/SW files use
         streaming only when an embedded index and direct coordinate byte reads
-        are detected. Non-indexed remote HDF5 files are rejected by default to
-        avoid accidental full-file downloads.
+        are detected. Non-indexed remote HDF5 files are rejected by default.
+        Set ``allow_download=True`` with ``max_download_size_mb`` to explicitly
+        download a small remote file and open it locally.
         """
         if mode != "auto":
             raise ValueError("Only mode='auto' is currently supported by CndbTools.open().")
@@ -267,6 +345,19 @@ class cndbTools:
                     "Remote fallback reading is not implemented yet. The file was detected "
                     f"as file_type={info.file_type!r}, layout={info.layout!r}."
                 )
+            if allow_download:
+                local_path = _download_remote_structural_file(
+                    source,
+                    file_size=info.file_size,
+                    max_download_size_mb=max_download_size_mb,
+                    download_cache_path=download_cache_path,
+                    timeout=detect_kwargs.get("timeout", 30.0),
+                    verify_ssl=detect_kwargs.get("verify_ssl", True),
+                )
+                tool = cls.open(local_path, trajectory=trajectory, mode=mode, **kwargs)
+                tool.downloaded_remote_source = source
+                tool.downloaded_remote_path = str(local_path)
+                return tool
             raise ValueError(
                 "Remote structural file cannot be streamed safely. "
                 f"file_type={info.file_type!r}, layout={info.layout!r}, "

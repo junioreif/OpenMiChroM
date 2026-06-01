@@ -137,6 +137,21 @@ embedded index exposes small metadata datasets.
 The embedded HDF5 metadata reader includes MIT-licensed vendored components from
 ``hdf5-indexed-reader``/``pyfive`` under ``OpenMiChroM/_cndb_stream/_vendor``.
 
+Remote files that do not stream safely are rejected by default. For small remote
+files only, users may explicitly opt into a size-limited download fallback:
+
+::
+
+      tools = CndbTools.open(
+          "https://example.org/small-old-style.cndb",
+          allow_download=True,
+          max_download_size_mb=50,
+      )
+
+This fallback downloads the remote file to a local temporary path and then uses
+the normal local CNDBTools readers. It should not be used for large public CNDB
+or SW files.
+
 Structural file I/O
 ===================
 
@@ -175,6 +190,12 @@ Small local structural conversions are also available:
       convert_structure_file("trajectory.ndb", "trajectory.cndb")
       convert_structure_file("trajectory.cndb", "trajectory.ndb")
       convert_structure_file("trajectory.ndb", "trajectory.pdb")
+
+Command-line conversion uses the same local converter:
+
+::
+
+      python scripts/convert_structure_file.py trajectory.ndb trajectory.cndb
 
 Converters are local-file only and are intended for small interoperability
 workflows. They do not download remote files.

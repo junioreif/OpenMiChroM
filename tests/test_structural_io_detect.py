@@ -2,12 +2,38 @@ import json
 import os
 import subprocess
 import sys
+import functools
+import threading
+from contextlib import contextmanager
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 import h5py
 import numpy as np
+import pytest
 
 from OpenMiChroM.CndbTools import CndbTools
 from OpenMiChroM._structural_io import detect_structural_file
+
+
+class _NoRangeRequestHandler(SimpleHTTPRequestHandler):
+    def log_message(self, format, *args):
+        return
+
+
+@contextmanager
+def _serve_no_range_directory(directory):
+    factory = functools.partial(_NoRangeRequestHandler, directory=str(directory))
+    server = ThreadingHTTPServer(("127.0.0.1", 0), factory)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        yield f"http://{host}:{port}"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
 
 
 def test_detect_simple_local_cndb(tmp_path):
@@ -126,6 +152,40 @@ def test_cndbtools_open_preserves_local_cndb_behavior(tmp_path):
     assert tools.is_remote is False
     assert xyz.shape == (1, 2, 3)
     np.testing.assert_array_equal(xyz[0], coords[:2])
+
+
+def test_remote_nonindexed_hdf5_requires_explicit_download_fallback(tmp_path):
+    path = tmp_path / "simple.cndb"
+    coords = np.arange(12, dtype=np.float32).reshape(4, 3)
+    with h5py.File(path, "w") as handle:
+        handle.create_dataset("types", data=np.array([b"A1", b"B1", b"A1", b"B1"]))
+        handle.create_dataset("1", data=coords)
+
+    with _serve_no_range_directory(tmp_path) as base_url:
+        url = f"{base_url}/{path.name}"
+        info = detect_structural_file(url)
+        assert info.detected_hdf5 is True
+        assert info.range_supported is False
+
+        with pytest.raises(ValueError, match="cannot be streamed safely"):
+            CndbTools.open(url)
+
+        with pytest.raises(ValueError, match="exceeds"):
+            CndbTools.open(url, allow_download=True, max_download_size_mb=0.0001)
+
+        tools = CndbTools.open(
+            url,
+            allow_download=True,
+            max_download_size_mb=1,
+            download_cache_path=tmp_path / "downloaded.cndb",
+        )
+
+    assert tools.is_remote is False
+    assert Path(tools.downloaded_remote_path).name == "downloaded.cndb"
+    np.testing.assert_array_equal(
+        tools.xyz(frames=[1], beadSelection=range(1, 3))[0],
+        coords[1:3],
+    )
 
 
 def test_inspect_structural_file_cli_json(tmp_path):
