@@ -43,6 +43,7 @@
    Developer/structural_file_formats
    Developer/structural_file_io_credits
    Developer/structural_file_io_changelog
+   Developer/structural_file_io_remaining_work
 
 Indices and tables
 ==================
