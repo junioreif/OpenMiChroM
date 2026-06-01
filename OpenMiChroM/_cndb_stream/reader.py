@@ -12,6 +12,7 @@ import numpy as np
 
 from .analysis import distance_matrix, radius_of_gyration
 from .exceptions import CNDBIndexError, CNDBStreamError, FrameNotFoundError, UnsupportedLayoutError
+from .filters import unsupported_filter_message
 from .index import INDEX_FORMAT
 from .remote import RemoteByteReader
 from .utils import coerce_frame_id, json_safe_value
@@ -449,7 +450,8 @@ class IndexedCNDB:
             f"path={frame_info.get('path')!r}, layout={frame_info.get('layout')!r}, "
             f"compression={frame_info.get('compression')!r}, "
             f"filters={frame_info.get('filters')!r}, "
-            f"data_offset={frame_info.get('data_offset')!r}."
+            f"data_offset={frame_info.get('data_offset')!r}. "
+            f"{unsupported_filter_message(frame_info.get('filters'))}"
         )
 
     def _read_noncontiguous_layout(

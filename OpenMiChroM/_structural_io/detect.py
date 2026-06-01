@@ -17,6 +17,10 @@ from OpenMiChroM._cndb_stream.embedded import (
     load_pyfive_file_class,
     read_embedded_object_index,
 )
+from OpenMiChroM._cndb_stream.filters import (
+    hdf5_filter_pipeline_supported,
+    normalize_filter_pipeline,
+)
 
 from .formats import StructuralFileInfo
 
@@ -298,6 +302,7 @@ def _inspect_pyfive_dataset(h5: Any, path: str, info: StructuralFileInfo) -> Non
         info.bead_count = int(shape[0]) if shape else None
         info.dtype = dataset.dtype.name
         info.compression = dataset.compression
+        info.filters = normalize_filter_pipeline(getattr(dataset, "filter_pipeline", None))
         info.chunks = [int(dim) for dim in dataset.chunks] if dataset.chunks is not None else None
         layout = _layout_name(dataset.id.layout_class)
         data_offset = getattr(dataset.id, "data_offset", None)
@@ -312,7 +317,7 @@ def _inspect_pyfive_dataset(h5: Any, path: str, info: StructuralFileInfo) -> Non
             layout == "chunked"
             and len(shape) == 2
             and shape[1] == 3
-            and info.compression in {None, "gzip", "lzf"}
+            and hdf5_filter_pipeline_supported(info.filters)
         )
         info.direct_streaming_supported = bool(contiguous_supported or chunked_supported)
     except Exception as exc:
@@ -341,6 +346,7 @@ def _classify_sample(info: StructuralFileInfo, sample: bytes) -> None:
 def _record_dataset_info(dataset: h5py.Dataset, info: StructuralFileInfo) -> None:
     info.dtype = dataset.dtype.name
     info.compression = dataset.compression
+    info.filters = _h5py_dataset_filters(dataset)
     info.chunks = list(dataset.chunks) if dataset.chunks is not None else None
     if len(dataset.shape) >= 1:
         info.bead_count = int(dataset.shape[0])
@@ -355,7 +361,7 @@ def _record_dataset_info(dataset: h5py.Dataset, info: StructuralFileInfo) -> Non
         dataset.chunks is not None
         and len(dataset.shape) == 2
         and int(dataset.shape[1]) == 3
-        and dataset.compression in {None, "gzip", "lzf"}
+        and hdf5_filter_pipeline_supported(info.filters)
     )
     info.direct_streaming_supported = bool(
         (contiguous_supported or chunked_supported)
@@ -370,6 +376,25 @@ def _is_openmichrom_cndb_v2_h5py(h5: h5py.File) -> bool:
     format_name = _decode_attr(attrs.get("format_name"))
     format_version = _decode_attr(attrs.get("format_version"))
     return format_name == "OpenMiChroM-CNDB" and str(format_version).startswith("2")
+
+
+def _h5py_dataset_filters(dataset: h5py.Dataset) -> list[dict[str, Any]]:
+    filters: list[dict[str, Any]] = []
+    plist = dataset.id.get_create_plist()
+    for index in range(plist.get_nfilters()):
+        try:
+            filter_id, flags, cd_values, name = plist.get_filter(index)
+        except ValueError:
+            continue
+        filters.append(
+            {
+                "id": int(filter_id),
+                "name": name.decode("utf-8", errors="replace") if isinstance(name, bytes) else str(name),
+                "client_data": [int(value) for value in cd_values],
+                "flags": int(flags),
+            }
+        )
+    return filters
 
 
 def _decode_attr(value: Any) -> Any:

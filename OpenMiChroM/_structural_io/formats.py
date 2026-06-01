@@ -23,6 +23,7 @@ class StructuralFileInfo:
     coordinate_paths: list[str] = field(default_factory=list)
     dtype: str | None = None
     compression: str | None = None
+    filters: list[dict[str, Any]] = field(default_factory=list)
     chunks: Any | None = None
     file_size: int | None = None
     detected_hdf5: bool = False

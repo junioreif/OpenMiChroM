@@ -208,10 +208,12 @@ Known structural I/O limitations
 - Contiguous, uncompressed coordinate datasets use exact byte ranges and are the
   fastest path.
 - Chunked uncompressed and gzip-compressed coordinate datasets can be streamed
-  through the embedded backend, but whole chunks may be transferred and reported
-  as coordinate overfetch.
+  through the embedded backend, including gzip with shuffle and Fletcher32
+  checksum filters. Whole chunks may be transferred and reported as coordinate
+  overfetch.
 - Unsupported HDF5 filters are detected at read time and raise an error instead
-  of downloading the full file.
+  of downloading the full file. This includes scale-offset, SZIP, n-bit,
+  unavailable LZF codecs, and unknown custom filters.
 - Remote non-indexed HDF5 files are not streamed by default; users should
   download/index them locally or host an indexed version.
 - Structural converters are local-file only.

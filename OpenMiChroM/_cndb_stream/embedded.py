@@ -12,6 +12,7 @@ from typing import Any
 import numpy as np
 
 from .exceptions import CNDBIndexError
+from .filters import hdf5_filter_pipeline_supported, normalize_filter_pipeline
 from .index import INDEX_FORMAT, NESTED_NDB_LAYOUT, OPENMICHROM_SIMPLE_LAYOUT
 from .remote import RemoteByteReader
 from .utils import coerce_frame_id, sort_frame_ids
@@ -319,7 +320,7 @@ class EmbeddedIndexProvider:
         shape = [int(dim) for dim in dataset.shape]
         chunks = [int(dim) for dim in dataset.chunks] if dataset.chunks is not None else None
         compression = dataset.compression
-        filters = _json_safe_filter_pipeline(getattr(dataset, "filter_pipeline", None))
+        filters = normalize_filter_pipeline(getattr(dataset, "filter_pipeline", None))
         layout = _layout_name(dataset.id.layout_class)
         data_offset = getattr(dataset.id, "data_offset", None)
         nbytes = int(np.prod(shape, dtype=np.int64) * dtype.itemsize)
@@ -344,7 +345,12 @@ class EmbeddedIndexProvider:
             "storage_size": nbytes if direct_read_supported else None,
             "nbytes": nbytes,
             "direct_read_supported": direct_read_supported,
-            "chunked_read_supported": bool(layout == "chunked" and len(shape) == 2 and shape[1] == 3),
+            "chunked_read_supported": bool(
+                layout == "chunked"
+                and len(shape) == 2
+                and shape[1] == 3
+                and hdf5_filter_pipeline_supported(filters)
+            ),
             "metadata_source": "embedded-index",
         }
         self._frame_info_cache[frame_id] = info
@@ -608,25 +614,6 @@ def _contiguous_payload_span(dataobjects: Any) -> tuple[int, int]:
         data_size = struct.unpack_from("<Q", payload, 10)[0]
         return int(data_offset), int(data_size)
     raise CNDBIndexError(f"Unsupported embedded index layout message version: {version}.")
-
-
-def _json_safe_filter_pipeline(filter_pipeline: Any) -> list[dict[str, Any]]:
-    if filter_pipeline is None:
-        return []
-    safe_filters: list[dict[str, Any]] = []
-    for entry in filter_pipeline:
-        safe_entry: dict[str, Any] = {}
-        for key, value in dict(entry).items():
-            if isinstance(value, bytes):
-                safe_entry[str(key)] = value.decode("utf-8", errors="replace")
-            elif isinstance(value, tuple):
-                safe_entry[str(key)] = [int(item) if hasattr(item, "__int__") else item for item in value]
-            elif isinstance(value, np.integer):
-                safe_entry[str(key)] = int(value)
-            else:
-                safe_entry[str(key)] = value
-        safe_filters.append(safe_entry)
-    return safe_filters
 
 
 def _layout_name(layout_class: int) -> str:

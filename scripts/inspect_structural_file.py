@@ -102,6 +102,7 @@ def print_human(info: StructuralFileInfo) -> None:
         ("coordinate paths", _format_list(info.coordinate_paths)),
         ("dtype", info.dtype),
         ("compression", info.compression),
+        ("filters", info.filters),
         ("chunks", info.chunks),
     ]
     for label, value in fields:

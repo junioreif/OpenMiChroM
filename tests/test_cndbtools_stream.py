@@ -297,13 +297,22 @@ def test_coalesce_indices_groups_adjacent_blocks():
     assert coalesce_indices([0, 10, 20], max_ranges=2) == [(0, 11), (20, 21)]
 
 
-@pytest.mark.parametrize("compression", [None, "gzip"])
-def test_remote_chunked_cndb_streams_with_embedded_backend(tmp_path, compression):
-    cndb_path = tmp_path / f"chunked-{compression or 'none'}.cndb"
+@pytest.mark.parametrize(
+    "dataset_kwargs",
+    [
+        {},
+        {"compression": "gzip"},
+        {"compression": "gzip", "shuffle": True},
+        {"compression": "gzip", "shuffle": True, "fletcher32": True},
+    ],
+)
+def test_remote_chunked_cndb_streams_with_embedded_backend(tmp_path, dataset_kwargs):
+    suffix = "-".join(str(key) for key, value in dataset_kwargs.items() if value) or "none"
+    cndb_path = tmp_path / f"chunked-{suffix}.cndb"
     coords = np.arange(30, dtype=np.float32).reshape(10, 3)
     with h5py.File(cndb_path, "w") as handle:
         handle.create_dataset("types", data=np.array([b"A1"] * 10))
-        handle.create_dataset("1", data=coords, chunks=(4, 3), compression=compression)
+        handle.create_dataset("1", data=coords, chunks=(4, 3), **dataset_kwargs)
     write_embedded_index(cndb_path)
 
     with _serve_directory(tmp_path) as base_url:

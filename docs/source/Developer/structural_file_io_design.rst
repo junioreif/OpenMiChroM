@@ -56,8 +56,9 @@ The internal ``OpenMiChroM._cndb_stream`` backend reads an embedded HDF5 object
 index and then uses HTTP Range requests for dataset metadata and coordinate
 payloads. Coordinate byte reads are exact for contiguous, uncompressed
 ``(n_beads, 3)`` frame datasets. Chunked uncompressed and gzip-compressed
-coordinate datasets can be read through the embedded backend, but whole chunks
-may be transferred and counted as coordinate overfetch.
+coordinate datasets can be read through the embedded backend, including gzip
+with shuffle and Fletcher32 filters, but whole chunks may be transferred and
+counted as coordinate overfetch.
 
 ``CndbTools.xyz(...)`` reads contiguous bead selections as one exact coordinate
 range. Sparse non-contiguous selections are coalesced into ordered, non-
@@ -169,14 +170,16 @@ Limitations
   ``(n_beads, 3)`` coordinate datasets.
 - Contiguous, uncompressed datasets are the fastest exact-byte path.
 - Chunked uncompressed and gzip-compressed datasets may read whole intersecting
-  chunks and report coordinate overfetch.
+  chunks and report coordinate overfetch. Gzip with shuffle and Fletcher32 is
+  tested.
 - Remote non-indexed HDF5 files are rejected by default rather than streamed
   unsafely.
 - Converters are local-file only and do not download remote files.
 - PDB conversion is intentionally simple and uses residue names as approximate
   bead type labels.
 - Text SpaceWalk conversion is not implemented yet.
-- Unsupported HDF5 filters are detected at read time and not decoded by the
-  streaming byte-range backend.
+- Unsupported HDF5 filters, including scale-offset, SZIP, n-bit, unavailable
+  LZF codecs, and custom plugin filters, are detected at read time and not
+  decoded by the streaming byte-range backend.
 - Large production conversions should be handled with explicit workflows so
   memory use is visible to the user.

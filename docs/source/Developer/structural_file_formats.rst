@@ -21,7 +21,8 @@ historical coordinate layout so existing local readers remain usable:
 coordinates with shape ``(n_beads, 3)``. Contiguous, uncompressed frame
 datasets provide the fastest exact byte-range streaming path. Chunked
 uncompressed or gzip-compressed datasets can also be read through the embedded
-backend, but whole chunks may be transferred.
+backend, including gzip with shuffle and Fletcher32 filters, but whole chunks
+may be transferred.
 
 Metadata header
 ---------------
@@ -98,7 +99,8 @@ dataset, the backend computes the exact bead range:
 For chunked coordinate datasets, the backend reads whole intersecting chunks and
 then slices/reassembles the requested rows in memory. This is still Range-based
 and avoids downloading the whole file, but transferred coordinate bytes can
-exceed the requested payload.
+exceed the requested payload. Tested filter pipelines include no filter, gzip,
+shuffle+gzip, and shuffle+gzip+Fletcher32.
 
 If a server ignores a Range request and returns ``200 OK`` instead of
 ``206 Partial Content``, OpenMiChroM raises an error rather than risking an
@@ -134,5 +136,6 @@ Current limitations
 Direct byte-range coordinate reads require coordinate datasets with shape
 ``(n_beads, 3)`` and an embedded object index for remote use. Contiguous,
 uncompressed datasets are exact. Chunked uncompressed and gzip-compressed
-datasets may transfer whole chunks. Unsupported HDF5 filters are rejected rather
-than decoded or downloaded wholesale.
+datasets may transfer whole chunks. Unsupported HDF5 filters such as
+scale-offset, SZIP, n-bit, unavailable LZF codecs, and custom plugin filters are
+rejected rather than decoded or downloaded wholesale.

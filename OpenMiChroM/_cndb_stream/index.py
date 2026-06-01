@@ -10,6 +10,7 @@ from typing import Any
 import h5py
 import numpy as np
 
+from .filters import hdf5_filter_pipeline_supported
 from .utils import json_safe_value, sort_frame_ids
 
 INDEX_VERSION = "0.1"
@@ -215,7 +216,12 @@ def _dataset_index_entry(dataset: h5py.Dataset, frame_id: str) -> dict[str, Any]
         "storage_size": storage_size,
         "nbytes": nbytes,
         "direct_read_supported": direct_read_supported,
-        "chunked_read_supported": bool(layout == "chunked" and len(shape) == 2 and shape[1] == 3),
+        "chunked_read_supported": bool(
+            layout == "chunked"
+            and len(shape) == 2
+            and shape[1] == 3
+            and hdf5_filter_pipeline_supported(filters)
+        ),
     }
 
 
