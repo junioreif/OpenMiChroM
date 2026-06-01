@@ -18,6 +18,20 @@ an external ``cndb-stream`` dependency. Highlights:
 - Small local structural converters.
 - Student-facing tutorials and developer provenance documentation.
 
+Continuation branch completion
+------------------------------
+
+The completion pass added:
+
+- clearer remaining-work and public URL compatibility documentation;
+- robust sparse bead-selection coalescing diagnostics in ``stream_stats()``;
+- explicit, size-limited remote download fallback for small non-streamable
+  files;
+- a local ``scripts/convert_structure_file.py`` command-line converter wrapper;
+- chunked uncompressed and gzip-compressed HDF5 coordinate streaming through
+  the embedded backend, with overfetch accounting;
+- a structural file detection tutorial synced into the Sphinx docs.
+
 Structural detection and opening
 --------------------------------
 
@@ -76,8 +90,12 @@ Tutorials and documentation
 Known limitations
 -----------------
 
-- Remote streaming does not decode chunked or compressed HDF5 coordinate
-  datasets.
+- Contiguous, uncompressed HDF5 coordinate datasets remain the fastest exact
+  byte-range streaming path.
+- Chunked uncompressed and gzip-compressed HDF5 coordinate datasets may read
+  whole chunks and report coordinate overfetch.
+- Unsupported HDF5 filters are rejected rather than decoded or downloaded
+  wholesale.
 - Converters are intended for local files and small fixtures.
 - Text SpaceWalk conversion is not implemented yet.
 - PDB conversion is approximate and focused on simple CA-like bead records.
