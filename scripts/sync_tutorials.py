@@ -71,6 +71,10 @@ TUTORIALS = [
         Path("structural_file_conversion.ipynb"),
         "structural_file_conversion.ipynb",
     ),
+    TutorialNotebook(
+        Path("structural_file_detection.ipynb"),
+        "structural_file_detection.ipynb",
+    ),
 ]
 
 

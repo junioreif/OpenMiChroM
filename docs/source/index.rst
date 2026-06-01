@@ -25,6 +25,7 @@
    Tutorials/stream_remote_cndb
    Tutorials/write_indexed_cndb
    Tutorials/structural_file_conversion
+   Tutorials/structural_file_detection
 
 
 .. toctree::
