@@ -38,22 +38,33 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Reserved for future dtype conversion; currently unsupported.",
     )
-    parser.add_argument("--frames", default=None, help="Reserved for future frame filtering.")
-    parser.add_argument("--start", type=int, default=None, help="Reserved for future bead start filtering.")
-    parser.add_argument("--stop", type=int, default=None, help="Reserved for future bead stop filtering.")
+    parser.add_argument("--frames", default=None, help="Comma-separated frame IDs to convert.")
+    parser.add_argument("--start", type=int, default=None, help="First bead row to convert.")
+    parser.add_argument("--stop", type=int, default=None, help="Exclusive bead row stop.")
+    parser.add_argument("--max-frames", type=int, default=None, help="Convert at most this many frames.")
+    parser.add_argument(
+        "--max-memory-mb",
+        type=float,
+        default=512,
+        help="Refuse conversions whose selected in-memory payload exceeds this size.",
+    )
+    parser.add_argument(
+        "--allow-large",
+        action="store_true",
+        help="Bypass the in-memory payload safety limit.",
+    )
+    parser.add_argument("--pdb-atom-name", default="CA", help="PDB atom name for PDB output.")
+    parser.add_argument("--pdb-residue-name", default=None, help="Override PDB residue name.")
+    parser.add_argument("--pdb-chain-id", default="A", help="PDB chain ID for PDB output.")
+    parser.add_argument("--pdb-element", default="C", help="PDB element symbol for PDB output.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite an existing output file.")
     args = parser.parse_args(argv)
 
-    unsupported_filters = {
-        "--coordinate-dtype": args.coordinate_dtype,
-        "--frames": args.frames,
-        "--start": args.start,
-        "--stop": args.stop,
-    }
+    unsupported_filters = {"--coordinate-dtype": args.coordinate_dtype}
     requested = [name for name, value in unsupported_filters.items() if value is not None]
     if requested:
         parser.error(
-            "Frame, bead-window, and dtype-filtered conversions are not implemented yet: "
+            "Dtype-filtered conversion is not implemented yet: "
             + ", ".join(requested)
         )
 
@@ -69,6 +80,16 @@ def main(argv: list[str] | None = None) -> int:
         trajectory=args.trajectory,
         indexed=args.indexed,
         metadata=args.metadata,
+        frames=args.frames,
+        start=args.start,
+        stop=args.stop,
+        max_frames=args.max_frames,
+        max_memory_mb=args.max_memory_mb,
+        allow_large=args.allow_large,
+        pdb_atom_name=args.pdb_atom_name,
+        pdb_residue_name=args.pdb_residue_name,
+        pdb_chain_id=args.pdb_chain_id,
+        pdb_element=args.pdb_element,
     )
     print(result)
     return 0

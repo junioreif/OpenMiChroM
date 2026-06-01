@@ -228,21 +228,21 @@ Converter memory use
 
 Current behavior:
   Converters use an in-memory ``StructureTrajectory`` representation and are
-  intended for small local files.
+  intended for small local files. Frame filtering, bead-window filtering, and
+  a configurable in-memory payload guard are implemented.
 
 Why it matters:
   Large CNDB/SW/NDB conversions can consume substantial memory if every frame is
   loaded before writing.
 
 Plan:
-  Add explicit frame and bead selection options plus a memory guard
-  (``max_memory_mb`` and ``allow_large``). Improve HDF5-to-text conversion so
-  selected frames can be written frame-by-frame where feasible. Keep full
-  streaming rewrite of arbitrary text formats out of scope unless it remains
-  simple.
+  Keep full streaming rewrite of arbitrary text formats out of scope unless it
+  remains simple. The current selected payload guard makes large local
+  conversions explicit but does not avoid the in-memory representation.
 
 Tests needed:
-  Frame subset, bead subset, and memory-guard tests with tiny HDF5 fixtures.
+  Frame subset, bead subset, and memory-guard tests are implemented with tiny
+  fixtures.
 
 Feasibility:
   Feasible for local HDF5/CNDB/SW inputs. Large text NDB streaming can remain
@@ -253,21 +253,20 @@ Approximate PDB conversion
 
 Current behavior:
   NDB-to-PDB writes one CA-like bead per residue and PDB-to-NDB parses simple
-  ATOM/HETATM records.
+  ATOM/HETATM records. PDB output now accepts simple atom/residue/chain/element
+  options.
 
 Why it matters:
   PDB is often used for visualization. Coarse-grained bead semantics should be
   clear and output formatting should be stable.
 
 Plan:
-  Tighten PDB formatting, preserve model records, chain id, residue numbering,
-  atom name, residue name, and element where possible. Add explicit options for
-  atom/residue naming if they can be threaded without disrupting existing
-  converter calls.
+  Keep PDB support intentionally approximate. Rich biological residue semantics
+  remain out of scope for this structural bead converter.
 
 Tests needed:
-  Multi-model PDB parsing, formatting assertions, and coordinate round trips
-  with tolerances.
+  Formatting assertions and coordinate round trips are covered for simple
+  PDB/NDB fixtures.
 
 Feasibility:
   Feasible for simple coarse-grained PDB files. Exact biological residue

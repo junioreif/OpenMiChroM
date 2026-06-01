@@ -191,15 +191,26 @@ Small local structural conversions are also available:
       convert_structure_file("trajectory.cndb", "trajectory.ndb")
       convert_structure_file("trajectory.ndb", "trajectory.pdb")
       convert_structure_file("trajectory.spw", "trajectory.ndb")
+      convert_structure_file(
+          "trajectory.cndb",
+          "subset.ndb",
+          frames=[1, 10, 100],
+          start=0,
+          stop=100,
+      )
 
 Command-line conversion uses the same local converter:
 
 ::
 
       python scripts/convert_structure_file.py trajectory.ndb trajectory.cndb
+      python scripts/convert_structure_file.py trajectory.cndb subset.ndb --frames 1,10,100 --start 0 --stop 100
 
 Converters are local-file only and are intended for small interoperability
-workflows. They do not download remote files.
+workflows. They do not download remote files. By default, conversions refuse
+selected payloads larger than 512 MiB; use ``max_memory_mb``/``--max-memory-mb``
+to lower the limit for testing or ``allow_large=True``/``--allow-large`` for an
+explicit large local conversion.
 
 Known structural I/O limitations
 ================================

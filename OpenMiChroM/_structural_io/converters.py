@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 from urllib.parse import urlparse
 
 import h5py
@@ -85,6 +85,16 @@ def convert_structure_file(
     trajectory: str | None = None,
     indexed: bool = True,
     metadata: bool = True,
+    frames: int | str | Iterable[int | str] | None = None,
+    start: int | None = None,
+    stop: int | None = None,
+    max_frames: int | None = None,
+    max_memory_mb: float | None = 512,
+    allow_large: bool = False,
+    pdb_atom_name: str = "CA",
+    pdb_residue_name: str | None = None,
+    pdb_chain_id: str = "A",
+    pdb_element: str = "C",
 ) -> Path:
     """Convert a small local structural trajectory file.
 
@@ -110,6 +120,18 @@ def convert_structure_file(
     output_path = Path(output_path)
 
     trajectory_data = _read_structure(input_path, resolved_input, trajectory=trajectory)
+    trajectory_data = _select_structure(
+        trajectory_data,
+        frames=frames,
+        start=start,
+        stop=stop,
+        max_frames=max_frames,
+    )
+    _check_memory_budget(
+        trajectory_data,
+        max_memory_mb=max_memory_mb,
+        allow_large=allow_large,
+    )
     if resolved_output == "cndb":
         _write_cndb(
             trajectory_data,
@@ -120,7 +142,14 @@ def convert_structure_file(
     elif resolved_output == "ndb":
         _write_ndb(trajectory_data, output_path)
     elif resolved_output == "pdb":
-        _write_pdb(trajectory_data, output_path)
+        _write_pdb(
+            trajectory_data,
+            output_path,
+            atom_name=pdb_atom_name,
+            residue_name=pdb_residue_name,
+            chain_id=pdb_chain_id,
+            element=pdb_element,
+        )
     elif resolved_output == "sw":
         _write_text_spacewalk(trajectory_data, output_path)
     else:
@@ -387,8 +416,20 @@ def _write_ndb(trajectory: StructureTrajectory, output_path: Path) -> None:
         handle.write("END\n")
 
 
-def _write_pdb(trajectory: StructureTrajectory, output_path: Path) -> None:
+def _write_pdb(
+    trajectory: StructureTrajectory,
+    output_path: Path,
+    *,
+    atom_name: str = "CA",
+    residue_name: str | None = None,
+    chain_id: str = "A",
+    element: str = "C",
+) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    atom_name = _pdb_atom_name(atom_name)
+    residue_override = _pdb_residue_name(residue_name) if residue_name is not None else None
+    chain_id = _pdb_chain_id(chain_id)
+    element = _pdb_element(element)
     with output_path.open("w", encoding="utf-8") as handle:
         handle.write(f"TITLE     {trajectory.title}\n")
         for frame_id, coords in trajectory.frames.items():
@@ -396,11 +437,11 @@ def _write_pdb(trajectory: StructureTrajectory, output_path: Path) -> None:
             serial = 1
             for bead_index, row in enumerate(np.asarray(coords), start=1):
                 type_label = trajectory.types[bead_index - 1] if bead_index - 1 < len(trajectory.types) else "UN"
-                residue = TYPE_TO_RESIDUE.get(type_label, "GLY")
+                residue = residue_override or TYPE_TO_RESIDUE.get(type_label, "GLY")
                 handle.write(
-                    f"ATOM  {serial:5d}  CA  {residue:>3} A{bead_index:4d}    "
+                    f"ATOM  {serial:5d} {atom_name:^4s} {residue:>3s} {chain_id:1s}{bead_index:4d}    "
                     f"{float(row[0]):8.3f}{float(row[1]):8.3f}{float(row[2]):8.3f}"
-                    "  1.00  0.00           C\n"
+                    f"  1.00  0.00          {element:>2s}\n"
                 )
                 serial += 1
             handle.write("ENDMDL\n")
@@ -423,6 +464,102 @@ def _write_text_spacewalk(trajectory: StructureTrajectory, output_path: Path) ->
                     f"{int(start)}\t{int(end)}\t"
                     f"{float(row[0]):.6f}\t{float(row[1]):.6f}\t{float(row[2]):.6f}\n"
                 )
+
+
+def _select_structure(
+    trajectory: StructureTrajectory,
+    *,
+    frames: int | str | Iterable[int | str] | None,
+    start: int | None,
+    stop: int | None,
+    max_frames: int | None,
+) -> StructureTrajectory:
+    frame_ids = list(trajectory.frames.keys())
+    selected_ids = _normalize_frame_selection(frame_ids, frames)
+    if max_frames is not None:
+        if int(max_frames) < 0:
+            raise ValueError("max_frames must be non-negative.")
+        selected_ids = selected_ids[: int(max_frames)]
+
+    start_row, stop_row = _normalize_bead_window(trajectory.n_beads, start, stop)
+    if selected_ids == frame_ids and start_row == 0 and stop_row == trajectory.n_beads:
+        return trajectory
+
+    selected_frames: "OrderedDict[str, np.ndarray]" = OrderedDict()
+    for frame_id in selected_ids:
+        selected_frames[frame_id] = np.asarray(trajectory.frames[frame_id])[start_row:stop_row].copy()
+
+    genomic = _genomic_positions_or_default(trajectory)[start_row:stop_row].copy()
+    types = list(trajectory.types[start_row:stop_row])
+    return StructureTrajectory(
+        frames=selected_frames,
+        types=types,
+        genomic_positions=genomic,
+        title=trajectory.title,
+    )
+
+
+def _normalize_frame_selection(
+    available: list[str],
+    frames: int | str | Iterable[int | str] | None,
+) -> list[str]:
+    if frames is None:
+        return list(available)
+    available_by_model = {str(_model_number(frame_id)): frame_id for frame_id in available}
+    if isinstance(frames, str):
+        raw_values = [part.strip() for part in frames.split(",") if part.strip()]
+    elif isinstance(frames, (int, np.integer)):
+        raw_values = [str(int(frames))]
+    else:
+        raw_values = [str(int(value)) if isinstance(value, (int, np.integer)) else str(value) for value in frames]
+
+    normalized: list[str] = []
+    for value in raw_values:
+        frame_id = available_by_model.get(str(_model_number(str(value))))
+        if frame_id is None:
+            raise ValueError(f"Frame {value!r} not found. Available frame IDs include: {available[:10]}")
+        normalized.append(frame_id)
+    return normalized
+
+
+def _normalize_bead_window(n_beads: int, start: int | None, stop: int | None) -> tuple[int, int]:
+    start_row = 0 if start is None else int(start)
+    stop_row = int(n_beads) if stop is None else int(stop)
+    if start_row < 0:
+        raise ValueError("start must be non-negative.")
+    if stop_row < start_row:
+        raise ValueError("stop must be greater than or equal to start.")
+    if stop_row > int(n_beads):
+        raise ValueError(f"stop={stop_row} exceeds bead count {n_beads}.")
+    return start_row, stop_row
+
+
+def _check_memory_budget(
+    trajectory: StructureTrajectory,
+    *,
+    max_memory_mb: float | None,
+    allow_large: bool,
+) -> None:
+    if allow_large or max_memory_mb is None:
+        return
+    estimated = _estimated_payload_bytes(trajectory)
+    limit = int(float(max_memory_mb) * 1024 * 1024)
+    if estimated > limit:
+        raise ValueError(
+            "Estimated converted coordinate payload is "
+            f"{estimated / 1024 / 1024:.3f} MiB, above max_memory_mb={max_memory_mb}. "
+            "Use frames/start/stop to select a smaller subset or pass allow_large=True."
+        )
+
+
+def _estimated_payload_bytes(trajectory: StructureTrajectory) -> int:
+    frame_bytes = sum(int(np.asarray(coords).nbytes) for coords in trajectory.frames.values())
+    genomic = trajectory.genomic_positions
+    genomic_bytes = int(np.asarray(genomic).nbytes) if genomic is not None else 0
+    # Type labels are tiny compared with coordinates, but count them so the
+    # estimate remains honest for small fixtures.
+    type_bytes = sum(len(label.encode("utf-8")) for label in trajectory.types)
+    return frame_bytes + genomic_bytes + type_bytes
 
 
 def _resolve_input_format(path: Path, input_format: str) -> str:
@@ -633,3 +770,31 @@ def _spacewalk_trace_number(frame_id: str) -> int:
 def _spacewalk_safe_field(value: str) -> str:
     text = str(value).strip().replace("\t", "_").replace("\n", "_")
     return text.replace(" ", "_") or "converted"
+
+
+def _pdb_atom_name(value: str) -> str:
+    text = str(value).strip() or "CA"
+    if len(text) > 4:
+        raise ValueError("PDB atom name must be at most 4 characters.")
+    return text[:4]
+
+
+def _pdb_residue_name(value: str) -> str:
+    text = str(value).strip().upper() or "GLY"
+    if len(text) > 3:
+        raise ValueError("PDB residue name must be at most 3 characters.")
+    return text[:3]
+
+
+def _pdb_chain_id(value: str) -> str:
+    text = str(value).strip() or "A"
+    if len(text) != 1:
+        raise ValueError("PDB chain ID must be exactly 1 character.")
+    return text
+
+
+def _pdb_element(value: str) -> str:
+    text = str(value).strip().upper() or "C"
+    if len(text) > 2:
+        raise ValueError("PDB element must be at most 2 characters.")
+    return text[:2]

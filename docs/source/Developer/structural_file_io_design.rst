@@ -146,6 +146,12 @@ The same converter is available from the command line:
 .. code-block:: bash
 
    python scripts/convert_structure_file.py input.ndb output.cndb
+   python scripts/convert_structure_file.py input.cndb subset.ndb --frames 1,10 --start 0 --stop 100
+
+Converters accept optional frame and bead-window filters. The selected
+trajectory is checked against a configurable in-memory payload budget
+(``max_memory_mb``, default 512 MiB) before writing. Large local conversions can
+be made explicit with ``allow_large=True`` or ``--allow-large``.
 
 Supported conversions in this initial layer:
 
@@ -183,12 +189,14 @@ Limitations
   unsafely.
 - Converters are local-file only and do not download remote files.
 - PDB conversion is intentionally simple and uses residue names as approximate
-  bead type labels.
+  bead type labels. PDB output exposes simple atom/residue/chain/element
+  options for visualization workflows.
 - Text SpaceWalk support is intentionally narrow: trace-style
   ``chromosome start end x y z`` rows are supported, but richer or
   application-specific SpaceWalk dialects may need a small adapter.
 - Unsupported HDF5 filters, including scale-offset, SZIP, n-bit, unavailable
   LZF codecs, and custom plugin filters, are detected at read time and not
   decoded by the streaming byte-range backend.
-- Large production conversions should be handled with explicit workflows so
-  memory use is visible to the user.
+- Large production conversions should be handled with explicit workflows. The
+  converter has a payload guard, but it still uses an in-memory representation
+  and is not a streaming rewriter for arbitrary large files.

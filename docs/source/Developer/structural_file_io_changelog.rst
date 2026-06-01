@@ -80,6 +80,10 @@ Converters
   - simple text SpaceWalk ``sw/spw -> ndb``
   - simple text SpaceWalk ``sw/spw -> cndb``
   - ``ndb -> sw/spw``
+- Added converter frame filtering, bead-window filtering, and a configurable
+  in-memory payload guard.
+- Added simple PDB output options for atom name, residue name, chain ID, and
+  element.
 
 Tutorials and documentation
 ---------------------------
@@ -99,7 +103,9 @@ Known limitations
   whole chunks and report coordinate overfetch.
 - Unsupported HDF5 filters are rejected rather than decoded or downloaded
   wholesale.
-- Converters are intended for local files and small fixtures.
+- Converters are intended for local files and small fixtures. Frame/bead
+  filtering and the memory guard help keep conversions explicit, but the
+  converter is still not a general streaming large-file rewriter.
 - Text SpaceWalk support is limited to simple trace-style rows and assigns
   ``UN`` bead types when converting to NDB/CNDB.
 - PDB conversion is approximate and focused on simple CA-like bead records.

@@ -107,6 +107,55 @@ def test_tiny_ndb_to_pdb_and_simple_pdb_to_ndb(tmp_path):
     assert reader.get_coordinates(1).shape == (3, 3)
 
 
+def test_tiny_ndb_to_pdb_with_custom_fields(tmp_path):
+    ndb_path = tmp_path / "tiny.ndb"
+    pdb_path = tmp_path / "tiny.pdb"
+    _write_tiny_ndb(ndb_path)
+
+    convert_structure_file(
+        ndb_path,
+        pdb_path,
+        pdb_atom_name="BB",
+        pdb_residue_name="CHR",
+        pdb_chain_id="B",
+        pdb_element="C",
+    )
+
+    atom_lines = [line for line in pdb_path.read_text(encoding="utf-8").splitlines() if line.startswith("ATOM")]
+    assert atom_lines
+    assert " BB " in atom_lines[0]
+    assert "CHR B" in atom_lines[0]
+    assert atom_lines[0].rstrip().endswith("C")
+
+
+def test_convert_frame_and_bead_subset(tmp_path):
+    ndb_path = tmp_path / "tiny.ndb"
+    cndb_path = tmp_path / "subset.cndb"
+    _write_tiny_ndb(ndb_path)
+
+    convert_structure_file(ndb_path, cndb_path, frames=[2], start=1, stop=3)
+
+    with h5py.File(cndb_path, "r") as h5:
+        assert sorted(name for name in h5 if name.isdigit()) == ["2"]
+        np.testing.assert_array_equal(
+            h5["2"][()],
+            np.array([[13, 14, 15], [16, 17, 18]], dtype=np.float32),
+        )
+        assert [value.decode("utf-8") for value in h5["types"][()]] == ["B1", "A2"]
+
+
+def test_convert_memory_guard_can_be_overridden(tmp_path):
+    ndb_path = tmp_path / "tiny.ndb"
+    cndb_path = tmp_path / "tiny.cndb"
+    _write_tiny_ndb(ndb_path)
+
+    with pytest.raises(ValueError, match="Estimated converted coordinate payload"):
+        convert_structure_file(ndb_path, cndb_path, max_memory_mb=0)
+
+    convert_structure_file(ndb_path, cndb_path, max_memory_mb=0, allow_large=True)
+    assert cndb_path.exists()
+
+
 def test_supported_hdf5_sw_to_ndb(tmp_path):
     sw_path = tmp_path / "toy.sw"
     ndb_path = tmp_path / "toy.ndb"
@@ -211,7 +260,34 @@ def test_convert_structure_file_cli(tmp_path):
         assert "_index" in h5
 
 
-def test_convert_structure_file_cli_refuses_unimplemented_filters(tmp_path):
+def test_convert_structure_file_cli_accepts_frame_and_bead_filters(tmp_path):
+    ndb_path = tmp_path / "tiny.ndb"
+    cndb_path = tmp_path / "tiny.cndb"
+    _write_tiny_ndb(ndb_path)
+
+    subprocess.run(
+        [
+            sys.executable,
+            "scripts/convert_structure_file.py",
+            str(ndb_path),
+            str(cndb_path),
+            "--frames",
+            "1",
+            "--start",
+            "0",
+            "--stop",
+            "2",
+        ],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    with h5py.File(cndb_path, "r") as h5:
+        assert h5["1"].shape == (2, 3)
+
+
+def test_convert_structure_file_cli_refuses_unimplemented_dtype_filter(tmp_path):
     ndb_path = tmp_path / "tiny.ndb"
     cndb_path = tmp_path / "tiny.cndb"
     _write_tiny_ndb(ndb_path)
@@ -222,12 +298,12 @@ def test_convert_structure_file_cli_refuses_unimplemented_filters(tmp_path):
             "scripts/convert_structure_file.py",
             str(ndb_path),
             str(cndb_path),
-            "--frames",
-            "1",
+            "--coordinate-dtype",
+            "float64",
         ],
         text=True,
         capture_output=True,
     )
 
     assert result.returncode != 0
-    assert "not implemented yet" in result.stderr
+    assert "Dtype-filtered conversion is not implemented yet" in result.stderr
