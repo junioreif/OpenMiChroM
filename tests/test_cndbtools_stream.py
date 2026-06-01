@@ -127,7 +127,38 @@ def test_streaming_xyz_contiguous_range_reads_exact_coordinate_bytes(monkeypatch
     stats = tools.stream_stats()
     assert stats["data_bytes_read"] == 240
     assert stats["index_cache_hit"] is True
+    assert stats["selection_strategy"] == "single-range"
+    assert stats["range_request_count"] == 2
+    assert stats["requested_coordinate_bytes"] == 240
+    assert stats["transferred_coordinate_bytes"] == 240
+    assert stats["overfetch_coordinate_bytes"] == 0
     np.testing.assert_array_equal(xyz[0], _FakeIndexedCNDB.last_instance.data["1"][:10])
+
+
+def test_streaming_xyz_slice_selection_reads_one_range(monkeypatch):
+    _install_fake_internal_stream(monkeypatch)
+    tools = cndbTools.from_remote("https://example.org/test.cndb", trajectory="replica1_chr1")
+
+    xyz = tools.xyz(frames=[1], beadSelection=slice(2, 8), XYZ=[1, 2])
+
+    assert xyz.shape == (1, 6, 2)
+    assert _FakeIndexedCNDB.last_instance.requests == [("1", 2, 8)]
+    expected = _FakeIndexedCNDB.last_instance.data["1"][2:8][:, [1, 2]]
+    np.testing.assert_array_equal(xyz[0], expected)
+    stats = tools.stream_stats()
+    assert stats["selection_strategy"] == "single-range"
+    assert stats["requested_coordinate_bytes"] == 6 * 3 * np.dtype("float32").itemsize
+
+
+def test_streaming_xyz_contiguous_list_reads_one_range(monkeypatch):
+    _install_fake_internal_stream(monkeypatch)
+    tools = cndbTools.from_remote("https://example.org/test.cndb", trajectory="replica1_chr1")
+
+    xyz = tools.xyz(frames=[1], beadSelection=[2, 3, 4, 5], XYZ=[0, 1, 2])
+
+    assert xyz.shape == (1, 4, 3)
+    assert _FakeIndexedCNDB.last_instance.requests == [("1", 2, 6)]
+    assert tools.stream_stats()["selection_strategy"] == "single-range"
 
 
 def test_streaming_xyz_noncontiguous_selection_reads_coalesced_ranges(monkeypatch):
@@ -142,9 +173,26 @@ def test_streaming_xyz_noncontiguous_selection_reads_coalesced_ranges(monkeypatc
     np.testing.assert_array_equal(xyz[0], expected)
     stats = tools.stream_stats()
     assert stats["coordinate_range_requests"] == 2
+    assert stats["range_request_count"] == 2
+    assert stats["coalesced_range_count"] == 2
+    assert stats["selection_strategy"] == "coalesced-ranges"
     assert stats["requested_data_bytes"] == 3 * 3 * np.dtype("float32").itemsize
     assert stats["transferred_data_bytes"] == stats["requested_data_bytes"]
     assert stats["overfetch_bytes"] == 0
+    assert stats["requested_coordinate_bytes"] == stats["requested_data_bytes"]
+    assert stats["transferred_coordinate_bytes"] == stats["transferred_data_bytes"]
+    assert stats["overfetch_coordinate_bytes"] == stats["overfetch_bytes"]
+
+
+def test_streaming_xyz_noncontiguous_preserves_requested_order(monkeypatch):
+    _install_fake_internal_stream(monkeypatch)
+    tools = cndbTools.from_remote("https://example.org/test.cndb", trajectory="replica1_chr1")
+
+    xyz = tools.xyz(frames=[1], beadSelection=[4, 1, 4, 3], XYZ=[0, 1, 2])
+
+    expected = _FakeIndexedCNDB.last_instance.data["1"][[4, 1, 4, 3]]
+    np.testing.assert_array_equal(xyz[0], expected)
+    assert tools.stream_stats()["selection_strategy"] == "coalesced-ranges"
 
 
 def test_streaming_xyz_sparse_selection_can_fall_back_to_enclosing_range(monkeypatch):
@@ -157,6 +205,8 @@ def test_streaming_xyz_sparse_selection_can_fall_back_to_enclosing_range(monkeyp
     assert _FakeIndexedCNDB.last_instance.requests == [("1", 1, 5)]
     stats = tools.stream_stats()
     assert stats["coordinate_range_requests"] == 1
+    assert stats["range_request_count"] == 1
+    assert stats["selection_strategy"] == "enclosing-range"
     assert stats["requested_data_bytes"] == 3 * 3 * np.dtype("float32").itemsize
     assert stats["transferred_data_bytes"] == 4 * 3 * np.dtype("float32").itemsize
     assert stats["overfetch_bytes"] == 1 * 3 * np.dtype("float32").itemsize
@@ -165,3 +215,4 @@ def test_streaming_xyz_sparse_selection_can_fall_back_to_enclosing_range(monkeyp
 def test_coalesce_indices_groups_adjacent_blocks():
     assert coalesce_indices([0, 1, 2, 10, 11, 12]) == [(0, 3), (10, 13)]
     assert coalesce_indices([0, 10, 20], max_gap=10) == [(0, 21)]
+    assert coalesce_indices([0, 10, 20], max_ranges=2) == [(0, 11), (20, 21)]

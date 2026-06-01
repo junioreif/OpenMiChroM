@@ -127,9 +127,13 @@ The full 139 GB CNDB file is not downloaded. The embedded HDF5 index is read
 once and can be cached locally. Coordinate reads use HTTP Range requests, and
 contiguous bead ranges are read with exact byte ranges. Non-contiguous bead
 selections are coalesced into small byte ranges when practical, with a safe
-fallback to the smallest enclosing bead range. Remote streaming currently
-focuses on coordinate access; metadata such as ``types`` and ``dictChromSeq``
-is populated when the remote embedded index exposes small metadata datasets.
+fallback to the smallest enclosing bead range. ``tools.stream_stats()`` reports
+both historical byte counters and explicit coordinate-selection diagnostics such
+as ``requested_coordinate_bytes``, ``transferred_coordinate_bytes``,
+``overfetch_coordinate_bytes``, ``range_request_count``, and
+``selection_strategy``. Remote streaming currently focuses on coordinate access;
+metadata such as ``types`` and ``dictChromSeq`` is populated when the remote
+embedded index exposes small metadata datasets.
 The embedded HDF5 metadata reader includes MIT-licensed vendored components from
 ``hdf5-indexed-reader``/``pyfive`` under ``OpenMiChroM/_cndb_stream/_vendor``.
 

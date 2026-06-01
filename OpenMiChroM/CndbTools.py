@@ -154,6 +154,12 @@ class cndbTools:
             "requested_data_bytes": 0,
             "transferred_data_bytes": 0,
             "overfetch_bytes": 0,
+            "range_request_count": 0,
+            "requested_coordinate_bytes": 0,
+            "transferred_coordinate_bytes": 0,
+            "overfetch_coordinate_bytes": 0,
+            "coalesced_range_count": 0,
+            "selection_strategy": None,
         }
 
     @classmethod
@@ -493,7 +499,10 @@ class cndbTools:
         Streaming implementation of ``xyz`` using the internal CNDB backend.
 
         Contiguous bead ranges are read with exact byte ranges. Non-contiguous
-        selections read the minimal enclosing bead interval and subset in memory.
+        selections are coalesced into ordered ranges and reassembled in the
+        requested order. If too many sparse ranges would be needed, the reader
+        falls back to the smallest enclosing bead interval and subsets in
+        memory.
         """
         frame_list = []
         if frames is None:
@@ -501,7 +510,7 @@ class cndbTools:
         elif isinstance(frames, (int, np.integer, str)):
             frames = [frames]
 
-        ranges, post_selection, requested_rows = self._stream_bead_plan(
+        ranges, post_selection, requested_rows, strategy = self._stream_bead_plan(
             beadSelection,
             coalesce=coalesce,
             max_gap=max_gap,
@@ -528,6 +537,16 @@ class cndbTools:
                 0,
                 transferred_bytes - requested_bytes,
             )
+            self._stream_selection_stats["range_request_count"] += len(ranges)
+            self._stream_selection_stats["requested_coordinate_bytes"] += requested_bytes
+            self._stream_selection_stats["transferred_coordinate_bytes"] += transferred_bytes
+            self._stream_selection_stats["overfetch_coordinate_bytes"] += max(
+                0,
+                transferred_bytes - requested_bytes,
+            )
+            if strategy == "coalesced-ranges":
+                self._stream_selection_stats["coalesced_range_count"] += len(ranges)
+            self._stream_selection_stats["selection_strategy"] = strategy
         return(np.array(frame_list))
 
     def _stream_read_ranges(self, frame, ranges):
@@ -542,29 +561,30 @@ class cndbTools:
 
     def _stream_bead_plan(self, beadSelection, coalesce=True, max_gap=0, max_ranges=128):
         if beadSelection is None:
-            return [(0, self.Nbeads)], None, self.Nbeads
+            return [(0, self.Nbeads)], None, self.Nbeads, "full-frame"
 
         if isinstance(beadSelection, slice):
             step = 1 if beadSelection.step is None else beadSelection.step
             start = 0 if beadSelection.start is None else beadSelection.start
             stop = self.Nbeads if beadSelection.stop is None else beadSelection.stop
             if step == 1:
-                return [(start, stop)], None, max(0, stop - start)
+                return [(start, stop)], None, max(0, stop - start), "single-range"
             selection = np.arange(start, stop, step, dtype=int)
 
-        if isinstance(beadSelection, range):
+        elif isinstance(beadSelection, range):
             if beadSelection.step == 1:
                 return (
                     [(beadSelection.start, beadSelection.stop)],
                     None,
                     max(0, beadSelection.stop - beadSelection.start),
+                    "single-range",
                 )
             selection = np.array(list(beadSelection), dtype=int)
         else:
             selection = np.array(beadSelection, dtype=int)
 
         if selection.size == 0:
-            return [(0, 0)], None, 0
+            return [(0, 0)], None, 0, "empty"
 
         if np.any(selection < 0):
             selection = np.where(selection < 0, selection + self.Nbeads, selection)
@@ -574,7 +594,7 @@ class cndbTools:
         stop = int(sorted_selection[-1]) + 1
 
         if np.array_equal(selection, np.arange(start, stop)):
-            return [(start, stop)], None, int(selection.size)
+            return [(start, stop)], None, int(selection.size), "single-range"
 
         if coalesce:
             from OpenMiChroM._structural_io import coalesce_indices
@@ -588,9 +608,9 @@ class cndbTools:
                         offsets[absolute] = cursor + absolute - range_start
                     cursor += range_stop - range_start
                 post_selection = np.array([offsets[int(index)] for index in selection], dtype=int)
-                return ranges, post_selection, int(selection.size)
+                return ranges, post_selection, int(selection.size), "coalesced-ranges"
 
-        return [(start, stop)], selection - start, int(selection.size)
+        return [(start, stop)], selection - start, int(selection.size), "enclosing-range"
 
     @property
     def stream_data_bytes_read(self):
@@ -639,6 +659,12 @@ class cndbTools:
                 "requested_data_bytes": 0,
                 "transferred_data_bytes": 0,
                 "overfetch_bytes": 0,
+                "range_request_count": 0,
+                "requested_coordinate_bytes": 0,
+                "transferred_coordinate_bytes": 0,
+                "overfetch_coordinate_bytes": 0,
+                "coalesced_range_count": 0,
+                "selection_strategy": None,
             }
         stats = self._stream_backend.stats()
         stats.update(self._stream_selection_stats)

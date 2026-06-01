@@ -57,6 +57,12 @@ index and then uses HTTP Range requests for dataset metadata and coordinate
 payloads. Coordinate byte reads are exact for contiguous, uncompressed
 ``(n_beads, 3)`` frame datasets.
 
+``CndbTools.xyz(...)`` reads contiguous bead selections as one exact coordinate
+range. Sparse non-contiguous selections are coalesced into ordered, non-
+overlapping byte ranges and reassembled in the requested order. If a selection
+would require too many tiny HTTP requests, CNDBTools falls back to the smallest
+enclosing bead interval and reports the overfetch in ``stream_stats()``.
+
 The backend refuses ``200 OK`` responses to Range requests. This is a safety
 rule: a server that ignores ``Range`` may send the whole file.
 
