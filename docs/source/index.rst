@@ -23,6 +23,7 @@
    Tutorials/Tutorial_Pulling
    Tutorials/Tutorial_Active_Polymer
    Tutorials/stream_remote_cndb
+   Tutorials/stream_remote_cndb_explained
    Tutorials/write_indexed_cndb
    Tutorials/structural_file_conversion
    Tutorials/structural_file_detection
@@ -41,6 +42,7 @@
    :caption: Developer Notes
 
    Developer/structural_file_io_design
+   Developer/structural_file_io_explained
    Developer/structural_file_formats
    Developer/structural_file_io_credits
    Developer/structural_file_io_changelog
