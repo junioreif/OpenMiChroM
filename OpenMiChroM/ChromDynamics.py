@@ -59,8 +59,11 @@ class MiChroM:
             Friction/damping constant in units of reciprocal time (1/τ). Defaults to 0.1.
         temperature (float, optional): 
             Temperature in reduced units. Defaults to 1.0.
+        printing (boolean, optional):
+            Printing the header is optional. This is useful for the repeated simulation creation required for the SV
+            paper implementation of the Sanborn model. 
     """
-    def __init__(self, name="OpenMiChroM", timeStep=0.01, collisionRate=0.1, temperature=1.0):
+    def __init__(self, name="OpenMiChroM", timeStep=0.01, collisionRate=0.1, temperature=1.0, printing = True):
         self.name = name
         self.timeStep = timeStep
         self.collisionRate = collisionRate
@@ -71,11 +74,11 @@ class MiChroM:
         self.nm = units.meter * 1e-9
         self.sigma = 1.0
         self.epsilon = 1.0
-        self.printHeader()
+        if printing: self.printHeader()
 
             
     def setup(self, platform="CUDA", gpu="default",
-            integrator="langevin", precision="mixed", deviceIndex="0"):
+            integrator="langevin", precision="mixed", deviceIndex="0", printing = True):
         R"""Sets up the simulation environment.
 
         Tries to select the computational platform in the following priority order:
@@ -94,6 +97,8 @@ class MiChroM:
                 Defaults to 'mixed'.
             deviceIndex (str, optional): The device index to use if specifying a GPU device.
                 Defaults to '0'.
+            printing (boolean, optional): Can toggle off if you don't want to print data. Useful for SV paper 
+                implementation of extrusion 
 
         Raises:
             ValueError: If an unknown integrator or precision is specified.
@@ -131,7 +136,7 @@ class MiChroM:
         for plat_name in platform_priority:
             try:
                 self.platform = self.mm.Platform.getPlatformByName(plat_name)
-                print(f"Using platform: {plat_name}")
+                if printing: print(f"Using platform: {plat_name}")
 
                 # Set platform-specific properties
                 properties = {}
@@ -1200,13 +1205,17 @@ class MiChroM:
             self.loaded = True
 
 
-    def createSimulation(self):
+    def createSimulation(self,printing = True):
         R"""
         Initializes the simulation context and adds forces to the system.
 
         This function checks if the simulation context has already been created. If not, it loads the particles,
         processes any exceptions (bonds that should not be included in nonbonded interactions), adds
         forces to the system, and sets up the simulation context.
+
+        Can set printing to false if you don't want to print the details of the new simulation. This is useful for the 
+        SV paper setup of effective extrusion, which requires repeatedly creating new simulations. 
+
         """
         if getattr(self, 'contexted', False):
             return
@@ -1234,7 +1243,7 @@ class MiChroM:
                 force.setNonbondedMethod(force.CutoffNonPeriodic)
 
             self.system.addForce(force)
-            print(f"{forceName} was added")
+            if printing: print(f"{forceName} was added")
 
         forceGroupIndex = 0
         for forceName, force in self.forceDict.items():
@@ -1248,10 +1257,10 @@ class MiChroM:
             #self.system, self.integrator, self.platform, self.properties)
         self.simulation = Simulation(None, self.system, self.integrator, self.platform, self.properties)
         self.context = self.simulation.context
-        self.initPositions()
-        self.initVelocities()
+        self.initPositions(printing=printing)
+        self.initVelocities(printing=printing)
         self.contexted = True
-        print('Context created!')
+        if printing: print('Context created!')
 
         simulationInfo = (
                 f"\nSimulation name: {self.name}\n"
@@ -1287,17 +1296,18 @@ class MiChroM:
             platformInfo.append(f"{name} Value: {value}")
         
         # Print information to console
-        print(simulationInfo)
-        print(energyInfo)
-        print(f'\nPotential energy per forceGroup:\n {self.getForces()}')
-        
-        filePath = Path(self.folder) / 'initialStats.txt'
-        with open(filePath, 'w') as f:
-            for info in platformInfo:
-                print(info, file=f)
-            print(simulationInfo, file=f)
-            print(energyInfo, file=f)
-            print(f'\nPotential energy per forceGroup:\n {self.getForces()}', file=f)
+        if printing: 
+            print(simulationInfo)
+            print(energyInfo)
+            print(f'\nPotential energy per forceGroup:\n {self.getForces()}')
+    
+            filePath = Path(self.folder) / 'initialStats.txt'
+            with open(filePath, 'w') as f:
+                for info in platformInfo:
+                    print(info, file=f)
+                print(simulationInfo, file=f)
+                print(energyInfo, file=f)
+                print(f'\nPotential energy per forceGroup:\n {self.getForces()}', file=f)
 
     def createReporters(self, statistics=True, traj=False, trajFormat="cndb", outputName=None, energyComponents=False,
                          interval=1000):
@@ -1583,7 +1593,7 @@ class MiChroM:
         return np.vstack([x,y,z]).T
     
     
-    def loadGRO(self, GROfiles=None, ChromSeq=None, isRing=False):
+    def loadGRO(self, GROfiles=None, ChromSeq=None, isRing=False, gro_like = False):
         R"""
         Loads a single or multiple *.gro* files and gets position and types of the chromosome beads.
         Initially, the MiChroM energy function was implemented in GROMACS. Details on how to run and use these files can be found at the `Nucleome Data Bank <https://ndb.rice.edu/GromacsInput-Documentation>`__.
@@ -1593,20 +1603,24 @@ class MiChroM:
         Args:
 
             GROfiles (list of files, required):
-                List with a single or multiple files in *.gro* file format.  (Default value: :code:`None`).
+                if !gro_like: List with a single or multiple files in *.gro* file format.  (Default value: :code:`None`).
+                elif gro_like: a string in gro format 
+
             ChromSeq (list of files, optional):
                 List of files with sequence information for each chromosomal chain. The first column should contain the locus index. The second column should have the locus type annotation. A template of the chromatin sequence of types file can be found at the `Nucleome Data Bank (NDB) <https://ndb.rice.edu/static/text/chr10_beads.txt>`__.
                 If the chromatin types considered are different from the ones used in the original MiChroM (A1, A2, B1, B2, B3, B4, and NA), the sequence file must be provided, otherwise all the chains will be defined with 'NA' type.
             
             isRing (bool, optional):
                 Whether the chromosome chain is circular or not (used to simulate bacteria genome, for example). If :code:`bool(isRing)` is :code:`True` , the first and last particles of the chain are linked, forming a ring. (Default value = :code:`False`).
+
+            gro_like (bool, optional):
+                if True, loads data from a string in gro format; this is useful for the SV paper implementation of extrusion
                 
         Returns:
             :math:`(N, 3)` :class:`numpy.ndarray`:
                 Returns an array of positions.
    
         """
-        
         x = []
         y = []
         z = []
@@ -1614,10 +1628,9 @@ class MiChroM:
         chains = []
         sizeChain = 0
         typesLetter = []
-        
-        for gro in GROfiles:
-            aFile = open(gro,'r')
-            pos = aFile.read().splitlines()
+
+        def _read_gro_string(pos):
+            nonlocal start, sizeChain, x,y,z, gro_like
             size = int(pos[1])
             
             for t in range(2, len(pos)-1):
@@ -1632,7 +1645,9 @@ class MiChroM:
                 y.append(float(pos[t][4]))
                 z.append(float(pos[t][5]))
                 
-                typesLetter.append(self._aa2types(pos[t][0][-3:]))
+                if not gro_like: typesLetter.append(self._aa2types(pos[t][0][-3:]))
+                elif gro_like: typesLetter.append('Locus' + str(t-1))
+
                 sizeChain += 1
 
             if (isRing):
@@ -1641,10 +1656,19 @@ class MiChroM:
                 chains.append((start, sizeChain-1, 0))
             
             start = sizeChain 
+        
+        if not gro_like: 
+            for gro in GROfiles:
+                aFile = open(gro,'r')
+                pos = aFile.read().splitlines()
+                _read_gro_string(pos)
+        elif gro_like:
+            _read_gro_string(GROfiles)
+            
             
         if not ChromSeq is None:
 
-            if len(ChromSeq) != len(GROfiles):
+            if not gro_like and len(ChromSeq) != len(GROfiles):
                 raise ValueError("Number of sequence files provided must agree with number of coordinate files!")
 
             typesLetter = []
@@ -1654,7 +1678,7 @@ class MiChroM:
                     for type in sequence:
                         typesLetter.append(type.split()[1])
 
-        if len(typesLetter) != len(x):
+        if not gro_like and len(typesLetter) != len(x):
             raise ValueError("Sequence length is different from coordinates length!")
 
         
@@ -1665,7 +1689,6 @@ class MiChroM:
         self.setChains(chains)
 
         return np.vstack([x,y,z]).T
-
 
     def _aa2types (self, amino_acid):
         
@@ -1973,6 +1996,8 @@ class MiChroM:
             - 'ndb' - Loads a single or multiple *.ndb* files and gets the position and types of the chromosome beads.
             - 'pdb' - Loads a single or multiple *.pdb* files and gets the position and types of the chromosome beads.
             - 'gro' - Loads a single or multiple *.gro* files and gets the position and types of the chromosome beads.
+            - 'gro_like' - For extrusion. Loads a string in gro format as though it were a gro file. 
+
 
         CoordFiles (list of files, optional):
             List of files with xyz information for each chromosomal chain. Accepts .ndb, .pdb, and .gro files. All files provided in the list must be in the same file format.
@@ -2054,6 +2079,13 @@ class MiChroM:
 
             return self.loadGRO(GROfiles=CoordFiles,ChromSeq=ChromSeq, isRing=isRing)
 
+        elif mode == 'gro_like':
+
+            if CoordFiles is None:
+                raise ValueError("Load structure in string format for mode '{:}'!".format(mode))
+
+            return self.loadGRO(GROfiles=CoordFiles,ChromSeq=ChromSeq, isRing=isRing, gro_like = True)
+
         else:
             if mode != 'auto':
                 raise ValueError("Mode '{:}' not supported!".format(mode))
@@ -2075,6 +2107,7 @@ class MiChroM:
                 - `'pdb'`: Protein Data Bank format.
                 - `'gro'`: GROMACS GRO format.
                 - `'ndb'`: Nucleome Data Bank format.
+                - `'gro_like'`: returns .gro string rather than saving to a file 
                 (Default: `'gro'`)
         """
         
@@ -2147,7 +2180,7 @@ class MiChroM:
                 np.savetxt(fileName,pdb_string,fmt="%s")
 
                     
-        elif mode == 'gro':
+        elif mode == 'gro' or mode == 'gro_like':
             
             gro_style = "{0:5d}{1:5s}{2:5s}{3:5d}{4:8.3f}{5:8.3f}{6:8.3f}"
             gro_box_string = "{0:10.5f}{1:10.5f}{2:10.5f}"
@@ -2180,7 +2213,10 @@ class MiChroM:
                     totalAtom += 1
                         
                 gro_string.append(str(gro_box_string.format(0.000,0.000,0.000)))
-                np.savetxt(fileName,gro_string,fmt="%s")
+                if mode == 'gro': 
+                    np.savetxt(fileName,gro_string,fmt="%s")
+                elif mode == 'gro_like':
+                    return gro_string
         
         elif mode == 'ndb':
             ndb_string     = "{0:6s} {1:8d} {2:2s} {3:6s} {4:4s} {5:8d} {6:8.3f} {7:8.3f} {8:8.3f} {9:10d} {10:10d} {11:8.3f}"
@@ -2240,36 +2276,42 @@ class MiChroM:
                 np.savetxt(fileName,ndbf,fmt="%s")
    
         
-    def initPositions(self):
+    def initPositions(self, printing = True):
         R"""
         Internal function that sets the locus coordinates in the OpenMM system.
         
         Raises:
             ValueError: If the simulation context has not been initialized.
+
+        args:
+            printing (bool): if True, prints some nice embellishments
         """
         if not hasattr(self, 'context'):
             raise ValueError("No context; cannot set positions. Initialize the context before calling initPositions.")
 
-        print("Setting positions...", end='', flush=True)
+        if printing: print("Setting positions...", end='', flush=True)
         self.context.setPositions(self.data)
-        print(" loaded!")
+        if printing: print(" loaded!")
 
 
-    def initVelocities(self):
+    def initVelocities(self, printing = True):
         R"""
         Internal function that sets the initial velocities of the loci in the OpenMM system.
         
         Raises:
             ValueError: If the simulation context has not been initialized.
+
+        args:
+            printing (bool): if True, prints some nice embellishments
         """
         if not hasattr(self, 'context'):
             raise ValueError("No context; cannot set velocities. Initialize the context before calling initVelocities.")
         
-        print("Setting velocities...", end='', flush=True)
+        if printing: print("Setting velocities...", end='', flush=True)
         # Set velocities using OpenMM's built-in method
         temperature = self.temperature * units.kelvin
         self.context.setVelocitiesToTemperature(temperature)
-        print(" loaded!")
+        if printing: print(" loaded!")
 
         
     def setFibPosition(self, positions, returnCM=False, factor=1.0):
@@ -2389,3 +2431,177 @@ class MiChroM:
         print('{:^96s}'.format("Rice University"))
         print('{:^96s}'.format("***************************************************************************************"))
         stdout.flush()
+
+    
+    ##### Functions for SV Paper Extrusion 
+    """
+    
+    Adjusted: 
+        - __init__
+            - adjusted printing
+            - adjusted docstring 
+        - createSimulation
+            - adjusted printing 
+            - adjusted docstring 
+        - initPositions
+            - adjusted printing
+            - adjusted docstring 
+        - initVelocities
+            - adjusted printing
+            - adjusted docstring 
+        - setup
+            - adjusted printing
+            - adjusted docstring
+        - initStructure
+            - added gro_like format loading capability
+            - adjusted docstring 
+        - saveStructure
+            - added gro_like format loading capability
+            - adjusted docstring 
+        - loadGro
+            - added gro_like format loading capability
+                - NOTE: this required me to adjust the function in a slightly more drastic way than usual
+            - adjusted docstring 
+    
+    Added: 
+        - buildInitialCollapseSim
+            - starts a simulation with a flat bottom harmonic to collapse
+            - adjusted docstring
+        - addHarmonicLoopPotential
+            - feed in current time loop positions; adds those energies to simulation
+            - added docstring
+        - initStructureGro_like
+            - deleted this
+        - save_GROlike
+            - deleted this
+        - loadGrolike
+            - deleted this
+        - buildSubsequentExtrusionSim
+            - as named
+            - added docstring
+        - get_vels 
+            - this is the one I'm most worried about
+            - for velocity extraction
+            - added docstring
+    """
+
+
+    def buildInitialCollapseSim(self,mu=2.5,rc=2.0,lambdaFile=None):
+        R"""
+        Constructs a MiChroM simulation with the homopolymer potential, pairwise (contact) potentials
+        and a flat bottom harmonic potential to collapse the initial structure
+
+        args:
+           mu (float) 
+                mu from the tanh function for pairwise contacts
+            rc (float) 
+                rc from tanh function
+            lambdaFile (str, optional) 
+                path to pairwise potential energy matrix (aka learned effective potential). For formatting specifics, 
+                see full inversion details. 
+        """
+
+        # homopolymer potentials
+        self.addFENEBonds(kFb=30.0)
+        self.addAngles(kA=2.0)
+        self.addRepulsiveSoftCore(eCut=4.0)
+
+        # Pairwise potentials
+        self.addCustomTypes(mu=mu, rc=rc, TypesTable=lambdaFile)
+
+        # collapsing flat bottom harmonic
+        self.addFlatBottomHarmonic( kR=5*10**-3, nRad=8.0)
+
+        self.createSimulation()
+
+    
+
+    def addHarmonicLoopPotential(self, loop_list,k_loop=10.0,r0_loop=1.0):
+        
+        R"""
+        adds a list of harmonic potentials to the simulation. Expects loop trajectories 
+        in SV paper format. 
+
+        args:
+            loop_list (list or array, required)
+                - [left foot, right foot] loop positions, enumerated by extruder
+            k_loop (float, optional)
+                - spring constant for loop potential
+            r0_loop (float, optional)
+                - distance at which loop force = 0
+
+        """
+
+
+        Loop = self.mm.CustomBondForce("0.5*k_le*(r - r0_l)^2")
+        Loop.addGlobalParameter("k_le", k_loop) 
+        Loop.addGlobalParameter("r0_l", r0_loop)
+        self.forceDict["LoopExtrusion"] = Loop
+
+        for p in loop_list:
+            if p[0] is not None and p[0] != -1:
+                Loop.addBond(p[0],p[1])
+
+
+    def buildSubsequentExtrusionSim(self,CoordFiles,Velocities,lambdaFile,loop_list,chromosome=None,mu=2.5,rc=2.0,printing = False):
+
+        R"""
+        
+        Useful for the SV paper implementation of extrusion, which initializes a new simulation every time extruders step. 
+
+        Args:
+            CoordFiles (str, required): the structure of the final step with previous extruder positions
+                When this function is used in the intended extrusion context, the CoordFiles should be a 'gro_like' string 
+                See the function saveStructure(mode='gro_like') for more
+            Velocities (array, required): velocities from final step with previous extruder positions
+                use get_velocities method to extract velocities from current simulation context 
+
+            loop_list (list or array, required)
+                - [left foot, right foot] loop positions, enumerated by extruder
+
+            lambdaFile (str, required) 
+                path to pairwise potential energy matrix (aka learned effective potential). For formatting specifics, 
+                see full inversion details. 
+                
+
+            mu (float, optional) 
+                mu from the tanh function for pairwise contacts
+            rc (float, optional) 
+                rc from tanh function
+            
+            printing (boolean, optional)
+                toggles printing simulation data
+
+        """
+
+        initialPos = self.initStructure(mode='gro_like',CoordFiles=CoordFiles,chromosome=chromosome,isRing=False)
+
+        self.loadStructure(initialPos,center=False)
+
+        self.addFENEBonds(kFb=30.0)
+        self.addAngles(kA=2.0)
+        self.addRepulsiveSoftCore(eCut=4.0)
+
+        self.addCustomTypes(mu=mu, rc=rc, TypesTable=lambdaFile)
+
+        
+        self.addHarmonicLoopPotential(loop_list)
+
+        self.createSimulation(printing = printing)
+        
+        self.simulation.context.setVelocities(
+            Velocities * (units.nanometers / units.picoseconds)
+        )
+
+    
+    def get_velocities(self):
+        R"""
+        returns current velocities of current simulation with units of nm / ps as np arrya
+        """
+
+        state = self.simulation.context.getState(getVelocities=True)
+        current_velocities_quantity = state.getVelocities(asNumpy=True)
+        velocities_np_array = current_velocities_quantity.value_in_unit(
+            units.nanometers / units.picoseconds
+        )
+        return velocities_np_array
