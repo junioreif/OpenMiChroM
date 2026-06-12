@@ -1,1 +1,9 @@
 OpenMiChroM.egg-info
+OpenMiChroM/extrusion_bonds_test.ipynb
+OpenMiChroM/Extrusion.py
+Tutorials/Structural_Variations/Data/Simulation_Data/*
+!Tutorials/Structural_Variations/Data/Simulation_Data/.gitkeep
+.DS_Store
+__pycache__/
+*.py[cod]
+initialStats.txt
