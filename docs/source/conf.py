@@ -66,11 +66,13 @@ master_doc = "index"
 exclude_patterns = [
     "_build",
     "_templates",
+    "modules.rst",
 ]
 
 show_authors = True
 pygments_style = "sphinx"
 todo_include_todos = False
+autosectionlabel_prefix_document = True
 
 # -- Options for HTML output -------------------------------------------------
 

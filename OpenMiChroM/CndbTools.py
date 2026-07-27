@@ -910,12 +910,13 @@ class cndbTools:
         Calculates the Radius of Gyration. 
         
         Args:
-            xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray` (dim: TxNx3), required):
-                Array of the 3D position of the selected beads for different frames extracted by using the `xyz()` function.  
+            xyz (numpy.ndarray):
+                Coordinate array with shape ``(frames, beads, 3)``, such as the
+                output of :meth:`xyz`.
                        
         Returns:
-            :class:`numpy.ndarray` (dim: Tx1):
-                Returns the Radius of Gyration in units of :math:`\sigma`.
+            numpy.ndarray:
+                Radius of gyration for each frame, in simulation length units.
         """
         rcm=np.mean(xyz, axis=1,keepdims=True)
         xyz_rel_to_cm= xyz - np.tile(rcm,(xyz.shape[1],1))
@@ -925,21 +926,25 @@ class cndbTools:
     def compute_GyrTensorEigs(self, xyz):
         R"""
         Calculates the eigenvalues of the Gyration tensor:
-        For a cloud of N points with positions: {[xi,yi,zi]},gyr tensor is a symmetric matrix defined as,
-        
-        gyr= (1/N) * [[sum_i(xi-xcm)(xi-xcm)  sum_i(xi-xcm)(yi-ycm) sum_i(xi-xcm)(zi-zcm)],
-                      [sum_i(yi-ycm)(xi-xcm)  sum_i(yi-ycm)(yi-ycm) sum_i(yi-ycm)(zi-zcm)],
-                      [sum_i(zi-zcm)(xi-xcm)  sum_i(zi-zcm)(yi-ycm) sum_i(zi-zcm)(zi-zcm)]]
-        
-        the three non-negative eigenvalues of gyr are used to define shape parameters like radius of gyration, asphericity, etc
+        For a cloud of N points, the gyration tensor is the symmetric matrix::
+
+            gyr = (1/N) * [
+                [sum_i(xi-xcm)^2,          sum_i(xi-xcm)(yi-ycm), sum_i(xi-xcm)(zi-zcm)],
+                [sum_i(yi-ycm)(xi-xcm),    sum_i(yi-ycm)^2,       sum_i(yi-ycm)(zi-zcm)],
+                [sum_i(zi-zcm)(xi-xcm),    sum_i(zi-zcm)(yi-ycm), sum_i(zi-zcm)^2],
+            ]
+
+        The three non-negative eigenvalues define shape parameters such as
+        radius of gyration and asphericity.
 
         Args:
-            xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray` (dim: TxNx3), required):
-                Array of the 3D position of the selected beads for different frames extracted by using the `xyz()` function.  
+            xyz (numpy.ndarray):
+                Coordinate array with shape ``(frames, beads, 3)``, such as the
+                output of :meth:`xyz`.
                        
         Returns:
-            :class:`numpy.ndarray` (dim: Tx3):
-                Returns the sorted eigenvalues of the Gyration Tensor.
+            numpy.ndarray:
+                Sorted gyration-tensor eigenvalues with shape ``(frames, 3)``.
         """
         rcm=np.mean(xyz, axis=1,keepdims=True)
         sorted_eigenvals=[]
@@ -957,12 +962,14 @@ class cndbTools:
         Also see this stackoverflow post: https://stackoverflow.com/questions/34222272/computing-mean-square-displacement-using-python-and-fft
         
         Args:
-            xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray` (dim: TxNx3), required):
-                Array of the 3D position of the selected beads for different frames extracted by using the `xyz()` function.  
+            xyz (numpy.ndarray):
+                Coordinate array with shape ``(frames, beads, 3)``, such as the
+                output of :meth:`xyz`.
                        
         Returns:
-            :class:`numpy.ndarray` (dim: NxT):
-                Returns the MSD of each particle over the trajectory.
+            numpy.ndarray:
+                Mean-squared displacement of each particle, with shape
+                ``(beads, frames)``.
 
         """
         
@@ -1000,11 +1007,12 @@ class cndbTools:
 
         R"""
         Calculates the radial number density of monomers; which when integrated over 
-        the volume (with the appropriate kernel: 4*pi*r^2) gives the total number of monomers.
+        the volume (with the appropriate kernel: :math:`4\pi r^2`) gives the total number of monomers.
         
         Args:
-            xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray` (dim: TxNx3), required):
-                Array of the 3D position of the selected beads for different frames extracted by using the `xyz()` function.  
+            xyz (numpy.ndarray):
+                Coordinate array with shape ``(frames, beads, 3)``, such as the
+                output of :meth:`xyz`.
 
             dr (float, required):
                 mesh size of radius for calculating the radial distribution. 
@@ -1024,11 +1032,8 @@ class cndbTools:
                 defines the reference point in custom reference. required when ref='custom'
                        
         Returns:
-            num_density:class:`numpy.ndarray`:
-                the number density
-            
-            bins:class:`numpy.ndarray`:
-                bins corresponding to the number density
+            tuple[numpy.ndarray, numpy.ndarray]:
+                Number density and the corresponding radial bin centers.
 
         """
 
@@ -1069,25 +1074,27 @@ class cndbTools:
     def compute_RDP(self, xyz, beadSelection=None, radius=20.0, bins=200):
         R"""
         Calculates the RDP - Radial Distribution Probability. Details can be found in the following publications: 
-        
-            - Oliveira Jr., A.B., Contessoto, V.G., Mello, M.F. and Onuchic, J.N., 2021. A scalable computational approach for simulating complexes of multiple chromosomes. Journal of Molecular Biology, 433(6), p.166700.
-            - Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173.
+
+        References:
+
+        - Oliveira Jr., A.B., Contessoto, V.G., Mello, M.F. and Onuchic, J.N., 2021. A scalable computational approach for simulating complexes of multiple chromosomes. Journal of Molecular Biology, 433(6), p.166700.
+        - Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173.
         
         Args:
-            xyz (:math:`(frames, XYZ)` :class:`numpy.ndarray`, required):
-                Array of the 3D position of the frames extracted by using the `xyz()` function. 
-            beadSelection (:math:`(beadSelection)` :class:`numpy.ndarray`):
-                The index of the beads to be sliced from `xyz` that you want to compute RDP. Usualy, you can use the internal selection using the `dictChromSeq['types']` with 'types' been the selection that you want. 
+            xyz (numpy.ndarray):
+                Coordinate array with shape ``(frames, beads, 3)``, such as the
+                output of :meth:`xyz`.
+            beadSelection (numpy.ndarray, optional):
+                The index of the beads to be sliced from ``xyz`` that you want to compute RDP. Usually, you can use the internal selection in ``dictChromSeq['types']``.
             radius (float, required):
                 Radius of the sphere in units of :math:`\sigma` to be considered in the calculations. The radius value should be modified depending on your simulated chromosome length. (Default value = 20.0).
             bins (int, required):
                 Number of slices to be considered as spherical shells. (Default value = 200).
                        
         Returns:
-            :math:`(N, 1)` :class:`numpy.ndarray`:
-                Returns the radius of each spherical shell in units of :math:`\sigma`.
-            :math:`(N, 1)` :class:`numpy.ndarray`:
-                Returns the RDP - Radial Distribution Probability for each spherical shell.
+            tuple[numpy.ndarray, numpy.ndarray]:
+                Radius of each spherical shell and its radial distribution
+                probability.
         """
         
         def calcDist(a,b):

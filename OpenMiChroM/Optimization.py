@@ -840,13 +840,11 @@ class CustomMiChroMTraining:
     def get_lambdas_IC(self, exp_map='file.dense', damp=3*10**-7, write_error=True):
         R"""
         Calculates the Lagrange multipliers for the Ideal Chromosome optimization and returns a array containing the energy values for the IC optimization step.
+
         Args:
             exp_map (file, required):
                 The experimental Hi-C map with the .dense file. (Default value: :code:`file.dense`).
             damp (float):
-                The learning parameter for the new lambda. (Default value = :math:`3*10**-7`).
-            dmax (float):
-                The maximum distance in the sequence separation (Genomic Distance) to be considered for the convergence of the potential interations. (Default value = 200).    
                 The learning parameter for the new lambda. (Default value = :math:`3*10**-7`).
             write_error (boolean):
                 Flag to write the tolerance and Pearson's correlation values. (Default value: :code:`True`). 
