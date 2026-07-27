@@ -137,6 +137,21 @@ embedded index exposes small metadata datasets.
 The embedded HDF5 metadata reader includes MIT-licensed vendored components from
 ``hdf5-indexed-reader``/``pyfive`` under ``OpenMiChroM/_cndb_stream/_vendor``.
 
+Measured ENCODE benchmark
+-------------------------
+
+In a fresh benchmark against the 139 GB ENCODE file, a cold open took 49.19
+seconds and a warm cached open took 3.78 seconds. Exact reads of 10, 100, and
+1,000 beads transferred 120, 1,200, and 12,000 coordinate bytes. Reading four
+100-bead subsets transferred 4,800 bytes, compared with 239,040 bytes when four
+complete frames were read before local subsetting.
+
+The full methodology, raw CSV/JSON results, and PNG/SVG figures are in the
+`remote CNDB benchmark report
+<docs/source/Developer/remote_cndb_benchmark.rst>`__ and ``benchmarks/results``.
+Timings are network-dependent; the byte counts are deterministic for these
+contiguous ``float32`` coordinate datasets.
+
 Remote files that do not stream safely are rejected by default. For small remote
 files only, users may explicitly opt into a size-limited download fallback:
 

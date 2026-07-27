@@ -48,6 +48,7 @@
    Developer/structural_file_io_changelog
    Developer/structural_file_io_remaining_work
    Developer/public_structural_file_compatibility
+   Developer/remote_cndb_benchmark
 
 Indices and tables
 ==================
