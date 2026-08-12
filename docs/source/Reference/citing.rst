@@ -45,8 +45,8 @@ To cite these references, you can use the following BibTeX entry:
       number={6},
       pages={166700},
       year={2020},
-      publisher={Elsevier}
-      doi = {https://doi.org/10.1016/j.jmb.2020.10.034},
+      publisher={Elsevier},
+      doi={10.1016/j.jmb.2020.10.034},
     }
 
     @article{OpenMiChroM_Opt_2021,
@@ -92,4 +92,3 @@ To cite these references, you can use the following BibTeX entry:
     
 
   
-

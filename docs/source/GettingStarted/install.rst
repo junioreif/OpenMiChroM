@@ -21,13 +21,14 @@ The code below will install **OpenMiChroM** from PyPI:
 .. note::
 
     **OpenMiChroM** relies on the `OpenMM <http://openmm.org/>`_ API to run
-    chromatin dynamics simulations. OpenMM can now also be installed via pip,
-    which may be preferable for some users.    OpenMM is now available as a pip-installable package. You can install it using pip openmm[cuda12] to iinstall to use with GPU's or openmm to install for CPU's only:
+    chromatin dynamics simulations. Install the standard package for CPU use,
+    or the CUDA extra on a supported NVIDIA system:
 
 
     .. code-block:: bash
 
-        pip install openmm[cuda12] 
+        pip install openmm
+        # or: pip install "openmm[cuda12]"
 
     Alternatively, if you prefer using conda, install OpenMM from the
     `conda-forge channel <https://conda-forge.org/>`_ with:
@@ -60,7 +61,7 @@ Required Libraries
 
 The following libraries are **required** for installing **OpenMiChroM**:
 
-- `Python <https://www.python.org/>`_ (>=3.6)
+- `Python <https://www.python.org/>`_ (>=3.10)
 - `NumPy <https://www.numpy.org/>`_ (>=1.14)
 - `SciPy <https://www.scipy.org/>`_ (>=1.5.0)
 - `six <https://pypi.org/project/six/>`_ (>=1.14.0)
@@ -79,5 +80,5 @@ OpenMiChroM. No separate streaming package is required:
     pip install OpenMiChroM
 
 The standard local ``h5py`` CNDB workflow remains the default. Remote streaming
-uses an internal indexed HDF5 backend only when ``CndbTools.from_remote`` is
-called.
+uses an internal indexed HDF5 backend when ``CndbTools.load`` receives an
+HTTP(S) URL or when ``CndbTools.from_remote`` is called explicitly.

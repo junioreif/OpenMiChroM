@@ -4,6 +4,7 @@
 
    GettingStarted/install
    GettingStarted/intro
+   GettingStarted/validation
    
 .. toctree::
    :maxdepth: 2
@@ -31,6 +32,7 @@
 
    Reference/citing
    Reference/references
+   Reference/cndb_stream
    Reference/license
 
 Indices and tables

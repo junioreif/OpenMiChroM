@@ -78,8 +78,8 @@ Example using a real ENCODE CNDB file:
 
       ENCODE_URL = "https://encode-public.s3.amazonaws.com/2023/02/02/7f75d816-342a-4b49-adbd-aaa499dc5201/ENCFF161DID.cndb"
 
-      tools = CndbTools.from_remote(
-          h5_url=ENCODE_URL,
+      tools = CndbTools().load(
+          ENCODE_URL,
           trajectory="replica1_chr1",
           index_cache_path="ENCFF161DID.embedded-index.json.gz",
       )
@@ -96,10 +96,21 @@ The full 139 GB CNDB file is not downloaded. The embedded HDF5 index is read
 once and can be cached locally. Coordinate reads use HTTP Range requests, and
 contiguous bead ranges are read with exact byte ranges. Non-contiguous bead
 selections may read the smallest enclosing bead range and then subset in memory.
-Remote streaming currently focuses on coordinate access; type dictionaries such
-as ``dictChromSeq`` are still populated only by the local ``h5py`` workflow.
+When type metadata is present in the index, remote and local workflows both
+populate ``ChromSeq`` and ``dictChromSeq``.
 The embedded HDF5 metadata reader includes MIT-licensed vendored components from
 ``hdf5-indexed-reader``/``pyfive`` under ``OpenMiChroM/_cndb_stream/_vendor``.
+
+Current writers store ``format="cndb"`` and ``format_version="1.0.0"`` as
+authoritative HDF5 attributes. Readers warn and accept legacy files without a
+version (or with a 0.x version), accept supported 1.x files, and reject malformed
+or future-major versions before reading coordinates.
+
+An ``index_cache_path`` is optional. When supplied, the parsed embedded index is
+written atomically as a persistent JSON.gz file and is owned by the caller; it is
+not deleted automatically. Without that option, metadata caching is in memory
+only and is released by ``close()``. Use ``with CndbTools().load(...) as tools``
+or call ``tools.close()`` to release local files and remote readers promptly.
 
 Resources
 =========
@@ -130,6 +141,28 @@ The sync script copies mapped ``.ipynb`` files, skips checkpoint files, preserve
 notebook metadata and cell IDs, and refuses source notebooks with very large
 embedded outputs.
 
+Developer validation
+====================
+
+Create the recorded environment and install the editable package:
+
+::
+
+      CONDA_NO_PLUGINS=true conda env create --solver classic -f environment.yml
+      conda activate openmichrom-cndbtools-integration-py310
+
+Run frequent offline checks or the complete pre-review suite:
+
+::
+
+      python scripts/validate.py fast
+      python scripts/validate.py complete
+
+Both modes are CPU-safe and offline by default. Add ``--network`` for the live
+ENCODE integration check or ``--gpu`` to require the OpenMM CUDA platform. The
+complete notebook suite uses explicitly documented reduced validation step
+counts; ``--full-science --network`` selects the production tutorial workloads.
+
 Citation
 ========
 
@@ -152,13 +185,14 @@ The code below will install **OpenMiChroM** from PyPI:
 
 .. note::
 
-    **OpenMiChroM** relies on the `OpenMM <http://openmm.org/>`_ API to run the chromatin dynamics simulations.
-    
-    OpenMM is now available as a pip-installable package. You can install it using pip openmm[cuda12] to iinstall to use with GPU's or openmm to install for CPU's only:
+    **OpenMiChroM** relies on the `OpenMM <http://openmm.org/>`_ API to run
+    chromatin dynamics simulations. Install the standard package for CPU use,
+    or the CUDA extra on a supported NVIDIA system:
 
     .. code-block:: bash
 
-        pip install openmm[cuda12]
+        pip install openmm
+        # or: pip install "openmm[cuda12]"
 
     Alternatively, if you prefer to use conda, install OpenMM from the `conda-forge channel <https://conda-forge.org/>`_ with:
 
@@ -189,7 +223,7 @@ Required Libraries
 
 The following libraries are **required** for installing **OpenMiChroM**:
 
-- `Python <https://www.python.org/>`__ (>=3.6)
+- `Python <https://www.python.org/>`__ (>=3.10)
 - `NumPy <https://www.numpy.org/>`__ (>=1.14)
 - `SciPy <https://www.scipy.org/>`__ (>=1.5.0)
 - `h5py <https://www.h5py.org/>`__ (>=2.0.0)

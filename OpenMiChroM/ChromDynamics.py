@@ -630,13 +630,13 @@ class MiChroM:
         The function receives a txt/TSV/CSV file containing the upper triangular matrix of the type-to-type interactions. A file example can be found `here <https://github.com/junioreif/OpenMiChroM/blob/main/OpenMiChroM/share/MiChroM.ff>`__.
         
         +---+------+-------+-------+
-        |  |   A  |   B   |   C   |
+        |   | A    | B     | C     |
+        +===+======+=======+=======+
+        |   | -0.2 | -0.25 | -0.15 |
         +---+------+-------+-------+
-        |  | -0.2 | -0.25 | -0.15 |
+        |   |      | -0.3  | -0.15 |
         +---+------+-------+-------+
-        |  |      |  -0.3 | -0.15 |
-        +---+------+-------+-------+
-        |  |      |       | -0.35 |
+        |   |      |       | -0.35 |
         +---+------+-------+-------+
         
         Args:
@@ -1493,14 +1493,15 @@ class MiChroM:
                 Default is `'auto'`.
         
         Example:
-            ```python
-            simulation = MichromSimulation()
+
+        .. code-block:: python
+
+            simulation = MiChroM()
             simulation.buildClassicMichrom(
                 ChromSeq="/path/to/chromosome_sequence.txt",
-                CoordFiles="/path/to/coordinate_files/",
-                mode='spring'
+                CoordFiles="/path/to/coordinates.ndb",
+                mode="spring",
             )
-            ```
         """
 
         initialPos = self.initStructure(mode=mode, CoordFiles=CoordFiles, ChromSeq=ChromSeq, chromosome=chromosome,isRing=False)
@@ -1928,9 +1929,10 @@ class MiChroM:
         Creates a chromosome polymer chain with beads position based on a random walk.
         
         Args:
+            ChromSeq (file, required):
+                Chromatin sequence of types file. The first column should contain
+                the locus index and the second column its chromatin type.
 
-        ChromSeq (file, required):
-            Chromatin sequence of types file. The first column should contain the locus index. The second column should have the locus type annotation. A template of the chromatin sequence of types file can be found at the `Nucleome Data Bank (NDB) <https://ndb.rice.edu/static/text/chr10_beads.txt>`__.
         Returns:
             :math:`(N, 3)` :class:`numpy.ndarray`:
                 Returns an array of positions.
