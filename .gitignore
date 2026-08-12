@@ -1,1 +1,7 @@
 OpenMiChroM.egg-info
+__pycache__/
+*.py[cod]
+.pytest_cache/
+build/
+dist/
+docs/_build/

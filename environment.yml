@@ -1,0 +1,20 @@
+name: openmichrom-cndbtools-integration-py310
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10.20
+  - openmm=8.5.2
+  - numpy=2.2.6
+  - scipy=1.15.2
+  - scikit-learn=1.7.2
+  - h5py=3.16.0
+  - hdf5=2.1.0
+  - pandas=2.3.3
+  - matplotlib=3.10.9
+  - pytest=9.1.1
+  - jupyter=1.0.0
+  - pip=26.2.1
+  - pip:
+      - build==1.5.0
+      - -r docs/requirements.txt
+      - -e .
