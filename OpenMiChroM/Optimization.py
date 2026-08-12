@@ -22,11 +22,25 @@ import random
 from scipy.spatial import distance
 import scipy as sc
 import itertools
-from scipy.stats.stats import pearsonr
+from scipy.stats import pearsonr
 from sklearn.preprocessing import normalize
 import os
 import pandas as pd
 import warnings
+
+
+def _normalize_matrix(matrix):
+    """Shared implementation for the two public training-class wrappers."""
+
+    matrix = np.nan_to_num(matrix, nan=0, posinf=0, neginf=0)
+    np.fill_diagonal(matrix, 0.0)
+    max_values = np.amax(np.triu(matrix), axis=1)
+    max_values[max_values == 0] = 0.0000001
+    normalized_matrix = np.triu(matrix) / max_values[:, np.newaxis]
+    matrix = normalized_matrix + np.triu(normalized_matrix, k=1).T
+    np.fill_diagonal(matrix, 1.0)
+    return matrix
+
 
 class AdamTraining:
     R"""
@@ -241,20 +255,7 @@ class AdamTraining:
         R"""
         Normalize the matrix for simulation optimization. Here the first neighbor should have the probability of contact P=1.0.
         """
-        matrix = np.nan_to_num(matrix, nan=0, posinf=0, neginf=0)
-        np.fill_diagonal(matrix,0.0)
-
-        max_values = np.amax(np.triu(matrix), axis=1)
-        
-        # To avoid division by zero, replace zeros with ones
-        max_values[max_values == 0] = 0.0000001
-        
-        normalized_matrix = np.triu(matrix) / max_values[:, np.newaxis]
-        # return normalized_matrix
-        matrix= normalized_matrix + np.triu(normalized_matrix,k=1).T
-        np.fill_diagonal(matrix,1.0)
-
-        return matrix
+        return _normalize_matrix(matrix)
 
 
     def knight_ruiz_balance(self, matrix, tol=1e-5, max_iter=100):
@@ -278,17 +279,6 @@ class AdamTraining:
 
     
     
-    def reset_Pi(self):
-        R"""
-        Resets Pi matrix to zeros
-        """
-        if not hasattr(self, "phi_exp"):
-            print("Cannot reset Pi; HiC map shape unknown. Load HiC map first!")
-        else:              
-            self.Pi = np.zeros(self.phi_exp.shape)
-            self.NFrames = 0
-
-
     def getHiCexp(self, HiC, centerRemove=False, centrange=[0,0], norm=True, cutoff_low=0.0, cutoff_high=1.0, KR=False, neighbors=0):
         R"""
         Receives the experimental Hi-C map (Full dense matrix) in a text format and performs the data normalization from Hi-C frequency/counts/reads to probability.
@@ -744,20 +734,7 @@ class CustomMiChroMTraining:
         R"""
         Normalize the matrix for simulation optimization. Here the first neighbor should have the probability of contact P=1.0.
         """
-        matrix = np.nan_to_num(matrix, nan=0, posinf=0, neginf=0)
-        np.fill_diagonal(matrix,0.0)
-
-        max_values = np.amax(np.triu(matrix), axis=1)
-        
-        # To avoid division by zero, replace zeros with ones
-        max_values[max_values == 0] = 0.0000001
-        
-        normalized_matrix = np.triu(matrix) / max_values[:, np.newaxis]
-        # return normalized_matrix
-        matrix= normalized_matrix + np.triu(normalized_matrix,k=1).T
-        np.fill_diagonal(matrix,1.0)
-
-        return matrix
+        return _normalize_matrix(matrix)
 
     def get_HiC_exp(self, HiC, centerRemove=False, centrange=[0,0], norm=False, cutoff_low=0.0, cutoff_high=1.0, KR=False, neighbors=0):
         R"""
@@ -839,17 +816,19 @@ class CustomMiChroMTraining:
     
     def get_lambdas_IC(self, exp_map='file.dense', damp=3*10**-7, write_error=True):
         R"""
-        Calculates the Lagrange multipliers for the Ideal Chromosome optimization and returns a array containing the energy values for the IC optimization step.
+        Calculate Lagrange multipliers for an Ideal Chromosome optimization.
+
         Args:
             exp_map (file, required):
                 The experimental Hi-C map with the .dense file. (Default value: :code:`file.dense`).
             damp (float):
                 The learning parameter for the new lambda. (Default value = :math:`3*10**-7`).
-            dmax (float):
-                The maximum distance in the sequence separation (Genomic Distance) to be considered for the convergence of the potential interations. (Default value = 200).    
-                The learning parameter for the new lambda. (Default value = :math:`3*10**-7`).
             write_error (boolean):
                 Flag to write the tolerance and Pearson's correlation values. (Default value: :code:`True`). 
+
+        Returns:
+            :class:`numpy.ndarray`:
+                Energy values for the Ideal Chromosome optimization step.
         """    
         
         dmax = self.dend - self.dinit
