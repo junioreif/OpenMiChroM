@@ -8,6 +8,8 @@ from openmm import unit
 from openmm.app import StateDataReporter
 from datetime import datetime
 
+from ._cndb_stream.version import CNDB_FORMAT_NAME, CNDB_FORMAT_VERSION
+
 
 class SaveStructure(StateDataReporter):
     """
@@ -71,18 +73,19 @@ class SaveStructure(StateDataReporter):
             for k, chain in enumerate(self.chains):
                 fname = os.path.join(self.folder, f"{self.filePrefix}_{k}.cndb")
                 storageFile = h5py.File(fname, "w")
+                storageFile.attrs["format"] = CNDB_FORMAT_NAME
+                storageFile.attrs["format_version"] = CNDB_FORMAT_VERSION
                 storageFile['types'] = self.typeListLetter[chain[0]:chain[1]+1]
                 self.storage.append(storageFile)
 
     def __del__(self):
-        # Close any open storage files 
-        # #its not work in notebooks
-        if self.mode == 'cndb' and hasattr(self, 'storage'):
-            for storageFile in self.storage:
-                storageFile.close()
+        self.close()
 
-        if self.mode == 'swb' and hasattr(self, 'storage'):
-            for storageFile in self.storage:
+    def close(self):
+        """Flush and close trajectory files; safe to call repeatedly."""
+
+        for storageFile in getattr(self, "storage", []):
+            if storageFile.id.valid:
                 storageFile.close()
 
     def describeNextReport(self, simulation):

@@ -2,10 +2,29 @@
 
 from __future__ import annotations
 
+import re
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
-from .exceptions import RangeRequestUnsupportedError
+from .exceptions import RangeRequestUnsupportedError, RemoteAccessError
+
+
+def validate_http_url(url: str) -> str:
+    """Return a normalized HTTP(S) URL or raise a useful validation error."""
+
+    if not isinstance(url, str):
+        raise TypeError("Remote CNDB URLs must be strings.")
+    if any(character.isspace() for character in url):
+        raise ValueError(f"Remote CNDB URL contains whitespace: {url!r}.")
+    parsed = urlsplit(url)
+    if parsed.scheme.lower() not in {"http", "https"}:
+        raise ValueError(
+            f"Unsupported remote CNDB URL scheme {parsed.scheme!r}; use http:// or https://."
+        )
+    if not parsed.netloc or parsed.hostname is None:
+        raise ValueError(f"Malformed remote CNDB URL {url!r}: a host is required.")
+    return url
 
 
 def read_range(
@@ -22,6 +41,7 @@ def read_range(
     sending the full HDF5 file.
     """
 
+    url = validate_http_url(url)
     if start < 0:
         raise ValueError("Range start must be non-negative.")
     if stop_exclusive < start:
@@ -45,15 +65,43 @@ def read_range(
                     f"Remote server returned status {status} to Range request "
                     f"bytes={start}-{stop_inclusive}."
                 )
-            return response.read()
+            final_url = response.geturl()
+            validate_http_url(final_url)
+            content_range = response.headers.get("Content-Range")
+            match = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+)", content_range or "")
+            if match is None:
+                raise RemoteAccessError(
+                    "Remote server returned an invalid Content-Range header for "
+                    f"bytes={start}-{stop_inclusive}: {content_range!r}."
+                )
+            returned_start, returned_stop, total_size = map(int, match.groups())
+            expected_stop = min(stop_exclusive, total_size) - 1
+            if (
+                returned_start != start
+                or start >= total_size
+                or returned_stop != expected_stop
+            ):
+                raise RemoteAccessError(
+                    "Remote server returned an invalid Content-Range header for "
+                    f"bytes={start}-{stop_inclusive}: {content_range!r}."
+                )
+            expected_length = returned_stop - returned_start + 1
+            data = response.read(expected_length + 1)
+            if len(data) != expected_length:
+                raise RemoteAccessError(
+                    f"Remote range bytes={start}-{stop_inclusive} returned {len(data)} "
+                    f"bytes; expected exactly {expected_length}."
+                )
+            return data
     except HTTPError as exc:
-        raise RangeRequestUnsupportedError(
-            f"Remote server returned status {exc.code} to Range request "
-            f"bytes={start}-{stop_inclusive}."
+        raise RemoteAccessError(
+            f"Remote server returned HTTP {exc.code} for Range request "
+            f"bytes={start}-{stop_inclusive} at {url}."
         ) from exc
     except URLError as exc:
-        raise RangeRequestUnsupportedError(
-            f"Could not complete HTTP Range request bytes={start}-{stop_inclusive}: {exc.reason}"
+        raise RemoteAccessError(
+            f"Could not access remote CNDB URL {url} for Range request "
+            f"bytes={start}-{stop_inclusive}: {exc.reason}"
         ) from exc
 
 
@@ -61,14 +109,19 @@ class RemoteByteReader:
     """Remote file reader that counts bytes returned from range requests."""
 
     def __init__(self, url: str, *, timeout: float = 30.0) -> None:
-        self.url = url
+        self.url = validate_http_url(url)
         self.timeout = timeout
         self.bytes_read = 0
+        self.file_size: int | None = None
 
     def read_range(self, start: int, stop_exclusive: int) -> bytes:
         """Read bytes and update the byte counter."""
 
+        if self.file_size is not None and start >= self.file_size:
+            return b""
         data = read_range(self.url, start, stop_exclusive, timeout=self.timeout)
+        if len(data) < stop_exclusive - start:
+            self.file_size = start + len(data)
         self.bytes_read += len(data)
         return data
 

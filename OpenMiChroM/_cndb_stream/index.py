@@ -11,6 +11,7 @@ import h5py
 import numpy as np
 
 from .utils import json_safe_value, sort_frame_ids
+from .version import metadata_from_attrs
 
 INDEX_VERSION = "0.1"
 NESTED_INDEX_VERSION = "0.2"
@@ -80,6 +81,7 @@ def _build_simple_index(h5: h5py.File) -> dict[str, Any]:
         "frame_ids": frame_ids,
         "types_path": types_path,
         "frames": {frame_id: frames[frame_id] for frame_id in frame_ids},
+        **_file_format_metadata(h5),
     }
     if types is not None:
         index["types"] = types
@@ -116,6 +118,7 @@ def _build_nested_index(
         "format": INDEX_FORMAT,
         "layout": NESTED_NDB_LAYOUT,
         "trajectories": trajectory_indexes,
+        **_file_format_metadata(h5),
     }
 
 
@@ -217,3 +220,14 @@ def _read_types(dataset: h5py.Dataset) -> list[Any]:
     if isinstance(safe_values, list):
         return safe_values
     return [safe_values]
+
+
+def _file_format_metadata(h5: h5py.File) -> dict[str, str | None]:
+    """Read authoritative format metadata from the root or legacy Header group."""
+
+    root_metadata = metadata_from_attrs(h5.attrs)
+    if root_metadata["cndb_format"] or root_metadata["cndb_format_version"]:
+        return root_metadata
+    if "Header" in h5 and isinstance(h5["Header"], h5py.Group):
+        return metadata_from_attrs(h5["Header"].attrs)
+    return root_metadata

@@ -9,21 +9,67 @@ Details about the NDB/CNDB file format can be found at the `Nucleome Data Bank <
 import h5py
 import numpy as np
 import os
+from pathlib import Path
 from scipy.spatial import distance
+
+from OpenMiChroM._cndb_stream.exceptions import CNDBFormatError, FrameNotFoundError
+from OpenMiChroM._cndb_stream.remote import validate_http_url
+from OpenMiChroM._cndb_stream.version import (
+    CNDB_FORMAT_NAME,
+    CNDB_FORMAT_VERSION,
+    metadata_from_attrs,
+    validate_format_metadata,
+)
+
+
+def _source_kind(source):
+    """Classify a path-like or string source without guessing from colons alone."""
+
+    if isinstance(source, os.PathLike):
+        return "local"
+    if not isinstance(source, str):
+        raise TypeError("CNDB source must be a local path or an HTTP(S) URL string.")
+    if "://" not in source:
+        return "local"
+    validate_http_url(source)
+    return "remote"
 
 
 class _CNDBStreamBackend:
     """Thin adapter around the internal indexed CNDB streaming backend."""
 
-    def __init__(self, h5_url, trajectory=None, index_cache_path=None, **kwargs):
+    def __init__(
+        self,
+        h5_url,
+        trajectory=None,
+        index_cache_path=None,
+        index_path=None,
+        index_url=None,
+        **kwargs,
+    ):
         from OpenMiChroM._cndb_stream import IndexedCNDB
 
-        self.traj = IndexedCNDB.from_embedded_index(
-            h5_url=h5_url,
-            trajectory=trajectory,
-            index_cache_path=index_cache_path,
-            **kwargs,
-        )
+        validate_http_url(h5_url)
+        if index_path is not None or index_url is not None:
+            if index_cache_path is not None:
+                raise ValueError(
+                    "index_cache_path applies only to embedded indexes and cannot be "
+                    "combined with index_path or index_url."
+                )
+            self.traj = IndexedCNDB(
+                h5_url=h5_url,
+                index_path=index_path,
+                index_url=index_url,
+                trajectory=trajectory,
+                **kwargs,
+            )
+        else:
+            self.traj = IndexedCNDB.from_embedded_index(
+                h5_url=h5_url,
+                trajectory=trajectory,
+                index_cache_path=index_cache_path,
+                **kwargs,
+            )
 
     @property
     def n_frames(self):
@@ -45,8 +91,19 @@ class _CNDBStreamBackend:
     def current_trajectory(self):
         return self.traj.current_trajectory
 
+    @property
+    def types(self):
+        return self.traj.types
+
+    @property
+    def format_metadata(self):
+        return self.traj.format_metadata
+
     def get_coordinates(self, frame, start=None, stop=None):
         return self.traj.get_coordinates(frame=frame, start=start, stop=stop)
+
+    def close(self):
+        self.traj.close()
 
     def stats(self):
         return {
@@ -65,9 +122,30 @@ class cndbTools:
         self.Type_conversionInv = {y:x for x,y in self.Type_conversion.items()}
         self._stream_backend = None
         self.is_remote = False
+        self.cndb = None
+        self.ChromSeq = []
+        self.uniqueChromSeq = set()
+        self.dictChromSeq = {}
+        self.Nbeads = 0
+        self.Nframes = 0
+        self.frame_ids = []
+        self.trajectories = []
+        self.current_trajectory = None
+        self.format_name = None
+        self.format_version = None
+        self.format_status = None
+        self.closed = False
 
     @classmethod
-    def from_remote(cls, h5_url, trajectory=None, index_cache_path=None, **kwargs):
+    def from_remote(
+        cls,
+        h5_url,
+        trajectory=None,
+        index_cache_path=None,
+        index_path=None,
+        index_url=None,
+        **kwargs,
+    ):
         R"""
         Open a remote indexed CNDB/HDF5 file using the internal streaming backend.
 
@@ -91,21 +169,39 @@ class cndbTools:
             h5_url=h5_url,
             trajectory=trajectory,
             index_cache_path=index_cache_path,
+            index_path=index_path,
+            index_url=index_url,
             **kwargs,
         )
         tool.is_remote = True
         tool.cndb = None
-        tool.ChromSeq = []
-        tool.uniqueChromSeq = set()
-        tool.dictChromSeq = {}
+        tool.ChromSeq = list(tool._stream_backend.types or [])
+        tool.uniqueChromSeq = set(tool.ChromSeq)
+        tool.dictChromSeq = {
+            chrom_type: [
+                index for index, value in enumerate(tool.ChromSeq) if value == chrom_type
+            ]
+            for chrom_type in tool.uniqueChromSeq
+        }
         tool.Nbeads = tool._stream_backend.n_beads
         tool.Nframes = tool._stream_backend.n_frames
         tool.frame_ids = tool._stream_backend.frame_ids
         tool.trajectories = tool._stream_backend.trajectories
         tool.current_trajectory = tool._stream_backend.current_trajectory
+        tool._set_format_metadata(tool._stream_backend.format_metadata)
         return tool
     
-    def load(self, fileName):
+    def load(
+        self,
+        fileName=None,
+        *,
+        filename=None,
+        trajectory=None,
+        index_cache_path=None,
+        index_path=None,
+        index_url=None,
+        **kwargs,
+    ):
         R"""
         Receives the path to **cndb** or **ndb** file to perform analysis.
         
@@ -113,16 +209,58 @@ class cndbTools:
             fileName (file, required):
                 Path to cndb or ndb file. If an ndb file is given, it is converted to a cndb file and saved in the same directory.
         """
-        f_name, file_extension = os.path.splitext(fileName)
-        
-        if file_extension == ".ndb":
-            fileName = Chrom_utils.ndb2cndb(f_name)   
+        if fileName is not None and filename is not None:
+            raise TypeError("Pass only one of fileName or filename.")
+        source = fileName if fileName is not None else filename
+        if source is None:
+            raise TypeError("load() requires a local path or HTTP(S) URL.")
+        if _source_kind(source) == "remote":
+            remote = type(self).from_remote(
+                str(source),
+                trajectory=trajectory,
+                index_cache_path=index_cache_path,
+                index_path=index_path,
+                index_url=index_url,
+                **kwargs,
+            )
+            self.close()
+            self.__dict__.update(remote.__dict__)
+            return self
+        if any(value is not None for value in (trajectory, index_cache_path, index_path, index_url)):
+            raise ValueError("Remote index and trajectory options cannot be used with a local path.")
+        if kwargs:
+            raise TypeError(f"Unexpected local CNDB options: {sorted(kwargs)}")
 
-        self.cndb = h5py.File(fileName, 'r')
+        path = Path(source).expanduser()
+        if not path.exists():
+            raise FileNotFoundError(f"Local CNDB/NDB file does not exist: {path}")
+        if not path.is_file():
+            raise FileNotFoundError(f"Local CNDB/NDB source is not a regular file: {path}")
+        f_name, file_extension = os.path.splitext(path)
+        if file_extension.lower() == ".ndb":
+            path = Path(self.ndb2cndb(str(f_name)))
+
+        self.close()
+        try:
+            self.cndb = h5py.File(path, "r")
+        except (OSError, ValueError) as exc:
+            raise CNDBFormatError(f"Could not open {path} as a CNDB/HDF5 file: {exc}") from exc
         self._stream_backend = None
         self.is_remote = False
-        
-        self.ChromSeq = list(self.cndb['types'])
+        self.closed = False
+
+        if "types" not in self.cndb or not isinstance(self.cndb["types"], h5py.Dataset):
+            self.close()
+            raise CNDBFormatError(f"CNDB file {path} is missing the required 'types' dataset.")
+
+        metadata = metadata_from_attrs(self.cndb.attrs)
+        if not metadata["cndb_format"] and "Header" in self.cndb:
+            header = self.cndb["Header"]
+            if isinstance(header, h5py.Group):
+                metadata = metadata_from_attrs(header.attrs)
+        self._set_format_metadata(validate_format_metadata(metadata, source=str(path)))
+
+        self.ChromSeq = list(self.cndb["types"])
         self.uniqueChromSeq = set(self.ChromSeq)
         
         self.dictChromSeq = {}
@@ -131,15 +269,40 @@ class cndbTools:
             self.dictChromSeq[tt] = ([i for i, e in enumerate(self.ChromSeq) if e == tt])
         
         self.Nbeads = len(self.ChromSeq)
-        self.Nframes = len(self.cndb.keys()) -1
         self.frame_ids = sorted(
             [key for key in self.cndb.keys() if str(key).isdigit()],
             key=lambda frame: int(frame),
         )
+        self.Nframes = len(self.frame_ids)
         self.trajectories = []
         self.current_trajectory = None
         
         return(self)
+
+    def _set_format_metadata(self, metadata):
+        self.format_name = metadata.get("cndb_format")
+        self.format_version = metadata.get("cndb_format_version")
+        self.format_status = metadata.get("cndb_format_status")
+
+    def close(self):
+        """Close local or remote CNDB resources; safe to call repeatedly."""
+
+        backend = getattr(self, "_stream_backend", None)
+        if backend is not None:
+            backend.close()
+        local_file = getattr(self, "cndb", None)
+        if local_file is not None:
+            try:
+                local_file.close()
+            finally:
+                self.cndb = None
+        self.closed = True
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
     
     
 
@@ -151,77 +314,49 @@ class cndbTools:
             filename (path, required):
                     Path to the ndb file to be converted to cndb.
         """
-        Main_chrom      = ['ChrA','ChrB','ChrU'] # Type A B and Unknow
-        Chrom_types     = ['ZA','OA','FB','SB','TB','LB','UN']
-        Chrom_types_NDB = ['A1','A2','B1','B2','B3','B4','UN']
-        Res_types_PDB   = ['ASP', 'GLU', 'ARG', 'LYS', 'HIS', 'HIS', 'GLY']
         Type_conversion = {'A1': 0,'A2' : 1,'B1' : 2,'B2' : 3,'B3' : 4,'B4' : 5,'UN' : 6}
-        title_options = ['HEADER','OBSLTE','TITLE ','SPLT  ','CAVEAT','COMPND','SOURCE','KEYWDS','EXPDTA','NUMMDL','MDLTYP','AUTHOR','REVDAT','SPRSDE','JRNL  ','REMARK']
-        model          = "MODEL     {0:4d}"
-        atom           = "ATOM  {0:5d} {1:^4s}{2:1s}{3:3s} {4:1s}{5:4d}{6:1s}   {7:8.3f}{8:8.3f}{9:8.3f}{10:6.2f}{11:6.2f}          {12:>2s}{13:2s}"
-        ter            = "TER   {0:5d}      {1:3s} {2:1s}{3:4d}{4:1s}"
-
         file_ndb = fileName + str(".ndb")
         name     = fileName + str(".cndb")
-
-        cndbf = h5py.File(name, 'w')
-        
-        ndbfile = open(file_ndb, "r")
-        
-        loop = 0
         types = []
         types_bool = True
         loop_list = []
-        x = []
-        y = [] 
-        z = []
-
+        x, y, z = [], [], []
         frame = 0
 
-        for line in ndbfile:
+        with open(file_ndb, "r", encoding="utf-8") as ndbfile, h5py.File(name, "w") as cndbf:
+            cndbf.attrs["format"] = CNDB_FORMAT_NAME
+            cndbf.attrs["format_version"] = CNDB_FORMAT_VERSION
+            for line in ndbfile:
+                entry = line[0:6]
+                info = line.split()
 
-            entry = line[0:6]
+                if "MODEL" in entry:
+                    frame += 1
+                elif "CHROM" in entry:
+                    subtype = line[16:18]
+                    types.append(subtype)
+                    x.append(float(line[40:48]))
+                    y.append(float(line[49:57]))
+                    z.append(float(line[58:66]))
+                elif "ENDMDL" in entry:
+                    if types_bool:
+                        try:
+                            cndbf["types"] = [Type_conversion[value] for value in types]
+                        except KeyError as exc:
+                            raise CNDBFormatError(
+                                f"Unsupported NDB chromatin type {exc.args[0]!r} in {file_ndb}."
+                            ) from exc
+                        types_bool = False
+                    cndbf[str(frame)] = np.vstack([x, y, z]).T
+                    x, y, z = [], [], []
+                elif "LOOPS" in entry:
+                    loop_list.append([int(info[1]), int(info[2])])
 
-            info = line.split()
-
-
-            if 'MODEL' in entry:
-                frame += 1
-
-                inModel = True
-
-            elif 'CHROM' in entry:
-
-                subtype = line[16:18]
-
-                types.append(subtype)
-                x.append(float(line[40:48]))
-                y.append(float(line[49:57]))
-                z.append(float(line[58:66]))
-
-            elif 'ENDMDL' in entry:
-                if types_bool:
-                    typelist = [Type_conversion[x] for x in types]
-                    cndbf['types'] = typelist
-                    types_bool = False
-
-                positions = np.vstack([x,y,z]).T
-                cndbf[str(frame)] = positions
-                x = []
-                y = []
-                z = []
-
-            elif 'LOOPS' in entry:
-                loop_list.append([int(info[1]), int(info[2])])
-                loop += 1
-        
-        if loop > 0:
-            cndbf['loops'] = loop_list
-
-        cndbf.close()
+            if loop_list:
+                cndbf["loops"] = loop_list
         return(name)
     
-    def xyz(self, frames=None, beadSelection=None, XYZ=[0,1,2]):
+    def xyz(self, frames=None, beadSelection=None, XYZ=(0, 1, 2)):
         R"""
         Get the selected beads' 3D position from a **cndb** or **ndb** for multiple frames.
         
@@ -238,68 +373,85 @@ class cndbTools:
         """
         if self._stream_backend is not None:
             return self._xyz_stream(frames=frames, beadSelection=beadSelection, XYZ=XYZ)
+        if self.cndb is None or self.closed:
+            raise ValueError("Load a CNDB file before requesting coordinates.")
+
+        selected_frames = self._normalize_frames(frames)
+        selection = self._normalize_bead_selection(beadSelection)
+        axes = self._normalize_axes(XYZ)
+        if not selected_frames:
+            return np.empty((0, selection.size, axes.size), dtype=float)
 
         frame_list = []
-        
-        if beadSelection == None:
-            selection = np.arange(self.Nbeads)
-        else:
-            selection = np.array(beadSelection)
-            
-        if frames == None:
-            frames = range(1,self.Nframes+1,1)
-        
-        for i in frames:
-            frame_list.append(np.take(np.take(np.array(self.cndb[str(i)]), selection, axis=0), XYZ, axis=1))
-        return(np.array(frame_list))
+        for frame_id in selected_frames:
+            try:
+                dataset = self.cndb[frame_id]
+                if not isinstance(dataset, h5py.Dataset) or dataset.ndim != 2 or dataset.shape[1] != 3:
+                    raise CNDBFormatError(
+                        f"Frame {frame_id!r} is not a coordinate dataset shaped (n_beads, 3)."
+                    )
+                frame_list.append(np.take(np.take(np.asarray(dataset), selection, axis=0), axes, axis=1))
+            except (OSError, ValueError) as exc:
+                raise CNDBFormatError(f"Could not read CNDB frame {frame_id!r}: {exc}") from exc
+        return np.asarray(frame_list)
 
-    def _xyz_stream(self, frames=None, beadSelection=None, XYZ=[0,1,2]):
+    def _xyz_stream(self, frames=None, beadSelection=None, XYZ=(0, 1, 2)):
         R"""
         Streaming implementation of ``xyz`` using the internal CNDB backend.
 
         Contiguous bead ranges are read with exact byte ranges. Non-contiguous
         selections read the minimal enclosing bead interval and subset in memory.
         """
-        frame_list = []
-        if frames is None:
-            frames = self.frame_ids
-        elif isinstance(frames, (int, np.integer, str)):
-            frames = [frames]
-
+        selected_frames = self._normalize_frames(frames)
         start, stop, post_selection = self._stream_bead_window(beadSelection)
-        axis_selection = np.array(XYZ)
+        axis_selection = self._normalize_axes(XYZ)
 
-        for frame in frames:
+        if not selected_frames:
+            bead_count = 0 if start is None else stop - start
+            if post_selection is not None:
+                bead_count = len(post_selection)
+            elif start is None:
+                bead_count = self.Nbeads
+            return np.empty((0, bead_count, axis_selection.size), dtype=float)
+
+        frame_list = []
+        for frame in selected_frames:
             coords = self._stream_backend.get_coordinates(frame=frame, start=start, stop=stop)
             if post_selection is not None:
                 coords = np.take(coords, post_selection, axis=0)
             frame_list.append(np.take(coords, axis_selection, axis=1))
-        return(np.array(frame_list))
+        return np.asarray(frame_list)
 
     def _stream_bead_window(self, beadSelection):
         if beadSelection is None:
             return None, None, None
 
         if isinstance(beadSelection, slice):
-            step = 1 if beadSelection.step is None else beadSelection.step
-            start = 0 if beadSelection.start is None else beadSelection.start
-            stop = self.Nbeads if beadSelection.stop is None else beadSelection.stop
+            start, stop, step = beadSelection.indices(self.Nbeads)
             if step == 1:
                 return start, stop, None
-            return start, stop, np.arange(0, stop - start, step)
+            selection = np.arange(self.Nbeads, dtype=int)[beadSelection]
+            return self._selection_window(selection)
 
         if isinstance(beadSelection, range):
-            if beadSelection.step == 1:
-                return beadSelection.start, beadSelection.stop, None
             selection = np.array(list(beadSelection), dtype=int)
         else:
-            selection = np.array(beadSelection, dtype=int)
+            selection = np.atleast_1d(np.asarray(beadSelection, dtype=int))
+
+        return self._selection_window(selection)
+
+    def _selection_window(self, selection):
+        selection = np.asarray(selection, dtype=int)
 
         if selection.size == 0:
             return 0, 0, None
 
         if np.any(selection < 0):
             selection = np.where(selection < 0, selection + self.Nbeads, selection)
+        if np.any(selection < 0) or np.any(selection >= self.Nbeads):
+            raise IndexError(
+                f"Bead selection contains an index outside [0, {self.Nbeads - 1}]."
+            )
 
         sorted_selection = np.sort(selection)
         start = int(sorted_selection[0])
@@ -309,6 +461,42 @@ class cndbTools:
             return start, stop, None
 
         return start, stop, selection - start
+
+    def _normalize_frames(self, frames):
+        if frames is None:
+            selected = list(self.frame_ids)
+        elif isinstance(frames, (int, np.integer, str)):
+            selected = [str(frames)]
+        else:
+            selected = [str(frame) for frame in frames]
+        available = set(self.frame_ids)
+        missing = [frame for frame in selected if frame not in available]
+        if missing:
+            raise FrameNotFoundError(
+                f"Frames {missing!r} were not found. Available frames include {self.frame_ids[:10]!r}."
+            )
+        return selected
+
+    def _normalize_bead_selection(self, beadSelection):
+        if beadSelection is None:
+            return np.arange(self.Nbeads, dtype=int)
+        if isinstance(beadSelection, slice):
+            return np.arange(self.Nbeads, dtype=int)[beadSelection]
+        selection = np.atleast_1d(np.asarray(beadSelection, dtype=int))
+        if np.any(selection < 0):
+            selection = np.where(selection < 0, selection + self.Nbeads, selection)
+        if np.any(selection < 0) or np.any(selection >= self.Nbeads):
+            raise IndexError(
+                f"Bead selection contains an index outside [0, {self.Nbeads - 1}]."
+            )
+        return selection
+
+    @staticmethod
+    def _normalize_axes(XYZ):
+        axes = np.atleast_1d(np.asarray(XYZ, dtype=int))
+        if np.any(axes < 0) or np.any(axes > 2):
+            raise IndexError("XYZ axes must contain only 0, 1, or 2.")
+        return axes
 
     @property
     def stream_data_bytes_read(self):
@@ -493,15 +681,14 @@ class cndbTools:
 
     def compute_RG(self, xyz):
         R"""
-        Calculates the Radius of Gyration. 
-        
+        Calculate the radius of gyration for each frame.
+
         Args:
-            xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray` (dim: TxNx3), required):
-                Array of the 3D position of the selected beads for different frames extracted by using the `xyz()` function.  
-                       
+            xyz (numpy.ndarray): Coordinates with shape ``(frames, beads, 3)``.
+
         Returns:
-            :class:`numpy.ndarray` (dim: Tx1):
-                Returns the Radius of Gyration in units of :math:`\sigma`.
+            numpy.ndarray: Radius of gyration for each frame in units of
+            :math:`\sigma`.
         """
         rcm=np.mean(xyz, axis=1,keepdims=True)
         xyz_rel_to_cm= xyz - np.tile(rcm,(xyz.shape[1],1))
@@ -510,22 +697,13 @@ class cndbTools:
 
     def compute_GyrTensorEigs(self, xyz):
         R"""
-        Calculates the eigenvalues of the Gyration tensor:
-        For a cloud of N points with positions: {[xi,yi,zi]},gyr tensor is a symmetric matrix defined as,
-        
-        gyr= (1/N) * [[sum_i(xi-xcm)(xi-xcm)  sum_i(xi-xcm)(yi-ycm) sum_i(xi-xcm)(zi-zcm)],
-                      [sum_i(yi-ycm)(xi-xcm)  sum_i(yi-ycm)(yi-ycm) sum_i(yi-ycm)(zi-zcm)],
-                      [sum_i(zi-zcm)(xi-xcm)  sum_i(zi-zcm)(yi-ycm) sum_i(zi-zcm)(zi-zcm)]]
-        
-        the three non-negative eigenvalues of gyr are used to define shape parameters like radius of gyration, asphericity, etc
+        Calculate the three sorted eigenvalues of each gyration tensor.
 
         Args:
-            xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray` (dim: TxNx3), required):
-                Array of the 3D position of the selected beads for different frames extracted by using the `xyz()` function.  
-                       
+            xyz (numpy.ndarray): Coordinates with shape ``(frames, beads, 3)``.
+
         Returns:
-            :class:`numpy.ndarray` (dim: Tx3):
-                Returns the sorted eigenvalues of the Gyration Tensor.
+            numpy.ndarray: Sorted eigenvalues with shape ``(frames, 3)``.
         """
         rcm=np.mean(xyz, axis=1,keepdims=True)
         sorted_eigenvals=[]
@@ -537,18 +715,13 @@ class cndbTools:
 
     def compute_MSD(self,xyz):
         R"""
-        Calculates the Mean-Squared Displacement using Fast-Fourier Transform. 
-        Uses Weiner-Kinchin theorem to compute the autocorrelation, and a recursion realtion from the following reference:
-        see Sec. 4.2 in Calandrini V, et al. (2011) EDP Sciences (https://doi.org.10.1051/sfn/201112010).
-        Also see this stackoverflow post: https://stackoverflow.com/questions/34222272/computing-mean-square-displacement-using-python-and-fft
-        
+        Calculate mean-squared displacement with a fast Fourier transform.
+
         Args:
-            xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray` (dim: TxNx3), required):
-                Array of the 3D position of the selected beads for different frames extracted by using the `xyz()` function.  
-                       
+            xyz (numpy.ndarray): Coordinates with shape ``(frames, beads, 3)``.
+
         Returns:
-            :class:`numpy.ndarray` (dim: NxT):
-                Returns the MSD of each particle over the trajectory.
+            numpy.ndarray: MSD for each bead, with shape ``(beads, frames)``.
 
         """
         
@@ -589,8 +762,7 @@ class cndbTools:
         the volume (with the appropriate kernel: 4*pi*r^2) gives the total number of monomers.
         
         Args:
-            xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray` (dim: TxNx3), required):
-                Array of the 3D position of the selected beads for different frames extracted by using the `xyz()` function.  
+            xyz (numpy.ndarray): Coordinates with shape ``(frames, beads, 3)``.
 
             dr (float, required):
                 mesh size of radius for calculating the radial distribution. 
@@ -610,10 +782,10 @@ class cndbTools:
                 defines the reference point in custom reference. required when ref='custom'
                        
         Returns:
-            num_density:class:`numpy.ndarray`:
+            num_density (numpy.ndarray):
                 the number density
             
-            bins:class:`numpy.ndarray`:
+            bins (numpy.ndarray):
                 bins corresponding to the number density
 
         """
@@ -654,26 +826,19 @@ class cndbTools:
         
     def compute_RDP(self, xyz, beadSelection=None, radius=20.0, bins=200):
         R"""
-        Calculates the RDP - Radial Distribution Probability. Details can be found in the following publications: 
-        
-            - Oliveira Jr., A.B., Contessoto, V.G., Mello, M.F. and Onuchic, J.N., 2021. A scalable computational approach for simulating complexes of multiple chromosomes. Journal of Molecular Biology, 433(6), p.166700.
-            - Di Pierro, M., Zhang, B., Aiden, E.L., Wolynes, P.G. and Onuchic, J.N., 2016. Transferable model for chromosome architecture. Proceedings of the National Academy of Sciences, 113(43), pp.12168-12173.
+        Calculate radial distribution probability (RDP).
         
         Args:
-            xyz (:math:`(frames, XYZ)` :class:`numpy.ndarray`, required):
-                Array of the 3D position of the frames extracted by using the `xyz()` function. 
-            beadSelection (:math:`(beadSelection)` :class:`numpy.ndarray`):
-                The index of the beads to be sliced from `xyz` that you want to compute RDP. Usualy, you can use the internal selection using the `dictChromSeq['types']` with 'types' been the selection that you want. 
+            xyz (numpy.ndarray): Coordinates with shape ``(frames, beads, 3)``.
+            beadSelection (numpy.ndarray): Bead indices included in the RDP.
             radius (float, required):
                 Radius of the sphere in units of :math:`\sigma` to be considered in the calculations. The radius value should be modified depending on your simulated chromosome length. (Default value = 20.0).
             bins (int, required):
                 Number of slices to be considered as spherical shells. (Default value = 200).
                        
         Returns:
-            :math:`(N, 1)` :class:`numpy.ndarray`:
-                Returns the radius of each spherical shell in units of :math:`\sigma`.
-            :math:`(N, 1)` :class:`numpy.ndarray`:
-                Returns the RDP - Radial Distribution Probability for each spherical shell.
+            tuple: Shell radii in units of :math:`\sigma` and the RDP for each
+            spherical shell.
         """
         
         def calcDist(a,b):

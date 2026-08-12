@@ -15,6 +15,7 @@ from .exceptions import CNDBIndexError
 from .index import INDEX_FORMAT, NESTED_NDB_LAYOUT, OPENMICHROM_SIMPLE_LAYOUT
 from .remote import RemoteByteReader
 from .utils import coerce_frame_id, sort_frame_ids
+from .version import metadata_from_attrs
 
 EMBEDDED_INDEX_CACHE_FORMAT = "cndb-stream-embedded-index-cache"
 EMBEDDED_INDEX_CACHE_VERSION = "0.1"
@@ -32,6 +33,12 @@ class StrictRangeFile:
     @property
     def bytes_read(self) -> int:
         return self._reader.bytes_read
+
+    @property
+    def file_size(self) -> int | None:
+        """Return the remote size after an EOF-clipped response reveals it."""
+
+        return self._reader.file_size
 
     def seek(self, offset: int, whence: int = 0) -> int:
         if whence == 0:
@@ -53,7 +60,7 @@ class StrictRangeFile:
         start = self._pos
         stop = start + int(size)
         data = self._reader.read_range(start, stop)
-        self._pos = stop
+        self._pos += len(data)
         return data
 
     def close(self) -> None:
@@ -106,7 +113,7 @@ class BufferedStrictRangeFile:
         if int(size) > self.max_size:
             self.file_reader.seek(start)
             data = self.file_reader.read(int(size))
-            self._pos += int(size)
+            self._pos += len(data)
             return data
 
         data = self._read_from_cache(start, int(size))
@@ -118,7 +125,7 @@ class BufferedStrictRangeFile:
             data = self._read_from_cache(start, int(size))
         if data is None:
             raise OSError(f"Could not read {size} bytes at offset {start}.")
-        self._pos += int(size)
+        self._pos += len(data)
         return data
 
     def close(self) -> None:
@@ -132,6 +139,14 @@ class BufferedStrictRangeFile:
             if chunk_start <= start and chunk_stop >= stop:
                 local_start = start - chunk_start
                 return chunk[local_start : local_start + size]
+            file_size = self.file_reader.file_size
+            if (
+                file_size is not None
+                and chunk_start <= start < file_size < stop
+                and chunk_stop == file_size
+            ):
+                local_start = start - chunk_start
+                return chunk[local_start:]
         return None
 
     def _add_to_cache(self, start: int, data: bytes) -> None:
@@ -265,6 +280,7 @@ class EmbeddedIndexProvider:
                 "types_path": "/types" if self.path_is_indexed("/types") else None,
                 "frames": {first_frame["frame_id"]: first_frame},
                 "embedded_index": self._embedded_index_summary(),
+                **self._file_format_metadata(),
             }
 
         entry = {
@@ -286,6 +302,7 @@ class EmbeddedIndexProvider:
             "available_trajectories": self.trajectories,
             "trajectories": {self.current_trajectory: entry},
             "embedded_index": self._embedded_index_summary(),
+            **self._file_format_metadata(),
         }
 
     def frame_info(self, frame: int | str) -> dict[str, Any]:
@@ -374,8 +391,11 @@ class EmbeddedIndexProvider:
         }
 
     def close(self) -> None:
+        if getattr(self, "closed", False):
+            return
         self._h5.close()
         self._range_file.close()
+        self.closed = True
 
     def path_is_indexed(self, path: str) -> bool:
         """Return whether a path is represented in the embedded object index."""
@@ -433,6 +453,14 @@ class EmbeddedIndexProvider:
             "compressed_nbytes": dataset_info["nbytes"] if dataset_info else None,
             "object_count": len(self.object_index),
         }
+
+    def _file_format_metadata(self) -> dict[str, str | None]:
+        root_metadata = metadata_from_attrs(self._h5.attrs)
+        if root_metadata["cndb_format"] or root_metadata["cndb_format_version"]:
+            return root_metadata
+        if self.path_is_indexed("/Header"):
+            return metadata_from_attrs(self._h5["/Header"].attrs)
+        return root_metadata
 
 
 def load_pyfive_file_class():
@@ -534,9 +562,13 @@ def write_embedded_index_cache(
         "index": embedded["index"],
     }
     tmp_path = path.with_suffix(path.suffix + ".tmp")
-    with gzip.open(tmp_path, "wt", encoding="utf-8") as handle:
-        json.dump(payload, handle, separators=(",", ":"))
-    tmp_path.replace(path)
+    try:
+        with gzip.open(tmp_path, "wt", encoding="utf-8") as handle:
+            json.dump(payload, handle, separators=(",", ":"))
+        tmp_path.replace(path)
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
 
 
 def _contiguous_payload_span(dataobjects: Any) -> tuple[int, int]:

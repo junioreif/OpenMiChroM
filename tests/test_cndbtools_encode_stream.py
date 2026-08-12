@@ -15,11 +15,11 @@ ENCODE_URL = (
     os.environ.get("OPENMICHROM_RUN_ENCODE_STREAM_TESTS") != "1",
     reason="Set OPENMICHROM_RUN_ENCODE_STREAM_TESTS=1 to run the ENCODE streaming test.",
 )
-def test_encode_remote_stream_xyz_smoke():
+def test_encode_remote_stream_xyz_smoke(tmp_path):
     tools = CndbTools.from_remote(
         h5_url=ENCODE_URL,
         trajectory="replica1_chr1",
-        index_cache_path="/tmp/ENCFF161DID.embedded-index.json.gz",
+        index_cache_path=tmp_path / "ENCFF161DID.embedded-index.json.gz",
     )
 
     coords = tools.xyz(frames=[1], beadSelection=range(0, 10))

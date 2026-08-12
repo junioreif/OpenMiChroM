@@ -11,9 +11,16 @@ import numpy as np
 
 from .analysis import distance_matrix, radius_of_gyration
 from .exceptions import CNDBIndexError, CNDBStreamError, FrameNotFoundError, UnsupportedLayoutError
-from .index import INDEX_FORMAT
+from .index import (
+    INDEX_FORMAT,
+    INDEX_VERSION,
+    NESTED_INDEX_VERSION,
+    NESTED_NDB_LAYOUT,
+    OPENMICHROM_SIMPLE_LAYOUT,
+)
 from .remote import RemoteByteReader
 from .utils import coerce_frame_id
+from .version import validate_format_metadata
 
 
 class LocalByteReader:
@@ -94,9 +101,18 @@ class IndexedCNDB:
             self._byte_reader = RemoteByteReader(str(h5_url), timeout=timeout)
             self.h5_source = str(h5_url)
 
-        self._validate_index()
-        self.current_trajectory = self._resolve_trajectory(trajectory)
-        self._coordinate_index = self._resolve_coordinate_index()
+        self.closed = False
+        try:
+            self._validate_index()
+            self.format_metadata = validate_format_metadata(
+                self.index,
+                source=self.h5_source,
+            )
+            self.current_trajectory = self._resolve_trajectory(trajectory)
+            self._coordinate_index = self._resolve_coordinate_index()
+        except Exception:
+            self.close()
+            raise
 
     @classmethod
     def from_embedded_index(
@@ -133,14 +149,18 @@ class IndexedCNDB:
             index_cache_path=index_cache_path,
             use_index_cache=use_index_cache,
         )
-        index = provider.to_lazy_cndb_index()
-        return cls(
-            h5_url=h5_url,
-            _index=index,
-            trajectory=provider.current_trajectory,
-            timeout=timeout,
-            _embedded_provider=provider,
-        )
+        try:
+            index = provider.to_lazy_cndb_index()
+            return cls(
+                h5_url=h5_url,
+                _index=index,
+                trajectory=provider.current_trajectory,
+                timeout=timeout,
+                _embedded_provider=provider,
+            )
+        except Exception:
+            provider.close()
+            raise
 
     @property
     def n_frames(self) -> int:
@@ -247,6 +267,8 @@ class IndexedCNDB:
         those bytes.
         """
 
+        if self.closed:
+            raise ValueError("Cannot read coordinates from a closed CNDB reader.")
         frame_info = self._get_frame_info(frame)
         self._ensure_supported(frame_info)
 
@@ -356,6 +378,35 @@ class IndexedCNDB:
             )
         if "frames" not in self.index and "trajectories" not in self.index:
             raise CNDBIndexError("Index is missing required 'frames' mapping.")
+        layout = self.index.get("layout")
+        expected_version = {
+            OPENMICHROM_SIMPLE_LAYOUT: INDEX_VERSION,
+            NESTED_NDB_LAYOUT: NESTED_INDEX_VERSION,
+        }.get(layout)
+        if expected_version is None:
+            raise CNDBIndexError(f"Unsupported or missing CNDB index layout {layout!r}.")
+        version = self.index.get("version")
+        if version != expected_version:
+            raise CNDBIndexError(
+                f"Unsupported CNDB index version {version!r} for layout {layout!r}; "
+                f"expected {expected_version!r}."
+            )
+
+    def close(self) -> None:
+        """Close remote metadata resources; safe to call repeatedly."""
+
+        if getattr(self, "closed", False):
+            return
+        provider = getattr(self, "_embedded_provider", None)
+        if provider is not None:
+            provider.close()
+        self.closed = True
+
+    def __enter__(self) -> "IndexedCNDB":
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.close()
 
     def _resolve_trajectory(self, trajectory: str | None) -> str | None:
         trajectories = self.trajectories

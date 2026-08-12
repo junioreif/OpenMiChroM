@@ -169,7 +169,9 @@ class GlobalHeap(object):
         if self._objects is None:
             self._objects = OrderedDict()
             offset = 0
-            while offset < len(self.heap_data):
+            # A collection may end with fewer than 16 bytes of zero padding.
+            # That tail cannot contain another global-heap object header.
+            while offset + GLOBAL_HEAP_OBJECT_SIZE <= len(self.heap_data):
                 info = _unpack_struct_from(
                     GLOBAL_HEAP_OBJECT, self.heap_data, offset)
                 if info['object_index'] == 0:
