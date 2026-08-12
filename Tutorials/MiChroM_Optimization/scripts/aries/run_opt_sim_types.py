@@ -40,7 +40,7 @@ n_blocks_opt = 5000
 #
 # Setup MiChroM object
 #
-sim = MiChroM(name=sim_name, temperature=1.0, time_step=0.01)
+sim = MiChroM(name=sim_name, temperature=1.0, timeStep=0.01)
 sim.setup(platform=gpu_platform)
 sim.saveFolder(folder)
 mychro = sim.createSpringSpiral(ChromSeq=sequence)
@@ -49,9 +49,9 @@ sim.loadStructure(mychro, center=True)
 # Adding Potentials subsection
 
 # **Homopolymer Potentials**  
-sim.addFENEBonds(kfb=30.0)
-sim.addAngles(ka=2.0)
-sim.addRepulsiveSoftCore(Ecut=4.0)
+sim.addFENEBonds(kFb=30.0)
+sim.addAngles(kA=2.0)
+sim.addRepulsiveSoftCore(eCut=4.0)
 
 # **Chromosome Potentials**
 sim.addCustomTypes(TypesTable=lambdaFile_types, mu=cons_mu, rc=cons_rc)
@@ -61,7 +61,8 @@ sim.addCustomTypes(TypesTable=lambdaFile_types, mu=cons_mu, rc=cons_rc)
 #
 # Collapse simulation
 #
-sim.addFlatBottomHarmonic(kr=5*10**-3, n_rad=8.0)
+sim.addFlatBottomHarmonic(kR=5*10**-3, nRad=8.0)
+sim.createSimulation()
 
 block    = block_collapse
 n_blocks = n_blocks_collapse
@@ -71,7 +72,7 @@ sim.saveStructure(mode='ndb')
 # sim.initStorage(filename=sim_name)
 
 for _ in range(n_blocks):
-    sim.runSimBlock(block, increment=True)
+    sim.run(nsteps=block, report=False, blockSize=block)
     # sim.saveStructure()
 
 sim.saveStructure(mode='ndb')
@@ -97,7 +98,7 @@ n_blocks = n_blocks_opt
 
 for _ in range(n_blocks):
     # perform 1 block of simulation
-    sim.runSimBlock(block, increment=True)
+    sim.run(nsteps=block, report=False, blockSize=block)
     # sim.saveStructure()
 
     # feed optimization with the last chromosome configuration 

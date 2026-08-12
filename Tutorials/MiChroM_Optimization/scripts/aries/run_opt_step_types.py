@@ -3,7 +3,6 @@ from OpenMiChroM.Optimization import CustomMiChroMTraining
 import numpy as np
 import pandas as pd
 import h5py
-import hdf5plugin  
 import sys
 import os
 

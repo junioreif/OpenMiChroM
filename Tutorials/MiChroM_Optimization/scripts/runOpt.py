@@ -23,11 +23,11 @@ opt2 = CustomMiChroMTraining(ChromSeq=seq,
                             mu=3.22, rc = 1.78)
 
 for replica in replicas:
-    with h5py.File(replica + "/polds_type_" + str(iteraction)+".h5", 'r') as hf:
-        opt2.polds_type += hf['polds_type'][:]
+    with h5py.File(replica + "/Pold_type_" + str(iteraction)+".h5", 'r') as hf:
+        opt2.Pold_type += hf['Pold_type'][:]
 
-    with h5py.File(replica + "/Bij_type_" + str(iteraction)+".h5", 'r') as hf:
-        opt2.Bij_type += hf['Bij_type'][:]
+    with h5py.File(replica + "/PiPj_type_" + str(iteraction)+".h5", 'r') as hf:
+        opt2.PiPj_type += hf['PiPj_type'][:]
 
     with h5py.File(replica + "/Nframes_" + str(iteraction)+".h5", 'r') as hf:
         opt2.Nframes +=hf['Nframes'][()]
@@ -35,7 +35,7 @@ for replica in replicas:
     with h5py.File(replica + "/Pold_" + str(iteraction)+".h5", 'r') as hf:
         opt2.Pold += hf['Pold'][:]
     
-lambdas = opt2.getLamb_types(exp_map=dense)
+lambdas = opt2.get_lambdas_types(exp_map=dense)
 print(lambdas)  
 
 old = pd.read_csv(inputFolder + "/lambda_" + str(iteraction), sep=None, engine='python')
@@ -49,8 +49,8 @@ lambda_new = lambda_old - damp*lambdas
 print(lambda_new)
 
 #prob of A/B in sim and exp
-phi_sim = opt2.calc_sim_phi_types().ravel()
-phi_exp = opt2.calc_exp_phi_types().ravel()
+phi_sim = opt2.calc_phi_sim_types().ravel()
+phi_exp = opt2.calc_phi_exp_types().ravel()
 np.savetxt('phi_sim_' + str(iteraction), phi_sim)
 np.savetxt('phi_exp', phi_exp)
 
@@ -59,7 +59,7 @@ np.savetxt('phi_exp', phi_exp)
 #plt.legend()
 
 #HiC_simulate
-dense_sim = opt2.getHiCSim()
+dense_sim = opt2.get_HiC_sim()
 np.savetxt('hic_sim_' + str(iteraction)+'.dense', dense_sim)
 #plt.matshow(dense_sim, norm=mpl.colors.LogNorm(vmin=0.0001, vmax=dense_sim.max()),cmap="Reds")
 
