@@ -30,3 +30,16 @@ documentation. No partial merge from the Copilot branch was warranted.
 The original workspace path contained an unborn empty Git repository. It was
 left untouched. Work was performed in the isolated worktree
 `OpenMiChroM-cndbtools-integration`.
+
+## Follow-up converter history audit
+
+The converter follow-up also fetched and inspected pull-request heads and the
+separate `mellofariam/NDB-Converters` repository. Merged OpenMiChroM pull
+requests `#48`, `#49`, `#103`, `#106`, and `#116` contain related coordinate
+load/save, documentation, SWB reporter, multi-chain export, and ring-handling
+work already represented in `main`; none integrates the external converter
+suite. Open pull request `#117` adds only a partial terminal-`END` repair to the
+legacy NDB → CNDB helper and is superseded by the tested converter layer on this
+integration branch. The external repository has only `master` at `8bd87e5` and
+no alternate branch containing a packaged or tested implementation. Full
+details and release/licensing notes are in `converter-audit.md`.
