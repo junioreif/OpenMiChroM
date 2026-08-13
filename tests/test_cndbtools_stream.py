@@ -10,7 +10,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 import OpenMiChroM._cndb_stream as internal_stream
 from OpenMiChroM._cndb_stream import IndexedCNDB
-from OpenMiChroM._cndb_stream.embedded_writer import write_embedded_index
+from OpenMiChroM._cndb_stream.embedded_writer import initialize_cndb_header, write_embedded_index
 from OpenMiChroM.CndbTools import CndbTools, cndbTools
 from OpenMiChroM._structural_io import coalesce_indices
 
@@ -194,6 +194,39 @@ def test_from_remote_uses_internal_stream_backend(monkeypatch):
     assert _FakeIndexedCNDB.last_kwargs["index_cache_path"] == "/tmp/test-index.json.gz"
 
 
+def test_from_remote_normalizes_legacy_numeric_type_codes(monkeypatch):
+    _install_fake_internal_stream(monkeypatch)
+    monkeypatch.setattr(
+        _FakeIndexedCNDB,
+        "from_embedded_index",
+        classmethod(lambda cls, **kwargs: cls()),
+    )
+    original_init = _FakeIndexedCNDB.__init__
+
+    def numeric_init(self):
+        original_init(self)
+        self.types = np.array([0, 1, 2, 3, 4, 5, 6] + [0] * 13)
+
+    monkeypatch.setattr(_FakeIndexedCNDB, "__init__", numeric_init)
+
+    tools = CndbTools.from_remote("https://example.org/legacy.cndb")
+
+    assert tools.types[:7] == ["A1", "A2", "B1", "B2", "B3", "B4", "NA"]
+    assert tools.dictChromSeq["A1"] == [0] + list(range(7, 20))
+
+
+def test_classic_local_loader_normalizes_legacy_numeric_type_codes(tmp_path):
+    path = tmp_path / "legacy.cndb"
+    with h5py.File(path, "w") as handle:
+        handle.create_dataset("types", data=np.arange(7, dtype=np.int64))
+        handle.create_dataset("1", data=np.zeros((7, 3), dtype=np.float32))
+
+    tools = CndbTools()
+    tools.load(path)
+
+    assert tools.types == ["A1", "A2", "B1", "B2", "B3", "B4", "NA"]
+
+
 def test_streaming_xyz_contiguous_range_reads_exact_coordinate_bytes(monkeypatch):
     _install_fake_internal_stream(monkeypatch)
     tools = cndbTools.from_remote("https://example.org/test.cndb", trajectory="replica1_chr1")
@@ -329,3 +362,31 @@ def test_remote_chunked_cndb_streams_with_embedded_backend(tmp_path, dataset_kwa
     assert stats["transferred_coordinate_bytes"] >= stats["requested_coordinate_bytes"]
     assert stats["data_bytes_read"] >= stats["requested_coordinate_bytes"]
     assert stats["data_bytes_read"] < cndb_path.stat().st_size
+
+
+def test_nested_header_counts_survive_embedded_index_finalization(tmp_path):
+    path = tmp_path / "nested.cndb"
+    with h5py.File(path, "w") as handle:
+        initialize_cndb_header(
+            handle,
+            n_beads=4,
+            coordinate_dtype="float32",
+            frame_layout="nested_trajectories",
+        )
+        for replica in (1, 2):
+            group = handle.create_group(f"replica{replica}_chr1")
+            group.create_dataset("types", data=np.array([b"A1"] * 4))
+            spatial = group.create_group("spatial_position")
+            for frame in (1, 2, 3):
+                spatial.create_dataset(
+                    str(frame),
+                    data=np.full((4, 3), replica * frame, dtype=np.float32),
+                )
+
+    write_embedded_index(path)
+
+    with h5py.File(path, "r") as handle:
+        header = handle["Header"].attrs
+        assert header["n_frames"] == 6
+        assert header["n_beads"] == 4
+        assert header["n_trajectories"] == 2

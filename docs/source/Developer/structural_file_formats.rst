@@ -4,8 +4,8 @@ Structural File Formats
 OpenMiChroM CNDB v2
 -------------------
 
-OpenMiChroM writes CNDB trajectory files as HDF5. The CNDB v2 writer keeps the
-historical coordinate layout so existing local readers remain usable:
+OpenMiChroM writes CNDB trajectory files as HDF5. The CNDB v2 writer supports
+the historical root-frame layout so existing local readers remain usable:
 
 .. code-block:: text
 
@@ -15,6 +15,19 @@ historical coordinate layout so existing local readers remain usable:
    /1
    /2
    ...
+   /_index
+
+It also supports ENCODE-style files containing multiple trajectories:
+
+.. code-block:: text
+
+   /Header
+   /replica1_chr1/types
+   /replica1_chr1/genomic_position
+   /replica1_chr1/spatial_position/1
+   /replica2_chr1/types
+   /replica2_chr1/genomic_position
+   /replica2_chr1/spatial_position/1
    /_index
 
 ``/types`` contains bead type labels. Numeric root-level datasets contain frame
@@ -53,7 +66,9 @@ The ``/Header`` group stores small metadata attributes:
    * - ``n_beads``
      - Number of beads per frame
    * - ``n_frames``
-     - Number of written frames, finalized on close
+     - Total number of written frames across all trajectories, finalized on close
+   * - ``n_trajectories``
+     - Number of trajectories containing coordinate frames
    * - ``indexed``
      - Whether an embedded object index was written
    * - ``index_format``

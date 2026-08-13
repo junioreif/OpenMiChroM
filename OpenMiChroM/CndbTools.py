@@ -36,6 +36,35 @@ def _metadata_list(values):
     return [_metadata_value(value) for value in list(values)]
 
 
+_NUMERIC_TYPE_LABELS = {
+    0: "A1",
+    1: "A2",
+    2: "B1",
+    3: "B2",
+    4: "B3",
+    5: "B4",
+    6: "NA",
+}
+
+
+def _chromatin_type_list(values):
+    labels = _metadata_list(values)
+    normalized = []
+    for value in labels:
+        if isinstance(value, (int, np.integer)):
+            normalized.append(_NUMERIC_TYPE_LABELS.get(int(value), str(int(value))))
+            continue
+        if isinstance(value, (float, np.floating)) and float(value).is_integer():
+            normalized.append(_NUMERIC_TYPE_LABELS.get(int(value), str(int(value))))
+            continue
+        text = str(value)
+        if text.lstrip("-").isdigit():
+            normalized.append(_NUMERIC_TYPE_LABELS.get(int(text), text))
+            continue
+        normalized.append(text)
+    return normalized
+
+
 def _download_remote_structural_file(
     url,
     *,
@@ -265,7 +294,7 @@ class cndbTools:
         )
         tool.is_remote = True
         tool.cndb = None
-        tool.ChromSeq = _metadata_list(tool._stream_backend.types)
+        tool.ChromSeq = _chromatin_type_list(tool._stream_backend.types)
         tool.Nbeads = tool._stream_backend.n_beads
         tool.Nframes = tool._stream_backend.n_frames
         tool.frame_ids = tool._stream_backend.frame_ids
@@ -372,7 +401,7 @@ class cndbTools:
             tool._stream_backend = _CNDBLocalIndexedBackend(source, trajectory=trajectory)
             tool.is_remote = False
             tool.cndb = None
-            tool.ChromSeq = _metadata_list(tool._stream_backend.types)
+            tool.ChromSeq = _chromatin_type_list(tool._stream_backend.types)
             tool.Nbeads = tool._stream_backend.n_beads
             tool.Nframes = tool._stream_backend.n_frames
             tool.frame_ids = tool._stream_backend.frame_ids
@@ -394,7 +423,7 @@ class cndbTools:
             tool._stream_backend = NDBTextReader(source)
             tool.is_remote = False
             tool.cndb = None
-            tool.ChromSeq = _metadata_list(tool._stream_backend.types)
+            tool.ChromSeq = _chromatin_type_list(tool._stream_backend.types)
             tool.Nbeads = tool._stream_backend.n_beads
             tool.Nframes = tool._stream_backend.n_frames
             tool.frame_ids = tool._stream_backend.frame_ids
@@ -429,7 +458,7 @@ class cndbTools:
         self._stream_backend = None
         self.is_remote = False
         
-        self.ChromSeq = list(self.cndb['types'])
+        self.ChromSeq = _chromatin_type_list(self.cndb['types'])
         self.uniqueChromSeq = set(self.ChromSeq)
         self.types = self.ChromSeq
         self.genomic_positions = None

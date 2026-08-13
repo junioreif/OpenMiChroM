@@ -63,6 +63,7 @@ def finalize_cndb_header(
     *,
     n_frames: int,
     n_beads: int | None = None,
+    n_trajectories: int | None = None,
     coordinate_dtype: str | None = None,
     indexed: bool | None = None,
     index_summary: dict[str, Any] | None = None,
@@ -75,6 +76,8 @@ def finalize_cndb_header(
     header.attrs["n_frames"] = int(n_frames)
     if n_beads is not None:
         header.attrs["n_beads"] = int(n_beads)
+    if n_trajectories is not None:
+        header.attrs["n_trajectories"] = int(n_trajectories)
     if coordinate_dtype:
         header.attrs["coordinate_dtype"] = str(coordinate_dtype)
     if indexed is not None:
@@ -117,13 +120,21 @@ def write_embedded_index(
         if offset_attr in h5.attrs:
             del h5.attrs[offset_attr]
         h5.attrs.create(offset_attr, int(object_offset))
+        frame_summary = _coordinate_frame_summary(h5, object_index=object_index)
         summary = {
             "dataset_path": f"/{dataset_name}",
             "object_offset": int(object_offset),
             "compressed_nbytes": int(len(compressed)),
             "object_count": int(len(object_index)),
         }
-        finalize_cndb_header(h5, n_frames=_count_root_numeric_frames(h5), indexed=True, index_summary=summary)
+        finalize_cndb_header(
+            h5,
+            n_frames=frame_summary["n_frames"],
+            n_beads=frame_summary["n_beads"],
+            n_trajectories=frame_summary["n_trajectories"],
+            indexed=True,
+            index_summary=summary,
+        )
         h5.flush()
     return summary
 
@@ -164,7 +175,14 @@ def _remove_existing_index(h5_path: Path, *, dataset_name: str, offset_attr: str
         if offset_attr in h5.attrs:
             del h5.attrs[offset_attr]
         if "Header" in h5:
-            finalize_cndb_header(h5, n_frames=_count_root_numeric_frames(h5), indexed=False)
+            header = h5["Header"].attrs
+            finalize_cndb_header(
+                h5,
+                n_frames=int(header.get("n_frames", 0)),
+                n_beads=int(header.get("n_beads", 0)),
+                n_trajectories=int(header.get("n_trajectories", 1)),
+                indexed=False,
+            )
         h5.flush()
 
 
@@ -187,15 +205,62 @@ def _index_children(
     object_index[group.name] = children
 
 
-def _count_root_numeric_frames(h5: h5py.File) -> int:
-    return sum(
-        1
-        for name, obj in h5.items()
-        if str(name).isdigit()
-        and isinstance(obj, h5py.Dataset)
-        and len(obj.shape) == 2
-        and int(obj.shape[1]) == 3
-    )
+def _coordinate_frame_summary(
+    h5: h5py.File,
+    *,
+    object_index: dict[str, dict[str, int]] | None = None,
+) -> dict[str, int]:
+    root_names = object_index.get("/", {}) if object_index is not None else h5.keys()
+    root_frames = [name for name in root_names if _is_frame_name(name)]
+    if root_frames:
+        first = h5[root_frames[0]]
+        return {
+            "n_frames": len(root_frames),
+            "n_beads": int(first.shape[0]),
+            "n_trajectories": 1,
+        }
+
+    n_frames = 0
+    n_beads = 0
+    n_trajectories = 0
+    trajectory_names = []
+    if object_index is not None:
+        trajectory_names = [
+            name
+            for name in root_names
+            if f"/{name}/spatial_position" in object_index
+        ]
+    else:
+        trajectory_names = [
+            name
+            for name, obj in h5.items()
+            if isinstance(obj, h5py.Group)
+            and "spatial_position" in obj
+            and isinstance(obj["spatial_position"], h5py.Group)
+        ]
+
+    for name in trajectory_names:
+        spatial_path = f"/{name}/spatial_position"
+        spatial = h5[spatial_path]
+        child_names = object_index.get(spatial_path, {}) if object_index is not None else spatial.keys()
+        frame_names = [frame_name for frame_name in child_names if _is_frame_name(frame_name)]
+        if not frame_names:
+            continue
+        n_trajectories += 1
+        n_frames += len(frame_names)
+        if n_beads == 0:
+            n_beads = int(spatial[frame_names[0]].shape[0])
+
+    return {
+        "n_frames": n_frames,
+        "n_beads": n_beads,
+        "n_trajectories": n_trajectories,
+    }
+
+
+def _is_frame_name(name: str) -> bool:
+    text = str(name)
+    return text.isdigit() or (text.startswith("t_") and text[2:].isdigit())
 
 
 def _openmichrom_version() -> str:
