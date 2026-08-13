@@ -15,8 +15,6 @@ from scipy.spatial import distance
 from OpenMiChroM._cndb_stream.exceptions import CNDBFormatError, FrameNotFoundError
 from OpenMiChroM._cndb_stream.remote import validate_http_url
 from OpenMiChroM._cndb_stream.version import (
-    CNDB_FORMAT_NAME,
-    CNDB_FORMAT_VERSION,
     metadata_from_attrs,
     validate_format_metadata,
 )
@@ -306,55 +304,76 @@ class cndbTools:
     
     
 
+    @staticmethod
+    def convert(source, output=None, **kwargs):
+        """Convert between the supported NDB, CNDB, PDB, GRO, CSV, and SPW formats."""
+
+        from OpenMiChroM.Converters import convert
+
+        return convert(source, output, **kwargs)
+
+    @staticmethod
+    def ndb_to_cndb(source, output=None, **kwargs):
+        from OpenMiChroM.Converters import ndb_to_cndb
+
+        return ndb_to_cndb(source, output, **kwargs)
+
+    @staticmethod
+    def cndb_to_ndb(source, output=None, **kwargs):
+        from OpenMiChroM.Converters import cndb_to_ndb
+
+        return cndb_to_ndb(source, output, **kwargs)
+
+    @staticmethod
+    def ndb_to_pdb(source, output=None, **kwargs):
+        from OpenMiChroM.Converters import ndb_to_pdb
+
+        return ndb_to_pdb(source, output, **kwargs)
+
+    @staticmethod
+    def pdb_to_ndb(source, output=None, **kwargs):
+        from OpenMiChroM.Converters import pdb_to_ndb
+
+        return pdb_to_ndb(source, output, **kwargs)
+
+    @staticmethod
+    def ndb_to_spw(source, output=None, **kwargs):
+        from OpenMiChroM.Converters import ndb_to_spw
+
+        return ndb_to_spw(source, output, **kwargs)
+
+    @staticmethod
+    def spw_to_ndb(source, output=None, **kwargs):
+        from OpenMiChroM.Converters import spw_to_ndb
+
+        return spw_to_ndb(source, output, **kwargs)
+
+    @staticmethod
+    def gro_to_ndb(source, output=None, **kwargs):
+        from OpenMiChroM.Converters import gro_to_ndb
+
+        return gro_to_ndb(source, output, **kwargs)
+
+    @staticmethod
+    def csv_to_ndb(source, output=None, **kwargs):
+        from OpenMiChroM.Converters import csv_to_ndb
+
+        return csv_to_ndb(source, output, **kwargs)
+
     def ndb2cndb(self, fileName):
-        R"""
-        Converts an **ndb** file format to **cndb**.
-        
-        Args:
-            filename (path, required):
-                    Path to the ndb file to be converted to cndb.
+        R"""Compatibility wrapper for the historical extensionless NDB stem API.
+
+        New code should call :meth:`ndb_to_cndb`, which returns a
+        :class:`pathlib.Path` and refuses to replace existing output by default.
+        This wrapper retains the original string return type and replacement
+        behavior because :meth:`load` historically relies on both.
         """
-        Type_conversion = {'A1': 0,'A2' : 1,'B1' : 2,'B2' : 3,'B3' : 4,'B4' : 5,'UN' : 6}
-        file_ndb = fileName + str(".ndb")
-        name     = fileName + str(".cndb")
-        types = []
-        types_bool = True
-        loop_list = []
-        x, y, z = [], [], []
-        frame = 0
 
-        with open(file_ndb, "r", encoding="utf-8") as ndbfile, h5py.File(name, "w") as cndbf:
-            cndbf.attrs["format"] = CNDB_FORMAT_NAME
-            cndbf.attrs["format_version"] = CNDB_FORMAT_VERSION
-            for line in ndbfile:
-                entry = line[0:6]
-                info = line.split()
-
-                if "MODEL" in entry:
-                    frame += 1
-                elif "CHROM" in entry:
-                    subtype = line[16:18]
-                    types.append(subtype)
-                    x.append(float(line[40:48]))
-                    y.append(float(line[49:57]))
-                    z.append(float(line[58:66]))
-                elif "ENDMDL" in entry:
-                    if types_bool:
-                        try:
-                            cndbf["types"] = [Type_conversion[value] for value in types]
-                        except KeyError as exc:
-                            raise CNDBFormatError(
-                                f"Unsupported NDB chromatin type {exc.args[0]!r} in {file_ndb}."
-                            ) from exc
-                        types_bool = False
-                    cndbf[str(frame)] = np.vstack([x, y, z]).T
-                    x, y, z = [], [], []
-                elif "LOOPS" in entry:
-                    loop_list.append([int(info[1]), int(info[2])])
-
-            if loop_list:
-                cndbf["loops"] = loop_list
-        return(name)
+        source = Path(fileName).expanduser()
+        if source.suffix.lower() != ".ndb":
+            source = Path(str(source) + ".ndb")
+        destination = source.with_suffix(".cndb")
+        return str(self.ndb_to_cndb(source, destination, overwrite=True))
     
     def xyz(self, frames=None, beadSelection=None, XYZ=(0, 1, 2)):
         R"""

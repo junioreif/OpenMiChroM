@@ -16,6 +16,7 @@ from OpenMiChroM.Optimization import AdamTraining, CustomMiChroMTraining
         "OpenMiChroM",
         "OpenMiChroM.ChromDynamics",
         "OpenMiChroM.CndbTools",
+        "OpenMiChroM.Converters",
         "OpenMiChroM.CustomReporter",
         "OpenMiChroM.Integrators",
         "OpenMiChroM.Optimization",
@@ -30,6 +31,23 @@ def test_cndbtools_class_capitalization_alias_is_backward_compatible():
     assert CndbTools is cndbTools
     assert OpenMiChroM.CndbTools is cndbTools
     assert OpenMiChroM.cndbTools is cndbTools
+
+
+def test_converter_functions_are_available_from_the_package_namespace():
+    converter_module = importlib.import_module("OpenMiChroM.Converters")
+    names = (
+        "convert",
+        "ndb_to_cndb",
+        "cndb_to_ndb",
+        "ndb_to_pdb",
+        "pdb_to_ndb",
+        "ndb_to_spw",
+        "spw_to_ndb",
+        "gro_to_ndb",
+        "csv_to_ndb",
+    )
+
+    assert all(getattr(OpenMiChroM, name) is getattr(converter_module, name) for name in names)
 
 
 def test_adam_getpars_deprecated_wrapper_matches_supported_method(tmp_path):

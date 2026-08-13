@@ -38,6 +38,11 @@ setup(
     },
     python_requires=">=3.10",
     install_requires=['openmm', 'numpy', 'scipy', 'scikit-learn', 'h5py', 'pandas'],
+    entry_points={
+        "console_scripts": [
+            "openmichrom-convert=OpenMiChroM.Converters:main",
+        ],
+    },
     zip_safe=False,
     long_description=long_description,
     long_description_content_type="text/x-rst",

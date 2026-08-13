@@ -45,3 +45,10 @@ def test_cpu_simulation_reporting_and_structure_exports(tmp_path: Path):
         assert trajectory.Nframes == 2
         assert trajectory.Nbeads == 8
         assert trajectory.xyz().shape == (2, 8, 3)
+
+    # Exercise the supported NDB auto-conversion against the actual current
+    # simulation writer rather than only a hand-authored format fixture.
+    with CndbTools().load(output / "snapshot.ndb") as snapshot:
+        assert snapshot.Nframes == 1
+        assert snapshot.Nbeads == 8
+        assert snapshot.xyz().shape == (1, 8, 3)
