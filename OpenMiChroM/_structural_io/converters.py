@@ -1,8 +1,9 @@
 """Small structural file converters for OpenMiChroM.
 
 The converters here are intentionally conservative and local-file only. They
-support small interoperability tasks among simple NDB, CNDB/HDF5, PDB, and
-supported SpaceWalk/SW-style layouts without downloading remote files.
+support small interoperability tasks among simple NDB, CNDB/HDF5, PDB,
+GROMACS GRO, and supported SpaceWalk/SW-style layouts without downloading
+remote files.
 """
 
 from __future__ import annotations
@@ -99,9 +100,10 @@ def convert_structure_file(
     """Convert a small local structural trajectory file.
 
     Supported conversions are simple local ``ndb -> cndb``, ``cndb -> ndb``,
-    ``ndb -> pdb``, simple ``pdb -> ndb``, supported HDF5 ``sw/swb -> ndb``,
-    and simple text SpaceWalk ``sw/spw`` conversions. Remote URLs are rejected
-    because conversion is intentionally a local-file operation.
+    ``ndb -> pdb``, simple ``pdb/gro -> ndb/cndb``, supported HDF5
+    ``sw/swb -> ndb``, and simple text SpaceWalk ``sw/spw`` conversions.
+    Remote URLs are rejected because conversion is intentionally a local-file
+    operation.
     """
 
     input_value = str(input_path)
@@ -165,6 +167,8 @@ def _read_structure(path: Path, input_format: str, *, trajectory: str | None) ->
         return _read_ndb(path)
     if input_format == "pdb":
         return _read_pdb(path)
+    if input_format == "gro":
+        return _read_gro(path)
     if input_format == "sw":
         info = detect_structural_file(path)
         if info.detected_hdf5:
@@ -176,7 +180,7 @@ def _read_structure(path: Path, input_format: str, *, trajectory: str | None) ->
         return _read_hdf5(path, trajectory=trajectory)
     raise ValueError(
         f"Unsupported input format {input_format!r}. "
-        "Supported inputs are 'ndb', 'pdb', 'cndb', 'hdf5', 'sw', 'spw', and 'swb'."
+        "Supported inputs are 'ndb', 'pdb', 'gro', 'cndb', 'hdf5', 'sw', 'spw', and 'swb'."
     )
 
 
@@ -240,6 +244,66 @@ def _read_pdb(path: Path) -> StructureTrajectory:
         types=types or ["UN"] * next(iter(frames.values())).shape[0],
         genomic_positions=_default_genomic_positions(next(iter(frames.values())).shape[0]),
         title=path.stem,
+    )
+
+
+def _read_gro(path: Path) -> StructureTrajectory:
+    """Read one or more concatenated GROMACS GRO coordinate frames."""
+
+    frames: "OrderedDict[str, np.ndarray]" = OrderedDict()
+    types: list[str] = []
+    title = path.stem
+
+    with path.open("r", encoding="utf-8", errors="replace") as handle:
+        while True:
+            title_line = handle.readline()
+            if not title_line:
+                break
+            if not title_line.strip():
+                continue
+            if not frames:
+                title = title_line.strip()
+
+            count_line = handle.readline()
+            try:
+                atom_count = int(count_line.strip())
+            except ValueError as exc:
+                raise ValueError(f"Invalid GRO atom count in {path}: {count_line.rstrip()}") from exc
+
+            coords: list[list[float]] = []
+            frame_types: list[str] = []
+            for atom_index in range(atom_count):
+                atom_line = handle.readline()
+                if not atom_line:
+                    raise ValueError(
+                        f"Unexpected end of GRO file {path} while reading atom {atom_index + 1}."
+                    )
+                atom = _parse_gro_atom_line(atom_line)
+                coords.append([atom["x"], atom["y"], atom["z"]])
+                frame_types.append(RESIDUE_TO_TYPE.get(atom["residue"], "UN"))
+
+            box_line = handle.readline()
+            if not box_line:
+                raise ValueError(f"GRO frame in {path} is missing its box-vector line.")
+
+            frame = np.asarray(coords, dtype=np.float32)
+            if frames and frame.shape != next(iter(frames.values())).shape:
+                raise ValueError(
+                    f"Inconsistent GRO atom count in {path}: frame {len(frames) + 1} "
+                    f"has {frame.shape[0]} atoms."
+                )
+            frames[str(len(frames) + 1)] = frame
+            if not types:
+                types = frame_types
+
+    if not frames:
+        raise ValueError(f"No coordinate frames were found in GRO file {path}.")
+    n_beads = next(iter(frames.values())).shape[0]
+    return StructureTrajectory(
+        frames=frames,
+        types=types or ["UN"] * n_beads,
+        genomic_positions=_default_genomic_positions(n_beads),
+        title=title,
     )
 
 
@@ -566,8 +630,8 @@ def _resolve_input_format(path: Path, input_format: str) -> str:
     if input_format != "auto":
         return _normalize_format(input_format)
     suffix_format = _format_from_suffix(path)
-    if suffix_format == "pdb":
-        return "pdb"
+    if suffix_format in {"pdb", "gro"}:
+        return suffix_format
     info = detect_structural_file(path)
     if info.detected_text_ndb:
         return "ndb"
@@ -739,6 +803,31 @@ def _parse_pdb_atom_line(line: str) -> dict[str, Any]:
             except (IndexError, ValueError):
                 continue
     raise ValueError(f"Could not parse PDB ATOM line: {line.rstrip()}")
+
+
+def _parse_gro_atom_line(line: str) -> dict[str, Any]:
+    try:
+        return {
+            "residue": line[5:10].strip() or "GLY",
+            "x": float(line[20:28]),
+            "y": float(line[28:36]),
+            "z": float(line[36:44]),
+        }
+    except (ValueError, IndexError):
+        parts = line.split()
+        if len(parts) >= 6:
+            residue_token = parts[0]
+            residue = "".join(character for character in residue_token if character.isalpha()) or "GLY"
+            try:
+                return {
+                    "residue": residue[-5:],
+                    "x": float(parts[3]),
+                    "y": float(parts[4]),
+                    "z": float(parts[5]),
+                }
+            except (ValueError, IndexError):
+                pass
+    raise ValueError(f"Could not parse GRO atom line: {line.rstrip()}")
 
 
 def _parse_spacewalk_row(line: str) -> dict[str, Any]:

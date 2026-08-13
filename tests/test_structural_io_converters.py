@@ -42,6 +42,24 @@ def _write_tiny_spacewalk(path):
     )
 
 
+def _write_tiny_gro(path):
+    path.write_text(
+        "tiny frame 1\n"
+        "3\n"
+        "    1ASP     CA    1   0.000   1.000   2.000\n"
+        "    2HIS     CA    2   3.000   4.000   5.000\n"
+        "    3GLU     CA    3   6.000   7.000   8.000\n"
+        "10.0 10.0 10.0\n"
+        "tiny frame 2\n"
+        "3\n"
+        "    1ASP     CA    1  10.000  11.000  12.000  0.1000  0.2000  0.3000\n"
+        "    2HIS     CA    2  13.000  14.000  15.000  0.1000  0.2000  0.3000\n"
+        "    3GLU     CA    3  16.000  17.000  18.000  0.1000  0.2000  0.3000\n"
+        "10.0 10.0 10.0\n",
+        encoding="utf-8",
+    )
+
+
 def test_tiny_ndb_to_cndb_to_ndb_roundtrip(tmp_path):
     ndb_path = tmp_path / "tiny.ndb"
     cndb_path = tmp_path / "tiny.cndb"
@@ -126,6 +144,22 @@ def test_tiny_ndb_to_pdb_with_custom_fields(tmp_path):
     assert " BB " in atom_lines[0]
     assert "CHR B" in atom_lines[0]
     assert atom_lines[0].rstrip().endswith("C")
+
+
+def test_tiny_gro_to_cndb(tmp_path):
+    gro_path = tmp_path / "tiny.gro"
+    cndb_path = tmp_path / "tiny.cndb"
+    _write_tiny_gro(gro_path)
+
+    convert_structure_file(gro_path, cndb_path)
+
+    with h5py.File(cndb_path, "r") as h5:
+        assert sorted(name for name in h5 if name.isdigit()) == ["1", "2"]
+        assert [value.decode("utf-8") for value in h5["types"][()]] == ["A1", "B1", "A2"]
+        np.testing.assert_array_equal(
+            h5["2"][()],
+            np.array([[10, 11, 12], [13, 14, 15], [16, 17, 18]], dtype=np.float32),
+        )
 
 
 def test_convert_frame_and_bead_subset(tmp_path):

@@ -136,9 +136,9 @@ interoperability tasks:
    CndbTools.convert("trajectory.ndb", "trajectory.pdb")
 
 Supported conversions currently include simple ``ndb -> cndb``,
-``cndb -> ndb``, ``ndb -> pdb``, simple ``pdb -> ndb``, and supported HDF5
-``sw/swb -> ndb``. Converters are local-file only and do not download remote
-files.
+``cndb -> ndb``, ``ndb -> pdb``, simple ``pdb/gro -> ndb/cndb``, and
+supported HDF5 ``sw/swb -> ndb``. Converters are local-file only and do not
+download remote files.
 
 
 OpenMiChroM.Integrators

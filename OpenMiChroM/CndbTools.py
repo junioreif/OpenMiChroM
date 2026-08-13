@@ -315,8 +315,9 @@ class cndbTools:
 
         This is a convenience wrapper around
         ``OpenMiChroM._structural_io.convert_structure_file``. Supported
-        conversions include simple NDB, CNDB/HDF5, PDB, and supported HDF5
-        SW/SWB layouts. Remote URLs are not downloaded by the converter.
+        conversions include simple NDB, CNDB/HDF5, PDB, GROMACS GRO, and
+        supported HDF5 SW/SWB layouts. Remote URLs are not downloaded by the
+        converter.
         """
 
         return convert_structure_file(input_path, output_path, **kwargs)

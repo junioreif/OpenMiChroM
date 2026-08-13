@@ -487,6 +487,10 @@ def _file_type_from_extension(source: str) -> str:
         return "sw"
     if suffix == ".ndb":
         return "ndb"
+    if suffix == ".pdb":
+        return "pdb"
+    if suffix == ".gro":
+        return "gro"
     if suffix in {".h5", ".hdf5"}:
         return "hdf5"
     return "unknown"
