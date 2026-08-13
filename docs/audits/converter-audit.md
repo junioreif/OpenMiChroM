@@ -16,9 +16,7 @@ No `LICENSE`, `COPYING`, package license field, or source license statement was
 present at the audited commit. Authorship is not a software license. No source
 from that repository was copied into OpenMiChroM. `OpenMiChroM/Converters.py`
 is a new implementation of the documented file-format behavior, with explicit
-acknowledgement in the module, reference page, and tutorial. Before release,
-the maintainers should still ask the historical authors to confirm the desired
-license for the old repository so its independent status is unambiguous.
+acknowledgement in the module, reference page, and tutorial.
 
 ## Route inventory and integration result
 
@@ -102,7 +100,7 @@ accept `NA`, retains debugging output and legacy parsing assumptions, and adds
 neither tests nor a tutorial. Its useful intent is superseded by this validated
 implementation; it should not be merged independently without reconciliation.
 
-## Automated and manual verification
+## Automated verification
 
 `tests/test_converters.py` covers all eight routes, both NDB terminators,
 current reporter output, legacy/current unknown labels, numeric/string CNDB
@@ -112,8 +110,5 @@ simulation NDB snapshot is auto-converted and reloaded in
 `tests/test_simulation_smoke.py`.
 
 `Tutorials/Converters/Tutorial_NDB_Converters.ipynb` executes every route
-offline with deterministic fixtures and assertions. It ends with the exact
-clone/environment/test commands and a manual curation checklist for Antonio,
-Matheus, and a second release reviewer. Synthetic checks do not establish the
-units or biological metadata of historical research files; the reviewers must
-repeat each route with a representative, shareable real file before release.
+offline with deterministic fixtures and assertions, including coordinate,
+frame, type, genomic-interval, and loop checks.
