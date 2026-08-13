@@ -179,6 +179,9 @@ class _CNDBStreamBackend:
     def get_coordinates(self, frame, start=None, stop=None):
         return self.traj.get_coordinates(frame=frame, start=start, stop=stop)
 
+    def close(self):
+        self.traj.close()
+
     def stats(self):
         return {
             "index_bytes_read": self.traj.index_bytes_read,
@@ -230,6 +233,9 @@ class _CNDBLocalIndexedBackend:
     def get_coordinates(self, frame, start=None, stop=None):
         return self.traj.get_coordinates(frame=frame, start=start, stop=stop)
 
+    def close(self):
+        self.traj.close()
+
     def stats(self):
         return {
             "index_bytes_read": 0,
@@ -247,6 +253,8 @@ class cndbTools:
         self.Type_conversionInv = {y:x for x,y in self.Type_conversion.items()}
         self._stream_backend = None
         self.is_remote = False
+        self.cndb = None
+        self.closed = False
         self.frame_ids = []
         self.trajectories = []
         self.current_trajectory = None
@@ -306,6 +314,7 @@ class cndbTools:
         tool.dictChromSeq = {}
         for tt in tool.uniqueChromSeq:
             tool.dictChromSeq[tt] = [i for i, value in enumerate(tool.ChromSeq) if value == tt]
+        tool.closed = False
         return tool
 
     @staticmethod
@@ -414,6 +423,7 @@ class cndbTools:
             tool.dictChromSeq = {}
             for tt in tool.uniqueChromSeq:
                 tool.dictChromSeq[tt] = [i for i, value in enumerate(tool.ChromSeq) if value == tt]
+            tool.closed = False
             return tool
         if info.detected_hdf5 and info.file_type in {"cndb", "hdf5", "sw"}:
             return cls().load(source)
@@ -436,6 +446,7 @@ class cndbTools:
             tool.dictChromSeq = {}
             for tt in tool.uniqueChromSeq:
                 tool.dictChromSeq[tt] = [i for i, value in enumerate(tool.ChromSeq) if value == tt]
+            tool.closed = False
             return tool
         raise ValueError(
             f"Could not open structural file {source!r}. "
@@ -450,6 +461,7 @@ class cndbTools:
             fileName (file, required):
                 Path to cndb or ndb file. If an ndb file is given, it is converted to a cndb file and saved in the same directory.
         """
+        self.close()
         f_name, file_extension = os.path.splitext(fileName)
         
         if file_extension == ".ndb":
@@ -458,6 +470,7 @@ class cndbTools:
         self.cndb = h5py.File(fileName, 'r')
         self._stream_backend = None
         self.is_remote = False
+        self.closed = False
         
         self.ChromSeq = _chromatin_type_list(self.cndb['types'])
         self.uniqueChromSeq = set(self.ChromSeq)
@@ -479,6 +492,26 @@ class cndbTools:
         self.current_trajectory = None
         
         return(self)
+
+    def close(self):
+        """Close local or remote CNDB resources; safe to call repeatedly."""
+
+        if self.closed:
+            return
+        if self._stream_backend is not None:
+            close = getattr(self._stream_backend, "close", None)
+            if close is not None:
+                close()
+        if self.cndb is not None:
+            self.cndb.close()
+            self.cndb = None
+        self.closed = True
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
     
     
 
@@ -583,6 +616,8 @@ class cndbTools:
         Returns:
             (:math:`N_{frames}`, :math:`N_{beads}`, 3) :class:`numpy.ndarray`: Returns an array of the 3D position of the selected beads for different frames.
         """
+        if self.closed:
+            raise ValueError("Cannot read coordinates from closed CNDBTools resources.")
         if self._stream_backend is not None:
             return self._xyz_stream(
                 frames=frames,

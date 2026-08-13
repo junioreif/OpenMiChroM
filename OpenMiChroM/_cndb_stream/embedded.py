@@ -15,7 +15,7 @@ from .exceptions import CNDBIndexError
 from .filters import hdf5_filter_pipeline_supported, normalize_filter_pipeline
 from .index import INDEX_FORMAT, NESTED_NDB_LAYOUT, OPENMICHROM_SIMPLE_LAYOUT
 from .remote import RemoteByteReader
-from .utils import coerce_frame_id, sort_frame_ids
+from .utils import coerce_frame_id, sort_frame_ids, sort_trajectory_names
 
 EMBEDDED_INDEX_CACHE_FORMAT = "cndb-stream-embedded-index-cache"
 EMBEDDED_INDEX_CACHE_VERSION = "0.1"
@@ -247,7 +247,7 @@ class EmbeddedIndexProvider:
             spatial_path = f"{group_path}/spatial_position"
             if spatial_path in self.object_index:
                 names.append(name)
-        return sorted(names)
+        return sort_trajectory_names(names)
 
     @property
     def frame_ids(self) -> list[str]:

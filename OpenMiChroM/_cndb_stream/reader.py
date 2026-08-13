@@ -71,6 +71,7 @@ class IndexedCNDB:
     ) -> None:
         self.timeout = timeout
         self._embedded_provider = _embedded_provider
+        self.closed = False
 
         has_local_h5 = h5_path is not None
         has_remote_h5 = h5_url is not None
@@ -268,6 +269,8 @@ class IndexedCNDB:
         those bytes.
         """
 
+        if self.closed:
+            raise ValueError("Cannot read coordinates from a closed CNDB reader.")
         frame_info = self._get_frame_info(frame)
 
         shape = tuple(int(dim) for dim in frame_info["shape"])
@@ -371,6 +374,21 @@ class IndexedCNDB:
     def _load_remote_index(self, index_url: str) -> dict[str, Any]:
         with urlopen(index_url, timeout=self.timeout) as response:
             return json.loads(response.read().decode("utf-8"))
+
+    def close(self) -> None:
+        """Close remote metadata resources; safe to call repeatedly."""
+
+        if self.closed:
+            return
+        if self._embedded_provider is not None:
+            self._embedded_provider.close()
+        self.closed = True
+
+    def __enter__(self) -> "IndexedCNDB":
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.close()
 
     def _validate_index(self) -> None:
         if self.index.get("format") != INDEX_FORMAT:

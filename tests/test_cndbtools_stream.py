@@ -120,6 +120,7 @@ class _FakeIndexedCNDB:
         self.data_bytes_read = 0
         self.index_cache_hit = True
         self.requests = []
+        self.closed = False
 
     @property
     def bytes_read(self):
@@ -132,12 +133,17 @@ class _FakeIndexedCNDB:
         return cls.last_instance
 
     def get_coordinates(self, frame, start=None, stop=None):
+        if self.closed:
+            raise ValueError("closed")
         start = 0 if start is None else start
         stop = self.n_beads if stop is None else stop
         self.requests.append((str(frame), start, stop))
         coords = self.data[str(frame)][start:stop]
         self.data_bytes_read += coords.nbytes
         return coords
+
+    def close(self):
+        self.closed = True
 
 
 def _install_fake_internal_stream(monkeypatch):
@@ -192,6 +198,19 @@ def test_from_remote_uses_internal_stream_backend(monkeypatch):
     assert _FakeIndexedCNDB.last_kwargs["h5_url"] == "https://example.org/test.cndb"
     assert _FakeIndexedCNDB.last_kwargs["trajectory"] == "replica1_chr1"
     assert _FakeIndexedCNDB.last_kwargs["index_cache_path"] == "/tmp/test-index.json.gz"
+
+
+def test_cndbtools_context_manager_closes_stream_backend(monkeypatch):
+    _install_fake_internal_stream(monkeypatch)
+
+    with CndbTools.from_remote("https://example.org/test.cndb") as tools:
+        assert tools.closed is False
+        assert tools.xyz(frames=[1], beadSelection=range(0, 2)).shape == (1, 2, 3)
+
+    assert tools.closed is True
+    assert _FakeIndexedCNDB.last_instance.closed is True
+    with pytest.raises(ValueError, match="closed CNDBTools"):
+        tools.xyz(frames=[1], beadSelection=range(0, 2))
 
 
 def test_from_remote_normalizes_legacy_numeric_type_codes(monkeypatch):
@@ -373,7 +392,7 @@ def test_nested_header_counts_survive_embedded_index_finalization(tmp_path):
             coordinate_dtype="float32",
             frame_layout="nested_trajectories",
         )
-        for replica in (1, 2):
+        for replica in (1, 2, 10):
             group = handle.create_group(f"replica{replica}_chr1")
             group.create_dataset("types", data=np.array([b"A1"] * 4))
             spatial = group.create_group("spatial_position")
@@ -381,12 +400,30 @@ def test_nested_header_counts_survive_embedded_index_finalization(tmp_path):
                 spatial.create_dataset(
                     str(frame),
                     data=np.full((4, 3), replica * frame, dtype=np.float32),
+                    chunks=(4, 3),
+                    compression="gzip",
                 )
 
     write_embedded_index(path)
 
     with h5py.File(path, "r") as handle:
         header = handle["Header"].attrs
-        assert header["n_frames"] == 6
+        assert header["n_frames"] == 9
         assert header["n_beads"] == 4
-        assert header["n_trajectories"] == 2
+        assert header["n_trajectories"] == 3
+
+    with _serve_directory(tmp_path) as base_url:
+        with CndbTools.from_remote(
+            h5_url=f"{base_url}/{path.name}",
+            trajectory="replica2_chr1",
+            fetch_size=512,
+            cache_size=2048,
+        ) as tools:
+            xyz = tools.xyz(frames=[1], beadSelection=range(1, 3))
+            assert tools.trajectories == [
+                "replica1_chr1",
+                "replica2_chr1",
+                "replica10_chr1",
+            ]
+
+    np.testing.assert_array_equal(xyz[0], np.full((2, 3), 2, dtype=np.float32))

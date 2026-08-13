@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import numpy as np
@@ -30,6 +31,19 @@ def frame_id_sort_key(value: str) -> tuple[int, str]:
     if text.isdigit():
         return int(text), text
     return 0, text
+
+
+def sort_trajectory_names(names: list[str]) -> list[str]:
+    """Sort replica/chromosome trajectory names by embedded numbers."""
+
+    def key(value: str):
+        return tuple(
+            (0, int(part)) if part.isdigit() else (1, part.casefold())
+            for part in re.split(r"(\d+)", str(value))
+            if part
+        )
+
+    return sorted(names, key=key)
 
 
 def json_safe_value(value: Any) -> Any:

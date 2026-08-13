@@ -21,6 +21,7 @@ from OpenMiChroM._cndb_stream.filters import (
     hdf5_filter_pipeline_supported,
     normalize_filter_pipeline,
 )
+from OpenMiChroM._cndb_stream.utils import sort_trajectory_names
 
 from .formats import StructuralFileInfo
 
@@ -264,7 +265,7 @@ def _inspect_remote_embedded_hdf5(url: str, info: StructuralFileInfo, *, timeout
         for name in root_children
         if f"/{name}/spatial_position" in object_index
     ]
-    info.trajectories = sorted(trajectories)
+    info.trajectories = sort_trajectory_names(trajectories)
 
     if simple_frames:
         frame_ids = _sorted_frame_names(simple_frames)
@@ -433,7 +434,7 @@ def _nested_trajectory_names(h5: h5py.File) -> list[str]:
             continue
         if isinstance(obj["spatial_position"], h5py.Group):
             names.append(name)
-    return sorted(names)
+    return sort_trajectory_names(names)
 
 
 def _frame_names(group: h5py.Group) -> list[str]:

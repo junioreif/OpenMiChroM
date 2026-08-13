@@ -11,7 +11,7 @@ import h5py
 import numpy as np
 
 from .filters import hdf5_filter_pipeline_supported
-from .utils import json_safe_value, sort_frame_ids
+from .utils import json_safe_value, sort_frame_ids, sort_trajectory_names
 
 INDEX_VERSION = "0.1"
 NESTED_INDEX_VERSION = "0.2"
@@ -111,6 +111,11 @@ def _build_nested_index(
             f"Requested trajectories were not found or not supported: {sorted(missing)}. "
             f"Available nested trajectories include: {available[:20]}"
         )
+
+    trajectory_indexes = {
+        name: trajectory_indexes[name]
+        for name in sort_trajectory_names(list(trajectory_indexes))
+    }
 
     return {
         "version": NESTED_INDEX_VERSION,
