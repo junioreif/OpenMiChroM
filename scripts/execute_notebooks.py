@@ -30,6 +30,12 @@ class NotebookRun:
 
 RUNS = [
     NotebookRun(
+        REPO_ROOT / "Tutorials" / "Converters" / "Tutorial_NDB_Converters.ipynb",
+        REPO_ROOT / "Tutorials" / "Converters",
+        fast=True,
+        complete=True,
+    ),
+    NotebookRun(
         REPO_ROOT / "Tutorials" / "stream_remote_cndb.ipynb",
         REPO_ROOT / "Tutorials",
         fast=True,

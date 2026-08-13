@@ -56,6 +56,27 @@ The following code snippet shows how to generate a single chromosome polymer mod
       sim.createReporters(statistics=True, traj=True, outputName=None, trajFormat="cndb", energyComponents=True, interval=10**3)
       sim.run(nsteps=10**5, report=True, interval=10**4)
 
+NDB trajectory converters
+=========================
+
+OpenMiChroM includes tested library converters for ``NDB <-> CNDB``,
+``NDB <-> PDB``, ``NDB <-> SpaceWalk (SPW)``, ``GRO -> NDB``, and the
+Bintu et al. ``CSV -> NDB`` layout.  Use an explicit function or let
+``convert`` infer the route from the suffixes:
+
+::
+
+      from OpenMiChroM.Converters import convert, ndb_to_cndb
+
+      ndb_to_cndb("ensemble.ndb", "ensemble.cndb")
+      convert("ensemble.ndb", "ensemble.pdb")
+
+The converter tutorial runs all eight routes with temporary deterministic
+fixtures and semantic checks.  ``.spw`` is the SpaceWalk text format; it is not
+the HDF5 ``.swb`` trajectory format produced by the SWB reporter.  See the
+`converter reference <https://open-michrom.readthedocs.io/en/latest/Reference/converters.html>`__
+and `executable tutorial <https://open-michrom.readthedocs.io/en/latest/Tutorials/Tutorial_NDB_Converters.html>`__.
+
 Streaming remote CNDB files
 ===========================
 

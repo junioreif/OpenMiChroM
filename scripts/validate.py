@@ -15,6 +15,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FOCUSED_TESTS = [
     "tests/test_api_compatibility.py",
+    "tests/test_converters.py",
     "tests/test_cndbtools_io_contract.py",
     "tests/test_cndbtools_stream.py",
     "tests/test_simulation_smoke.py",
@@ -68,12 +69,22 @@ def package_smoke(temporary: Path) -> None:
     )
     smoke = (
         "import OpenMiChroM, OpenMiChroM.ChromDynamics, OpenMiChroM.CndbTools; "
+        "import OpenMiChroM.Converters; "
         "import OpenMiChroM.CustomReporter, OpenMiChroM.Integrators, "
         "OpenMiChroM.Optimization, OpenMiChroM._cndb_stream; "
         "print(OpenMiChroM.__version__)"
     )
     smoke_env = {**os.environ, "PYTHONPATH": str(install)}
     run_stage("installed-wheel public imports", [sys.executable, "-c", smoke], cwd=temporary, env=smoke_env)
+    converter_cli = install / "bin" / "openmichrom-convert"
+    if not converter_cli.is_file():
+        raise SystemExit(f"FAILED: installed wheel is missing converter CLI: {converter_cli}")
+    run_stage(
+        "installed-wheel converter CLI",
+        [sys.executable, str(converter_cli), "--help"],
+        cwd=temporary,
+        env=smoke_env,
+    )
 
 
 def gpu_smoke() -> None:

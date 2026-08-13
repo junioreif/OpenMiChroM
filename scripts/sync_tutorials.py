@@ -32,6 +32,10 @@ class TutorialNotebook:
 
 TUTORIALS = [
     TutorialNotebook(
+        Path("Converters/Tutorial_NDB_Converters.ipynb"),
+        "Tutorial_NDB_Converters.ipynb",
+    ),
+    TutorialNotebook(
         Path("Chromosome_simulations/Tutorial_MiChroM_Simulation.ipynb"),
         "Tutorial_MiChroM_Simulation.ipynb",
     ),
