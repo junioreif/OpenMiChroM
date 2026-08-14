@@ -59,23 +59,46 @@ class MiChroM:
             Friction/damping constant in units of reciprocal time (1/τ). Defaults to 0.1.
         temperature (float, optional): 
             Temperature in reduced units. Defaults to 1.0.
+        verbose (bool, optional):
+            Print setup and simulation summaries. Defaults to True.
+        printing (bool, optional):
+            Compatibility spelling for ``verbose`` accepted by earlier
+            structural-variation examples. If supplied, it takes precedence.
     """
-    def __init__(self, name="OpenMiChroM", timeStep=0.01, collisionRate=0.1, temperature=1.0):
+    def __init__(self, name="OpenMiChroM", timeStep=0.01, collisionRate=0.1,
+                 temperature=1.0, verbose=True, printing=None):
+        if printing is not None:
+            verbose = printing
+        if not isinstance(verbose, (bool, np.bool_)):
+            raise TypeError("verbose must be a boolean")
         self.name = name
         self.timeStep = timeStep
         self.collisionRate = collisionRate
         self.temperature = temperature / 0.008314
+        self.verbose = bool(verbose)
         self.loaded = False
         self.contexted = False
         self.folder = "."
         self.nm = units.meter * 1e-9
         self.sigma = 1.0
         self.epsilon = 1.0
-        self.printHeader()
+        if self.verbose:
+            self.printHeader()
+
+    def _resolve_verbose(self, verbose=None, printing=None):
+        """Resolve per-call output control while retaining PR 123 compatibility."""
+        if printing is not None:
+            verbose = printing
+        if verbose is None:
+            return self.verbose
+        if not isinstance(verbose, (bool, np.bool_)):
+            raise TypeError("verbose must be a boolean")
+        return bool(verbose)
 
             
     def setup(self, platform="CUDA", gpu="default",
-            integrator="langevin", precision="mixed", deviceIndex="0"):
+            integrator="langevin", precision="mixed", deviceIndex="0",
+            verbose=None, printing=None):
         R"""Sets up the simulation environment.
 
         Tries to select the computational platform in the following priority order:
@@ -94,11 +117,15 @@ class MiChroM:
                 Defaults to 'mixed'.
             deviceIndex (str, optional): The device index to use if specifying a GPU device.
                 Defaults to '0'.
+            verbose (bool, optional): Print platform selection details. If None,
+                use the value supplied to :class:`MiChroM`.
+            printing (bool, optional): Compatibility spelling for ``verbose``.
 
         Raises:
             ValueError: If an unknown integrator or precision is specified.
             Exception: If no suitable computational platform is available.
         """
+        show_output = self._resolve_verbose(verbose, printing)
         precision = precision.lower()
         if precision not in ["mixed", "single", "double"]:
             raise ValueError("Precision must be 'mixed', 'single', or 'double'.")
@@ -131,7 +158,8 @@ class MiChroM:
         for plat_name in platform_priority:
             try:
                 self.platform = self.mm.Platform.getPlatformByName(plat_name)
-                print(f"Using platform: {plat_name}")
+                if show_output:
+                    print(f"Using platform: {plat_name}")
 
                 # Set platform-specific properties
                 properties = {}
@@ -142,7 +170,8 @@ class MiChroM:
                 self.properties = properties
                 break
             except Exception as e:
-                print(f"Platform '{plat_name}' is not available: {e}")
+                if show_output:
+                    print(f"Platform '{plat_name}' is not available: {e}")
         else:
             raise Exception("No suitable computational platform is available.")
 
@@ -271,6 +300,23 @@ class MiChroM:
         return np.asarray(self.context.getState(getPositions=True).getPositions(asNumpy=True) / self.nm, dtype=np.float32)
 
 
+    def getVelocities(self):
+        R"""Return particle velocities as an ``(N, 3)`` NumPy array in nm/ps."""
+        if not hasattr(self, "context"):
+            raise ValueError("No context; initialize the simulation before reading velocities.")
+        state = self.context.getState(getVelocities=True)
+        velocities = state.getVelocities(asNumpy=True)
+        return np.asarray(
+            velocities.value_in_unit(units.nanometers / units.picoseconds),
+            dtype=float,
+        )
+
+
+    def get_velocities(self):
+        R"""Compatibility alias for :meth:`getVelocities`."""
+        return self.getVelocities()
+
+
     def getLoops(self, looplists):
         R"""
         Get the loop position (CTFC anchor points) for each chromosome.
@@ -293,7 +339,7 @@ class MiChroM:
                 pos[t][1] = int(pos[t][1]) +m
                 self.loopPosition.append(pos[t])
                 
-    
+
     ##============================
     ##      FORCES          
     ##============================
@@ -741,7 +787,83 @@ class MiChroM:
             Loop.addBond(p[0]-1,p[1]-1)
   
         self.forceDict["Loops"] = Loop  
-        
+
+
+    def addDynamicLoopPotential(self, loop_trajectory, k_loop=10.0,
+                                r0_loop=1.0, name="LoopExtrusion"):
+        R"""Add a harmonic force for a precomputed loop-extrusion trajectory.
+
+        The force contains the union of particle pairs in ``loop_trajectory``.
+        Use :meth:`updateDynamicLoopPotential` between simulation segments to
+        activate another trajectory frame without rebuilding the OpenMM Context.
+
+        Args:
+            loop_trajectory (array-like): Zero-based particle pairs with shape
+                ``(frames, extruders, 2)``. A single ``(extruders, 2)`` frame is
+                also accepted.
+            k_loop (float, optional): Harmonic force constant in reduced
+                kJ/mol/nm² units. Defaults to 10.0.
+            r0_loop (float, optional): Equilibrium distance in nm. Defaults to
+                1.0.
+            name (str, optional): Key used in ``forceDict``. Defaults to
+                ``"LoopExtrusion"``.
+
+        Returns:
+            :class:`OpenMiChroM.Extrusion_Bonds.LoopBondUpdater`: The updater
+            associated with the force.
+        """
+        from .Extrusion_Bonds import LoopBondUpdater
+
+        if getattr(self, "contexted", False):
+            raise RuntimeError(
+                "Add dynamic loop potentials before createSimulation()."
+            )
+        if not isinstance(name, str) or not name:
+            raise ValueError("name must be a non-empty string")
+        if name in self.forceDict:
+            raise ValueError(f"force {name!r} already exists")
+        if not hasattr(self, "N"):
+            raise ValueError("Load a structure before adding loop-extrusion bonds.")
+
+        updater = LoopBondUpdater(
+            loop_trajectory, k_loop=k_loop, r0_loop=r0_loop
+        )
+        if updater.particle_count > self.N:
+            raise ValueError(
+                "loop trajectory references particle index "
+                f"{updater.particle_count - 1}, but the structure has {self.N} particles"
+            )
+        force = updater.create_force(self.mm)
+        force.setName(name)
+        self.forceDict[name] = force
+        if not hasattr(self, "_loop_bond_updaters"):
+            self._loop_bond_updaters = {}
+        self._loop_bond_updaters[name] = updater
+        return updater
+
+
+    def addHarmonicLoopPotential(self, loop_list, k_loop=10.0,
+                                 r0_loop=1.0, name="LoopExtrusion"):
+        R"""Add one static frame of zero-based harmonic loop bonds.
+
+        This compatibility method delegates to
+        :meth:`addDynamicLoopPotential`; it does not recreate the simulation.
+        """
+        return self.addDynamicLoopPotential(
+            loop_list, k_loop=k_loop, r0_loop=r0_loop, name=name
+        )
+
+
+    def updateDynamicLoopPotential(self, step, name="LoopExtrusion"):
+        R"""Activate one loop-trajectory frame in the existing Context."""
+        if not hasattr(self, "context"):
+            raise ValueError("Create the simulation before updating loop bonds.")
+        try:
+            updater = self._loop_bond_updaters[name]
+        except (AttributeError, KeyError) as exc:
+            raise KeyError(f"no dynamic loop potential named {name!r}") from exc
+        updater.set_step(step, self.context)
+
 
     def addCustomIC(self, mu=3.22, rc = 1.78, dinit=3, dend=200, IClist=None,CutoffDistance=3.0):
         R"""
@@ -1200,14 +1322,20 @@ class MiChroM:
             self.loaded = True
 
 
-    def createSimulation(self):
+    def createSimulation(self, verbose=None, printing=None):
         R"""
         Initializes the simulation context and adds forces to the system.
 
         This function checks if the simulation context has already been created. If not, it loads the particles,
         processes any exceptions (bonds that should not be included in nonbonded interactions), adds
         forces to the system, and sets up the simulation context.
+
+        Args:
+            verbose (bool, optional): Print force and state summaries. If None,
+                use the value supplied to :class:`MiChroM`.
+            printing (bool, optional): Compatibility spelling for ``verbose``.
         """
+        show_output = self._resolve_verbose(verbose, printing)
         if getattr(self, 'contexted', False):
             return
 
@@ -1234,7 +1362,8 @@ class MiChroM:
                 force.setNonbondedMethod(force.CutoffNonPeriodic)
 
             self.system.addForce(force)
-            print(f"{forceName} was added")
+            if show_output:
+                print(f"{forceName} was added")
 
         forceGroupIndex = 0
         for forceName, force in self.forceDict.items():
@@ -1248,10 +1377,11 @@ class MiChroM:
             #self.system, self.integrator, self.platform, self.properties)
         self.simulation = Simulation(None, self.system, self.integrator, self.platform, self.properties)
         self.context = self.simulation.context
-        self.initPositions()
-        self.initVelocities()
+        self.initPositions(verbose=show_output)
+        self.initVelocities(verbose=show_output)
         self.contexted = True
-        print('Context created!')
+        if show_output:
+            print('Context created!')
 
         simulationInfo = (
                 f"\nSimulation name: {self.name}\n"
@@ -1287,9 +1417,10 @@ class MiChroM:
             platformInfo.append(f"{name} Value: {value}")
         
         # Print information to console
-        print(simulationInfo)
-        print(energyInfo)
-        print(f'\nPotential energy per forceGroup:\n {self.getForces()}')
+        if show_output:
+            print(simulationInfo)
+            print(energyInfo)
+            print(f'\nPotential energy per forceGroup:\n {self.getForces()}')
         
         filePath = Path(self.folder) / 'initialStats.txt'
         with open(filePath, 'w') as f:
@@ -1992,6 +2123,12 @@ class MiChroM:
    
         """
 
+        if isinstance(CoordFiles, (str, os.PathLike)):
+            CoordFiles = [str(CoordFiles)]
+
+        if isinstance(ChromSeq, (str, os.PathLike)):
+            ChromSeq = [str(ChromSeq)]
+
         if mode == 'auto':
             if CoordFiles is None:
                 mode = 'spring'
@@ -2005,12 +2142,6 @@ class MiChroM:
                     mode = 'ndb'
                 else:
                     raise ValueError("Unrecognizable coordinate file.")
-
-        if isinstance(CoordFiles, str):
-            CoordFiles = [CoordFiles]
-
-        if isinstance(ChromSeq, str):
-            ChromSeq = [ChromSeq]
 
         if mode in ['spring', 'line', 'random']:
             if isinstance(ChromSeq, list):
@@ -2242,9 +2373,14 @@ class MiChroM:
                 np.savetxt(fileName,ndbf,fmt="%s")
    
         
-    def initPositions(self):
+    def initPositions(self, verbose=None, printing=None):
         R"""
         Internal function that sets the locus coordinates in the OpenMM system.
+
+        Args:
+            verbose (bool, optional): Print state-loading messages. If None,
+                use the value supplied to :class:`MiChroM`.
+            printing (bool, optional): Compatibility spelling for ``verbose``.
         
         Raises:
             ValueError: If the simulation context has not been initialized.
@@ -2252,14 +2388,22 @@ class MiChroM:
         if not hasattr(self, 'context'):
             raise ValueError("No context; cannot set positions. Initialize the context before calling initPositions.")
 
-        print("Setting positions...", end='', flush=True)
+        show_output = self._resolve_verbose(verbose, printing)
+        if show_output:
+            print("Setting positions...", end='', flush=True)
         self.context.setPositions(self.data)
-        print(" loaded!")
+        if show_output:
+            print(" loaded!")
 
 
-    def initVelocities(self):
+    def initVelocities(self, verbose=None, printing=None):
         R"""
         Internal function that sets the initial velocities of the loci in the OpenMM system.
+
+        Args:
+            verbose (bool, optional): Print state-loading messages. If None,
+                use the value supplied to :class:`MiChroM`.
+            printing (bool, optional): Compatibility spelling for ``verbose``.
         
         Raises:
             ValueError: If the simulation context has not been initialized.
@@ -2267,11 +2411,14 @@ class MiChroM:
         if not hasattr(self, 'context'):
             raise ValueError("No context; cannot set velocities. Initialize the context before calling initVelocities.")
         
-        print("Setting velocities...", end='', flush=True)
+        show_output = self._resolve_verbose(verbose, printing)
+        if show_output:
+            print("Setting velocities...", end='', flush=True)
         # Set velocities using OpenMM's built-in method
         temperature = self.temperature * units.kelvin
         self.context.setVelocitiesToTemperature(temperature)
-        print(" loaded!")
+        if show_output:
+            print(" loaded!")
 
         
     def setFibPosition(self, positions, returnCM=False, factor=1.0):
