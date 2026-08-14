@@ -18,7 +18,9 @@ FOCUSED_TESTS = [
     "tests/test_converters.py",
     "tests/test_cndbtools_io_contract.py",
     "tests/test_cndbtools_stream.py",
+    "tests/test_loop_extrusion.py",
     "tests/test_simulation_smoke.py",
+    "tests/test_structural_variants.py",
 ]
 
 
@@ -69,9 +71,12 @@ def package_smoke(temporary: Path) -> None:
     )
     smoke = (
         "import OpenMiChroM, OpenMiChroM.ChromDynamics, OpenMiChroM.CndbTools; "
-        "import OpenMiChroM.Converters; "
+        "import OpenMiChroM.Converters, OpenMiChroM.Extrusion_Bonds, "
+        "OpenMiChroM.StructuralVariants; "
         "import OpenMiChroM.CustomReporter, OpenMiChroM.Integrators, "
         "OpenMiChroM.Optimization, OpenMiChroM._cndb_stream; "
+        "assert callable(OpenMiChroM.apply_structural_variant); "
+        "assert callable(OpenMiChroM.LoopExtrusionManager); "
         "print(OpenMiChroM.__version__)"
     )
     smoke_env = {**os.environ, "PYTHONPATH": str(install)}

@@ -16,6 +16,28 @@ OpenMiChroM.Optimization
    :members:
    :undoc-members:
    :show-inheritance:
+
+OpenMiChroM.StructuralVariants
+-------------------------------
+
+.. automodule:: OpenMiChroM.StructuralVariants
+
+The public helpers apply deletions, inversions, and tandem duplications to
+symmetric locus matrices and paired directional motif tracks. Coordinates are
+zero-based and structural-variant intervals are half-open. See
+:doc:`Reference/structural_variants` for the complete API, deterministic
+examples, file-output helpers, provenance, and scientific limitations.
+
+OpenMiChroM.Extrusion_Bonds
+-------------------------------
+
+.. automodule:: OpenMiChroM.Extrusion_Bonds
+
+``LoopExtrusionManager`` produces seeded, zero-based loop trajectories, while
+``LoopBondUpdater`` and ``MiChroM.addDynamicLoopPotential`` activate their union
+of harmonic bonds in one existing OpenMM Context. See
+:doc:`Reference/structural_variants` for the supported workflow and model
+assumptions.
    
 OpenMiChroM.CndbTools
 -------------------------------

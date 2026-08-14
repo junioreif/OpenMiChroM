@@ -36,6 +36,14 @@ TUTORIALS = [
         "Tutorial_NDB_Converters.ipynb",
     ),
     TutorialNotebook(
+        Path("Structural_Variations/Tutorial_Apply_Structural_Variants.ipynb"),
+        "Tutorial_Apply_Structural_Variants.ipynb",
+    ),
+    TutorialNotebook(
+        Path("Structural_Variations/Tutorial_Loop_Extrusion.ipynb"),
+        "Tutorial_Loop_Extrusion.ipynb",
+    ),
+    TutorialNotebook(
         Path("Chromosome_simulations/Tutorial_MiChroM_Simulation.ipynb"),
         "Tutorial_MiChroM_Simulation.ipynb",
     ),

@@ -24,6 +24,8 @@
    Tutorials/Tutorial_Pulling
    Tutorials/Tutorial_Active_Polymer
    Tutorials/Tutorial_NDB_Converters
+   Tutorials/Tutorial_Apply_Structural_Variants
+   Tutorials/Tutorial_Loop_Extrusion
    Tutorials/stream_remote_cndb
 
 
@@ -34,6 +36,7 @@
    Reference/citing
    Reference/references
    Reference/converters
+   Reference/structural_variants
    Reference/cndb_stream
    Reference/license
 

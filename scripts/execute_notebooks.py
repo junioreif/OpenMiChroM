@@ -36,6 +36,24 @@ RUNS = [
         complete=True,
     ),
     NotebookRun(
+        REPO_ROOT
+        / "Tutorials"
+        / "Structural_Variations"
+        / "Tutorial_Apply_Structural_Variants.ipynb",
+        REPO_ROOT / "Tutorials" / "Structural_Variations",
+        fast=True,
+        complete=True,
+    ),
+    NotebookRun(
+        REPO_ROOT
+        / "Tutorials"
+        / "Structural_Variations"
+        / "Tutorial_Loop_Extrusion.ipynb",
+        REPO_ROOT / "Tutorials" / "Structural_Variations",
+        fast=True,
+        complete=True,
+    ),
+    NotebookRun(
         REPO_ROOT / "Tutorials" / "stream_remote_cndb.ipynb",
         REPO_ROOT / "Tutorials",
         fast=True,
@@ -196,6 +214,17 @@ def main() -> int:
                 cwd=work_dir,
                 env={
                     **os.environ,
+                    # Always validate the checkout that owns this harness,
+                    # even when another OpenMiChroM version is installed in
+                    # the active environment.
+                    "PYTHONPATH": os.pathsep.join(
+                        value
+                        for value in (
+                            str(REPO_ROOT),
+                            os.environ.get("PYTHONPATH"),
+                        )
+                        if value
+                    ),
                     "JUPYTER_PATH": os.pathsep.join(
                         value
                         for value in (str(jupyter_root), os.environ.get("JUPYTER_PATH"))

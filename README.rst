@@ -56,6 +56,43 @@ The following code snippet shows how to generate a single chromosome polymer mod
       sim.createReporters(statistics=True, traj=True, outputName=None, trajFormat="cndb", energyComponents=True, interval=10**3)
       sim.run(nsteps=10**5, report=True, interval=10**4)
 
+Structural variants and loop extrusion
+======================================
+
+OpenMiChroM can transform symmetric locus matrices and paired directional motif
+tracks for deletions, inversions, and tandem duplications. Structural-variant
+coordinates are zero-based half-open intervals: ``start`` is included and
+``end`` is excluded.
+
+::
+
+      import numpy as np
+      from OpenMiChroM import apply_structural_variant, LoopExtrusionManager
+
+      bead = np.arange(8)
+      contact_map = 1.0 / (1.0 + np.abs(bead[:, None] - bead[None, :]))
+      forward = np.zeros(8)
+      reverse = np.zeros(8)
+      variant = apply_structural_variant(
+          contact_map, "inversion", 2, 5,
+          forward_motifs=forward, reverse_motifs=reverse,
+      )
+
+      manager = LoopExtrusionManager(
+          variant.forward_motifs, variant.reverse_motifs,
+          num_steps=4, extruder_count=2, seed=2026,
+      )
+      loop_trajectory = manager.simulate()
+
+Loop anchor pairs are also zero-based. ``MiChroM.addDynamicLoopPotential``
+creates the union of trajectory bonds once; ``updateDynamicLoopPotential`` then
+changes which bonds are active in the existing OpenMM Context. The seeded
+synthetic tutorials are offline workflow checks, not calibrated biological
+predictions. See the
+`structural-variants reference <https://open-michrom.readthedocs.io/en/latest/Reference/structural_variants.html>`__,
+`matrix tutorial <https://open-michrom.readthedocs.io/en/latest/Tutorials/Tutorial_Apply_Structural_Variants.html>`__,
+and `loop-extrusion tutorial <https://open-michrom.readthedocs.io/en/latest/Tutorials/Tutorial_Loop_Extrusion.html>`__.
+
 NDB trajectory converters
 =========================
 

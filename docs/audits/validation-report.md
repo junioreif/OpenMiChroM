@@ -1,6 +1,6 @@
 # Local validation report
 
-Validation host/date: Apple M3 Max (40-core Apple GPU), macOS, 2026-08-13.
+Validation host/date: Apple M3 Max (40-core Apple GPU), macOS, 2026-08-14.
 Worktree: the isolated `OpenMiChroM-cndbtools-integration` checkout.
 
 ## Isolated environment
@@ -44,21 +44,24 @@ CUDA target.
 | Check | Result |
 |---|---|
 | Public/static Python compilation | Pass |
-| Full pytest | 64 passed, 1 optional live-network test skipped |
-| Focused deterministic CNDB/converter/API/CPU suite | 64 passed |
-| Notebook static audit and stable cell IDs | 9/9 pass, 0 issues |
-| Canonical-to-Sphinx notebook sync | 9/9 pass |
-| Fast executable notebooks | 3/3 pass |
-| Complete reduced executable notebooks | 9/9 pass; every cell executed |
+| Full pytest | 203 passed, 1 optional live-network test skipped |
+| Focused deterministic CNDB/converter/SV/extrusion/API/CPU suite | 203 passed |
+| Notebook static audit and stable cell IDs | 11/11 pass, 0 issues |
+| Canonical-to-Sphinx notebook sync | 11/11 pass |
+| Fast executable notebooks | 5/5 pass |
+| Complete reduced executable notebooks | 11/11 pass; every cell executed |
 | Sphinx HTML with `-W --keep-going` | Pass, zero warnings |
 | Source distribution and wheel | Pass |
 | Wheel contents | Required force-field, typing marker, and vendored license present; repository tests absent |
 | Isolated `--no-deps` wheel install, public imports, and converter CLI | Pass, version 1.1.1 |
 
-Complete reduced notebook runtimes from the final recorded run were 5.6 s
-(converters), 4.9 s (remote stream), 4.3 s (active polymer), 4.9 s (pulling),
-3.7 s (classic MiChroM), 7.2 s (multiple chromosomes), 6.4 s (single
-chromosome), 12.0 s (full inversion), and 11.4 s (custom optimization).
+Complete reduced notebook runtimes from the final recorded run were 13.0 s
+(converters), 5.4 s (structural-variant transforms), 4.4 s (loop extrusion),
+4.6 s (remote stream), 4.3 s (active polymer), 4.7 s (pulling), 3.7 s (classic
+MiChroM), 5.0 s (multiple chromosomes), 5.4 s (single chromosome), 12.2 s
+(full inversion), and 11.4 s (custom optimization). The two new notebooks also
+passed their explicit full demonstration modes in 7.2 s and 5.2 s,
+respectively.
 
 The converter suite exercises all eight directed routes, every standard
 MiChroM type and historical GRO atom code, numeric/byte/string CNDB types,
@@ -67,6 +70,14 @@ the current reporter layout, the actual CPU simulation NDB writer, ambiguity
 warnings/type overrides, and atomic failure/overwrite behavior. The converter
 tutorial completed in both fast and complete modes without network, simulation
 steps, or GPU use.
+
+The structural-variant and loop-extrusion suite covers exact deletion,
+inversion, and duplication index maps; directional motif transforms;
+ideal-chromosome handling; finite-only locus-matrix/sequence output; seeded
+trajectories; dense reload policies; collision/crossing invariants; and live
+OpenMM parameter and energy updates in one persistent Context. The tutorials
+use deterministic synthetic arrays rather than redistributing the original
+branch's opaque biological fixtures.
 
 The default tests and complete reduced notebook run are offline. Remote behavior
 is validated by a temporary `ThreadingHTTPServer`, including redirects, ignored

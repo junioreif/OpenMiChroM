@@ -18,7 +18,9 @@ The fast offline suite is intended for frequent use:
 
 It checks all public imports, API compatibility, local CNDB access, deterministic
 HTTP range streaming, format versions, a small CPU simulation, tutorial syntax
-and synchronization, and three executable notebook smoke tests.
+and synchronization, and five executable notebook smoke tests. The structural-
+variant and loop-extrusion notebooks use small deterministic synthetic fixtures;
+they do not download the biological datasets that motivated the workflows.
 
 Before review, run the complete offline suite:
 
@@ -26,7 +28,7 @@ Before review, run the complete offline suite:
 
    python scripts/validate.py complete
 
-This adds the full pytest suite, all nine canonical notebooks in reduced CPU mode,
+This adds the full pytest suite, all eleven canonical notebooks in reduced CPU mode,
 a Sphinx build with warnings treated as errors, source/wheel builds, an isolated
 wheel install, and installed-package import checks. Temporary notebook copies,
 HTTP servers, documentation output, and wheel-install directories are cleaned
