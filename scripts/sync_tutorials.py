@@ -40,8 +40,8 @@ TUTORIALS = [
         "Tutorial_Apply_Structural_Variants.ipynb",
     ),
     TutorialNotebook(
-        Path("Structural_Variations/Tutorial_Loop_Extrusion.ipynb"),
-        "Tutorial_Loop_Extrusion.ipynb",
+        Path("Structural_Variations/Tutorial_Loop_Formation.ipynb"),
+        "Tutorial_Loop_Formation.ipynb",
     ),
     TutorialNotebook(
         Path("Chromosome_simulations/Tutorial_MiChroM_Simulation.ipynb"),

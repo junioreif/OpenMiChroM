@@ -91,7 +91,7 @@ synthetic tutorials are offline workflow checks, not calibrated biological
 predictions. See the
 `structural-variants reference <https://open-michrom.readthedocs.io/en/latest/Reference/structural_variants.html>`__,
 `matrix tutorial <https://open-michrom.readthedocs.io/en/latest/Tutorials/Tutorial_Apply_Structural_Variants.html>`__,
-and `loop-extrusion tutorial <https://open-michrom.readthedocs.io/en/latest/Tutorials/Tutorial_Loop_Extrusion.html>`__.
+and `loop-formation tutorial <https://open-michrom.readthedocs.io/en/latest/Tutorials/Tutorial_Loop_Formation.html>`__.
 
 NDB trajectory converters
 =========================

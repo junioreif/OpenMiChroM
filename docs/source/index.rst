@@ -25,7 +25,7 @@
    Tutorials/Tutorial_Active_Polymer
    Tutorials/Tutorial_NDB_Converters
    Tutorials/Tutorial_Apply_Structural_Variants
-   Tutorials/Tutorial_Loop_Extrusion
+   Tutorials/Tutorial_Loop_Formation
    Tutorials/stream_remote_cndb
 
 

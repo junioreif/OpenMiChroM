@@ -214,7 +214,7 @@ Relevant scientific sources include:
 The tutorials intentionally replace the historical biological inputs with
 small synthetic arrays so they run offline and expose every assumption. See
 :doc:`../Tutorials/Tutorial_Apply_Structural_Variants` and
-:doc:`../Tutorials/Tutorial_Loop_Extrusion`.
+:doc:`../Tutorials/Tutorial_Loop_Formation`.
 
 Python API
 ==========

@@ -48,7 +48,7 @@ RUNS = [
         REPO_ROOT
         / "Tutorials"
         / "Structural_Variations"
-        / "Tutorial_Loop_Extrusion.ipynb",
+        / "Tutorial_Loop_Formation.ipynb",
         REPO_ROOT / "Tutorials" / "Structural_Variations",
         fast=True,
         complete=True,
