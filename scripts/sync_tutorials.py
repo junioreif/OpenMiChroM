@@ -134,6 +134,13 @@ def output_json_size(path: Path) -> int:
 
 def validate_mapping(max_output_bytes: int) -> int:
     errors = 0
+    mapped_sources = {notebook.source_path for notebook in TUTORIALS}
+    for path in sorted(CANONICAL_DIR.rglob("*.ipynb")):
+        if path.name.startswith(".") or ".ipynb_checkpoints" in path.parts:
+            continue
+        if path not in mapped_sources:
+            print(f"source notebook is not managed by sync manifest: {path.relative_to(REPO_ROOT)}")
+            errors += 1
     mapped_docs = {notebook.docs_path for notebook in TUTORIALS}
     for path in sorted(DOCS_DIR.glob("*.ipynb")):
         if path.name.startswith(".") or ".ipynb_checkpoints" in path.parts:

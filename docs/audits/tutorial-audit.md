@@ -20,7 +20,7 @@ counts remain in each notebook and are selected when
 | `Active_Chromosome_Dynamics/Active_Polymer_Tutorial.ipynb` | Active Brownian chromosome dynamics; bundled sequence | Pass, about 5 s | 30,000-step collapse plus 500×1,000 production steps; CPU or optional CUDA | Current integrator/platform calls, deterministic seed, reduced counts, corrected time axis and output checks |
 | `Chromosome_Pulling_Tutorial/Tutorial_Pulling.ipynb` | Constant-force and constant-distance chromosome pulling; bundled DT40 inputs/lambdas | Pass, about 5 s | Thousands of blocks and multiple distance windows; CPU or CUDA with required centroid-force support | Removed obsolete duplicate notebook, fixed force/context order and parameter updates, current filenames, robust PDB coordinate parsing, fast reporters/assertions |
 | `Chromosome_simulations/Tutorial_MiChroM_Simulation.ipynb` | Classic chromosome 10 simulation; bundled ENCODE-derived BED | Pass, about 4 s | 1,000,000 production steps; no required network because input is bundled | Current `buildClassicMichrom`, CPU default, portable data path, reduced steps and assertions |
-| `Chromosome_simulations/Tutorial_Multiple_Chromosomes.ipynb` | Collapse and combine chromosomes 10/11; bundled type files | Pass, about 5 s | Three 1,000,000-step phases | Correct `fileName` keyword, current force/setup calls, reduced counts and shape/output checks |
+| `Chromosome_simulations/Tutorial_Multiple_Chromosomes.ipynb` | Collapse and combine chromosomes 10/11; bundled type files | Pass, about 5 s | Four 1,000,000-step phases | Correct `fileName` keyword, current force/setup calls, reduced counts, finite-coordinate checks, and guarded spherical-wall activation |
 | `Chromosome_simulations/Tutorial_Single_Chromosome.ipynb` | Single-chromosome collapse, production, CNDB analyses; bundled sequence | Pass, about 6 s | Two 2,000-block simulations | Reporter cadence produces fast frames, numeric frame IDs avoid metadata groups, current CNDB analysis API and sanity checks |
 | `Full_Inversion_Optimization/Tutorial_Full_Inversion_Optimization.ipynb` | Adam/full inversion from bundled GM12878 dense map | Pass, about 13 s | Original workflow can invoke bundled Juicer JAR/network and 1,000/5,000 simulation blocks | Fast mode is offline, `getHiCexp` replaces deprecated `getPars`, modern state names, finite output assertions, valid image markup |
 | `MiChroM_Optimization/Tutorial_MiChroM_Optimization.ipynb` | Type and ideal-chromosome custom inversion; bundled dense/eigen/lambda inputs | Pass, about 11 s | 100–5,000 blocks per phase; convergence requires many replicas/frames | Removed developer-specific Juicer path, supported snake_case calls, modern simulation lifecycle, documented fast-only non-finite Hessian handling |
@@ -37,10 +37,20 @@ as bundled tutorial input.
 The docs tree previously contained a second, older pulling notebook. It was
 removed because the newer canonical `Tutorial_Pulling.ipynb` supersedes it; Git
 history retains the old content. No important cell is silently skipped in
-reduced validation. The only changed scientific interpretation is explicitly
-limited to fast mode: the custom-optimization fit replaces non-finite estimates
+reduced validation. The custom-optimization fit replaces non-finite estimates
 from its intentionally inadequate two-frame Hessian with zeros so plotting code
 can be exercised. Full mode retains the original estimates unchanged.
+
+The 2026-10-02 re-verification additionally replaced shell cells with portable
+Python, made input generation idempotent, and checked input resolution from the
+repository root. The pulling input is already an index/type table, so its supplied
+A1/B1 labels are now preserved rather than incorrectly reclassified from index
+signs. Its old execution output was cleared because it no longer describes the
+corrected chromatin sequence. Repeated runs exposed unsafe spherical-wall activation after the shortened
+multi-chromosome collapse: reduced mode now uses an explicitly expanded radius,
+while production retains its density-derived radius and rejects insufficiently
+collapsed coordinates before changing forces. Regression tests cover these
+distinctions and ensure that every canonical notebook is documented and executed.
 
 ## Python example scripts
 

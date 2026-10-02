@@ -21,6 +21,7 @@ FOCUSED_TESTS = [
     "tests/test_loop_extrusion.py",
     "tests/test_simulation_smoke.py",
     "tests/test_structural_variants.py",
+    "tests/test_tutorial_validation.py",
 ]
 
 
@@ -140,6 +141,8 @@ def main() -> int:
     test_env = dict(os.environ)
     if args.network:
         test_env["OPENMICHROM_RUN_ENCODE_STREAM_TESTS"] = "1"
+    else:
+        test_env.pop("OPENMICHROM_RUN_ENCODE_STREAM_TESTS", None)
     run_stage(f"{args.mode} pytest suite", test_command, env=test_env)
 
     notebook_command = [

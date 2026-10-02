@@ -21,7 +21,7 @@ OpenMiChroM
    :target: https://github.com/junioreif/OpenMiChroM
 
 `Documentation <https://open-michrom.readthedocs.io/>`__
-| `Install <https://open-michrom.readthedocs.io/en/latest/GettingStarted/installation.html>`__
+| `Install <https://open-michrom.readthedocs.io/en/latest/GettingStarted/install.html>`__
 | `Tutorials <https://open-michrom.readthedocs.io/en/latest/Tutorials/Tutorial_Single_Chromosome.html>`__
 | `Forum <https://groups.google.com/g/open-michrom>`__
 
@@ -174,7 +174,7 @@ Resources
 =========
 
 - `Reference Documentation <https://open-michrom.readthedocs.io/>`__: Examples, tutorials, and class details.
-- `Installation Guide <https://open-michrom.readthedocs.io/en/latest/GettingStarted/installation.html>`__: Instructions for installing **OpenMiChroM**.
+- `Installation Guide <https://open-michrom.readthedocs.io/en/latest/GettingStarted/install.html>`__: Instructions for installing **OpenMiChroM**.
 - `GitHub repository <https://github.com/junioreif/OpenMiChroM/>`__: Download the **OpenMiChroM** source code.
 - `Issue tracker <https://github.com/junioreif/OpenMiChroM/issues>`__: Report issues/bugs or request features.
 
@@ -187,16 +187,17 @@ Canonical user-facing tutorial notebooks live under the top-level
 
 ::
 
-      python scripts/sync_tutorials.py
+      python scripts/sync_tutorials.py --clear-outputs
 
 Before committing tutorial changes, check consistency with:
 
 ::
 
-      python scripts/sync_tutorials.py --check
+      python scripts/sync_tutorials.py --check --clear-outputs
 
 The sync script copies mapped ``.ipynb`` files, skips checkpoint files, preserves
-notebook metadata and cell IDs, and refuses source notebooks with very large
+notebook metadata and cell IDs, clears execution output in the docs copies,
+and refuses source notebooks with very large
 embedded outputs.
 
 Developer validation

@@ -62,12 +62,16 @@ Required Libraries
 The following libraries are **required** for installing **OpenMiChroM**:
 
 - `Python <https://www.python.org/>`_ (>=3.10)
-- `NumPy <https://www.numpy.org/>`_ (>=1.14)
-- `SciPy <https://www.scipy.org/>`_ (>=1.5.0)
-- `six <https://pypi.org/project/six/>`_ (>=1.14.0)
-- `h5py <https://www.h5py.org/>`_ (>=2.0.0)
-- `pandas <https://pandas.pydata.org/>`_ (>=1.0.0)
-- `scikit-learn <https://scikit-learn.org/>`_ (>=0.20.0)
+- OpenMM_
+- `NumPy <https://www.numpy.org/>`_
+- `SciPy <https://www.scipy.org/>`_
+- `h5py <https://www.h5py.org/>`_
+- `pandas <https://pandas.pydata.org/>`_
+- `scikit-learn <https://scikit-learn.org/>`_
+
+The repository's ``environment.yml`` records tested versions of these libraries
+and includes Matplotlib, Jupyter, and the documentation/test tools for running
+the tutorials and validation suite.
 
 Remote CNDB streaming
 ---------------------

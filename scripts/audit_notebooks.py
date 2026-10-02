@@ -33,7 +33,10 @@ DEPRECATED_SNIPPETS = {
 
 
 def notebook_paths() -> list[Path]:
-    return sorted((REPO_ROOT / "Tutorials").rglob("*.ipynb"))
+    return sorted(
+        path for path in (REPO_ROOT / "Tutorials").rglob("*.ipynb")
+        if not path.name.startswith(".") and ".ipynb_checkpoints" not in path.parts
+    )
 
 
 def source_text(cell: dict) -> str:

@@ -116,6 +116,7 @@ def prepare_notebook(run: NotebookRun, *, fast: bool, output_path: Path) -> None
             cell["outputs"] = []
     setup = {
         "cell_type": "code",
+        "id": "openmichrom-validation-setup",
         "execution_count": None,
         "metadata": {"tags": ["openmichrom-validation-setup"]},
         "outputs": [],
@@ -149,6 +150,10 @@ def main() -> int:
         help="Execute only notebook paths containing this substring (repeatable).",
     )
     args = parser.parse_args()
+    if args.full_science and args.mode != "complete":
+        parser.error("--full-science is available only in complete mode")
+    if args.full_science and not args.allow_network:
+        parser.error("--full-science requires --allow-network for external-data tutorial cells")
     selected = [run for run in RUNS if run.fast] if args.mode == "fast" else list(RUNS)
     if args.only:
         selected = [
@@ -185,9 +190,6 @@ def main() -> int:
         )
         for index, run in enumerate(selected):
             relative = run.path.relative_to(REPO_ROOT)
-            if args.full_science and run.network and not args.allow_network:
-                print(f"SKIP {relative}: requires --allow-network")
-                continue
             work_dir = temp_dir / f"work-{index}"
             if run.copy_workdir:
                 shutil.copytree(run.cwd, work_dir)
@@ -238,10 +240,10 @@ def main() -> int:
             elapsed = time.monotonic() - started
             if process.returncode:
                 failures += 1
-                print(f"FAIL {relative} ({elapsed:.1f}s)")
+                print(f"FAIL {relative} ({elapsed:.1f}s)", flush=True)
                 print(process.stderr[-4000:])
             else:
-                print(f"PASS {relative} ({elapsed:.1f}s)")
+                print(f"PASS {relative} ({elapsed:.1f}s)", flush=True)
     print(f"Notebook execution: {len(selected)} selected, {failures} failed")
     return 1 if failures else 0
 

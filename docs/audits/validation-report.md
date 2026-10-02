@@ -1,6 +1,6 @@
 # Local validation report
 
-Validation host/date: Apple M3 Max (40-core Apple GPU), macOS, 2026-08-14.
+Validation host/date: Apple M3 Max (40-core Apple GPU), macOS, 2026-10-02.
 Worktree: the isolated `OpenMiChroM-cndbtools-integration` checkout.
 
 ## Isolated environment
@@ -10,6 +10,11 @@ Reproducible specification: `environment.yml`. The environment was created with
 the classic Conda solver because the base installation's optional libmamba
 plugin reports an incompatible `libmambapy.QueryFormat`; this warning is outside
 the repository and did not affect the isolated environment.
+
+This re-verification reused that isolated environment; it did not create a new
+Conda environment. Installed dependency versions remain those below, and
+`python -m pip check` reports no broken requirements. Package builds and the
+separate wheel-install target were recreated during validation.
 
 Equivalent setup commands are:
 
@@ -44,8 +49,8 @@ CUDA target.
 | Check | Result |
 |---|---|
 | Public/static Python compilation | Pass |
-| Full pytest | 203 passed, 1 optional live-network test skipped |
-| Focused deterministic CNDB/converter/SV/extrusion/API/CPU suite | 203 passed |
+| Full pytest | 231 passed, 1 optional live-network test skipped |
+| Focused deterministic CNDB/converter/SV/extrusion/API/CPU/tutorial suite | 231 passed |
 | Notebook static audit and stable cell IDs | 11/11 pass, 0 issues |
 | Canonical-to-Sphinx notebook sync | 11/11 pass |
 | Fast executable notebooks | 5/5 pass |
@@ -55,13 +60,19 @@ CUDA target.
 | Wheel contents | Required force-field, typing marker, and vendored license present; repository tests absent |
 | Isolated `--no-deps` wheel install, public imports, and converter CLI | Pass, version 1.1.1 |
 
-Complete reduced notebook runtimes from the final recorded run were 13.0 s
-(converters), 5.4 s (structural-variant transforms), 4.4 s (loop extrusion),
-4.6 s (remote stream), 4.3 s (active polymer), 4.7 s (pulling), 3.7 s (classic
-MiChroM), 5.0 s (multiple chromosomes), 5.4 s (single chromosome), 12.2 s
-(full inversion), and 11.4 s (custom optimization). The two new notebooks also
-passed their explicit full demonstration modes in 7.2 s and 5.2 s,
-respectively.
+Complete reduced notebooks ran in approximately 4–10 s each. The structural-
+variant and loop-formation notebooks additionally passed full demonstration
+mode, with all code cells executed and their generated figures inspected.
+The corrected multi-chromosome notebook also passed three additional independent
+kernel executions. These timing figures are local observations, not performance
+guarantees or convergence evidence.
+
+New regression coverage checks portable input generation, repeatable ideal-
+chromosome parameters, A/B label preservation, repository-root execution,
+notebook inventory completeness, and safe spherical-wall activation. Reduced
+multi-chromosome mode explicitly expands the wall around its unequilibrated
+coordinates; production retains the density-derived radius and requires more
+collapse if a bead is too close to or outside that wall.
 
 The converter suite exercises all eight directed routes, every standard
 MiChroM type and historical GRO atom code, numeric/byte/string CNDB types,
@@ -83,7 +94,7 @@ The default tests and complete reduced notebook run are offline. Remote behavior
 is validated by a temporary `ThreadingHTTPServer`, including redirects, ignored
 ranges, truncated responses, 404s, exact byte counts, and cleanup. The separate
 live ENCODE test remains opt-in with `scripts/validate.py fast --network`.
-It passed on 2026-08-12 in 49.24 s, reading a ten-bead frame slice from the
+It passed again on 2026-10-02 in 49.14 s, reading a ten-bead frame slice from the
 139 GB object via byte ranges. The source file has no authoritative format
 version, so the expected `LegacyCNDBVersionWarning` was emitted.
 
