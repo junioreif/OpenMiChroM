@@ -584,100 +584,75 @@ class cndbTools:
 #### Analysis start here!
 #########################################################################################
 
-    def compute_Orientation_OP(self,xyz,chrom_start=0,chrom_end=1000,vec_length=4):
-        from collections import OrderedDict
-        import itertools
-        R"""
-        Calculates the Orientation Order Parameter OP. Details are decribed in "Zhang, Bin, and Peter G. Wolynes. "Topology, structures, and energy landscapes of human chromosomes." Proceedings of the National Academy of Sciences 112.19 (2015): 6062-6067."
-        
-        Args:
-            xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray`, required):
-                Array of the 3D position of the selected beads for different frames extracted by using the `xyz()` function.
-            chrom_start (int, required):
-                First bead to consider in the calculations (Default value = 0).
-            chrom_end (int, required):
-                Last bead to consider in the calculations (Default value = 1000).  
-            vec_length (int, required):
-                Number of neighbor beads to build the vector separation :math:`i` and :math:`i+4` if vec_length is set to 4. (Default value = 4).  
-           
-                       
-        Returns:
-            Oijx:class:`numpy.ndarray`:
-                Returns the genomic separation employed in the calculations.
-            Oijy:class:`numpy.ndarray`:
-                Returns the Orientation Order Parameter OP as a function of the genomic separation.
+    def compute_Orientation_OP(self, xyz, chrom_start=0, chrom_end=1000, vec_length=4,
+                               *, normalization="legacy"):
+        """Compute tangent correlations for one frame of Cartesian coordinates.
+
+        The selected region is a zero-based half-open interval (the end is
+        clipped to the frame length). A tangent joins beads i and i+vec_length.
+        Use ``normalization="pairs"`` for zero-based bead lags and the mean over
+        all available pairs at each lag; the zero-lag value is one. The default
+        ``"legacy"`` retains the original offset axis, omitted first tangent
+        and weighting so previously reported curves can be reproduced.
         """
+        from operator import index
 
-        vec_rij=[] 
-        for i in range(chrom_start,chrom_end-vec_length):
-            vec_rij.append(xyz[i+vec_length]-xyz[i]) # from a trajectory, gets the vector ri,i+vec_length
-
-        dot_ri_rj=[]
-        ij=[]
-        for i in itertools.combinations_with_replacement(range(1,chrom_end-vec_length),2):  
-            dot_ri_rj.append(np.dot(vec_rij[i[0]]/np.linalg.norm(vec_rij[i[0]]),vec_rij[i[1]]/np.linalg.norm(vec_rij[i[1]]))) # dot product between all vector r,r+_vec_length
-            ij.append(i[1]-i[0]) # genomic separation
-
-        d = OrderedDict()
-        for k, v in zip(ij, dot_ri_rj):
-            d[k] = d.get(k, 0) + v # sum the values v for each genomic separation k
-        
-        Oijx=[]
-        Oijy=[]
-        for i in range(1,np.size(list(d.keys()))+1):
-            Oijx.append(list(d.keys())[i-1]+1)
-            Oijy.append(list(d.values())[i-1]/(chrom_end-list(d.keys())[i-1])) # gets Oij normalized by the number of elements. For example, in a chromosome of length 100, genomic distance 1 has more elements (99) considered than genomic distance 100 (1).
-
-        return np.asarray(Oijx),np.asarray(Oijy)
-
+        xyz = np.asarray(xyz, dtype=float)
+        if xyz.ndim != 2 or xyz.shape[1] != 3 or not np.isfinite(xyz).all():
+            raise ValueError("xyz must be one finite frame of shape (beads, 3)")
+        start, width = index(chrom_start), index(vec_length)
+        stop = len(xyz) if chrom_end is None else min(index(chrom_end), len(xyz))
+        if not 0 <= start < stop or not 0 < width < stop - start:
+            raise ValueError("The selected region must contain more beads than vec_length")
+        if normalization not in ("legacy", "pairs"):
+            raise ValueError("normalization must be 'legacy' or 'pairs'")
+        region = xyz[start:stop]
+        tangent = region[width:] - region[:-width]
+        if normalization == "legacy":
+            tangent = tangent[1:]
+        norms = np.linalg.norm(tangent, axis=1)
+        if np.any(norms == 0):
+            raise ValueError("A zero-length tangent has no defined orientation")
+        tangent = tangent / norms[:, None]
+        lags = np.arange(len(tangent))
+        sums = np.array([np.einsum("ij,ij->", tangent[:len(tangent)-d], tangent[d:])
+                         for d in lags])
+        if normalization == "legacy":
+            return lags + 1, sums / (len(region) - lags)
+        return lags, sums / (len(tangent) - lags)
 
     def compute_FFT_from_Oij(self, Oijy, lowcut=1, highcut=500, order=5):
-        from scipy.signal import butter, lfilter
-        from scipy.fftpack import fft
-        R"""
-        Calculates the Fourier transform of the Orientation Order Parameter OP. Details are decribed in "Zhang, Bin, and Peter G. Wolynes. "Topology, structures, and energy landscapes of human chromosomes." Proceedings of the National Academy of Sciences 112.19 (2015): 6062-6067."
-        
-        Args:
-            xyz (:math:`(frames, beadSelection, XYZ)` :class:`numpy.ndarray`, required):
-                Array of the 3D position of the selected beads for different frames extracted by using the `xyz()` function.
-            lowcut (int, required):
-                Filter to cut low frequencies (Default value = 1).
-            highcut (int, required):
-                Filter to cut high frequencies (Default value = 500).  
-            order (int, required):
-                Order of the Butterworth filter obtained from `scipy.signal.butter <https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.butter.html>`__. (Default value = 5).  
-           
-                       
-        Returns:
-            xf:class:`numpy.ndarray`:
-                Return frequencies.
-            yf:class:`numpy.ndarray`:
-                Returns the Fourier transform of the Orientation Order Parameter OP in space of 1/Chrom_Length.
-        """
+        """Return the historical half-spectrum in cycles per bead and |FFT| / N.
 
-        def _butter_bandpass(lowcut, highcut, fs, order=5):
-            R"""
-            Internal function for selecting frequencies.
-            """
-            nyq = fs//2
-            low = lowcut / nyq
-            high = highcut / nyq
-            b, a = butter(order, [low, high], btype='band')
-            return b, a
-        
-        def _butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
-            R"""
-            Internal function for filtering bands.
-            """
-            b, a = _butter_bandpass(lowcut, highcut, fs, order=order)
-            y = lfilter(b, a, data)
-            return y
-        
-        N=np.shape(Oijy)[0]
-        y = _butter_bandpass_filter(Oijy, lowcut, highcut, N, order=order)
-        xf = np.linspace(1, N//2 , N//2)
-        yf=fft(y)/len(y)
-        return (xf[0:N//2]-1)/N,np.abs(yf[0:N//2])
+        Cutoffs are in cycles per input record, as in the original routine.
+        Set both to None for an unfiltered transform. An upper cutoff at or
+        above the Nyquist frequency leaves the upper band unrestricted.
+        """
+        from scipy.signal import butter, lfilter
+
+        signal = np.asarray(Oijy, dtype=float)
+        if signal.ndim != 1 or len(signal) < 2 or not np.isfinite(signal).all():
+            raise ValueError("Oijy must be a finite 1D signal with at least two samples")
+        n = len(signal)
+        if highcut is not None and (not np.isfinite(highcut) or highcut <= 0):
+            raise ValueError("highcut must be positive and finite")
+        if lowcut is not None and not 0 < lowcut < n // 2:
+            raise ValueError("lowcut must be positive and below the Nyquist frequency")
+        if highcut is not None and lowcut is not None and highcut <= lowcut:
+            raise ValueError("highcut must exceed lowcut")
+        # Retain the historical integer Nyquist convention for filtered curves.
+        nyquist = n // 2
+        upper = highcut if highcut is not None and highcut < nyquist else None
+        if lowcut is not None or upper is not None:
+            if lowcut is not None and upper is not None:
+                cutoff, kind = [lowcut / nyquist, upper / nyquist], "bandpass"
+            elif lowcut is not None:
+                cutoff, kind = lowcut / nyquist, "highpass"
+            else:
+                cutoff, kind = upper / nyquist, "lowpass"
+            b, a = butter(order, cutoff, btype=kind)
+            signal = lfilter(b, a, signal)
+        return np.arange(n // 2) / n, np.abs(np.fft.rfft(signal)[:n // 2]) / n
     
 
     def compute_Chirality(self,xyz,neig_beads=4):

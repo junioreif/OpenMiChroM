@@ -200,78 +200,40 @@ notebook metadata and cell IDs, clears execution output in the docs copies,
 and refuses source notebooks with very large
 embedded outputs.
 
-Developer validation
-====================
+Installation and testing
+========================
 
-Create the recorded environment and install the editable package:
-
-::
-
-      CONDA_NO_PLUGINS=true conda env create --solver classic -f environment.yml
-      conda activate openmichrom-cndbtools-integration-py310
-
-Run frequent offline checks or the complete pre-review suite:
+To run the tutorials from this branch, install Git and Conda, then run:
 
 ::
 
-      python scripts/validate.py fast
-      python scripts/validate.py complete
+    git clone --branch cndbtools-integration-tutorial-audit --single-branch https://github.com/junioreif/OpenMiChroM.git
+    cd OpenMiChroM
+    conda env create --solver classic -f environment.yml
+    conda activate openmichrom-tutorials
 
-Both modes are CPU-safe and offline by default. Add ``--network`` for the live
-ENCODE integration check or ``--gpu`` to require the OpenMM CUDA platform. The
-complete notebook suite uses explicitly documented reduced validation step
-counts; ``--full-science --network`` selects the production tutorial workloads.
-
-Citation
-========
-
-When using **OpenMiChroM** for chromatin dynamics simulations or analyses, please `use this citation <https://open-michrom.readthedocs.io/en/latest/Reference/citing.html>`_.  
-We also thank `Polychrom <https://github.com/open2c/polychrom>`_, where part of this code was inspired. You can use this `citation <https://zenodo.org/records/3579473>`_.
-
-Installation
-============
-
-The **OpenMiChroM** library can be installed via `pip <https://pypi.org/project/OpenMiChroM/>`__, `conda <https://conda.io/projects/conda/>`__, or compiled from source.
-
-Install via pip
----------------
-
-The code below will install **OpenMiChroM** from PyPI:
+This installs the cloned code in editable mode, including OpenMM and Jupyter.
+In VS Code, open the repository folder, choose a notebook under ``Tutorials/``,
+select the ``openmichrom-tutorials`` kernel, and use **Run All**. For a short
+CPU run of every tutorial and the package tests:
 
 ::
 
-    pip install OpenMiChroM
+    python scripts/validate.py complete
 
-.. note::
+Add ``--network`` to test a live ENCODE trajectory. Production-length
+simulations are not part of the default test. For details see the
+`validation guide <docs/source/GettingStarted/validation.rst>`__.
+For the published package rather than this branch, use
+``python -m pip install OpenMiChroM`` or
+``conda install -c conda-forge openmichrom``.
 
-    **OpenMiChroM** relies on the `OpenMM <http://openmm.org/>`_ API to run
-    chromatin dynamics simulations. Install the standard package for CPU use,
-    or the CUDA extra on a supported NVIDIA system:
+How to cite
+===========
 
-    .. code-block:: bash
-
-        pip install openmm
-        # or: pip install "openmm[cuda12]"
-
-    Alternatively, if you prefer to use conda, install OpenMM from the `conda-forge channel <https://conda-forge.org/>`_ with:
-
-    .. code-block:: bash
-
-        conda install -c conda-forge openmm
-
-Install via conda
------------------
-
-If you prefer using conda, you can install **OpenMiChroM** from
-`conda-forge <https://anaconda.org/conda-forge/OpenMiChroM>`__ with the following command:
-
-::
-
-    conda install -c conda-forge OpenMiChroM
-
-Required Libraries
-------------------
-
-OpenMiChroM requires Python 3.10 or newer, OpenMM, NumPy, SciPy, h5py, pandas,
-and scikit-learn. The repository's ``environment.yml`` also installs the tools
-for running the Jupyter tutorials and building the documentation.
+For the software, cite Oliveira Junior et al., *A scalable computational
+approach for simulating complexes of multiple chromosomes*, Journal of Molecular
+Biology **433**, 166700 (2021), `doi:10.1016/j.jmb.2020.10.034 <https://doi.org/10.1016/j.jmb.2020.10.034>`__.
+See the `citation guide <docs/source/Reference/citing.rst>`__ and
+`BibTeX file <docs/source/Reference/OpenMiChroM.bib>`__ for optimization,
+NDB/CNDB, and the chicken DT40 mitosis and pulling studies.

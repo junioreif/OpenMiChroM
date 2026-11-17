@@ -7,8 +7,8 @@ From a fresh clone, create it and install OpenMiChroM in editable mode with:
 
 .. code-block:: bash
 
-   CONDA_NO_PLUGINS=true conda env create --solver classic -f environment.yml
-   conda activate openmichrom-cndbtools-integration-py310
+   conda env create --solver classic -f environment.yml
+   conda activate openmichrom-tutorials
 
 The fast offline suite is intended for frequent use:
 

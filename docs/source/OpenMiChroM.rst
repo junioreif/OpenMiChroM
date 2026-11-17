@@ -47,6 +47,20 @@ OpenMiChroM.CndbTools
    :undoc-members: 
    :show-inheritance:
 
+Orientation and spatial periodicity
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For an individual frame, ``compute_Orientation_OP(xyz, normalization="pairs")``
+averages the dot product of unit tangents over the available pairs at each
+bead separation. It starts at lag zero, where the correlation is one.
+The default ``"legacy"`` retains the original weighting and lag numbering.
+Pass ``chrom_end=None`` to use an entire chromosome longer than 1,000 beads.
+For a spectrum without a bandpass filter, use
+``compute_FFT_from_Oij(signal, lowcut=None, highcut=None)``. Divide the
+returned frequencies (cycles per bead) by the bead size in Mb to obtain
+cycles per Mb. For short records, an upper cutoff above Nyquist is treated
+as unrestricted.
+
 Streaming remote CNDB files
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

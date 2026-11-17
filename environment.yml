@@ -1,4 +1,4 @@
-name: openmichrom-cndbtools-integration-py310
+name: openmichrom-tutorials
 channels:
   - conda-forge
 dependencies:

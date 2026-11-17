@@ -173,6 +173,39 @@ def test_root_version_without_name_takes_precedence_over_header(tmp_path):
         CndbTools().load(path)
 
 
+def test_orientation_lags_pairs_and_legacy_weighting():
+    reader = CndbTools()
+    xyz = np.random.default_rng(7).normal(size=(15, 3))
+    region = xyz[3:12]
+    u = region[2:] - region[:-2]
+    u /= np.linalg.norm(u, axis=1)[:, None]
+    for mode in ("pairs", "legacy"):
+        lags, result = reader.compute_Orientation_OP(xyz, 3, 12, 2, normalization=mode)
+        vectors = u if mode == "pairs" else u[1:]
+        expected = []
+        for lag in range(len(vectors)):
+            dots = [a @ b for a, b in zip(vectors, vectors[lag:])]
+            expected.append(sum(dots) / (len(dots) if mode == "pairs" else len(region)-lag))
+        np.testing.assert_array_equal(lags, np.arange(len(vectors)) + int(mode == "legacy"))
+        np.testing.assert_allclose(result, expected)
+    np.testing.assert_allclose(reader.compute_Orientation_OP(xyz, normalization="pairs")[1][0], 1)
+
+
+def test_orientation_fft_short_record_and_original_filter():
+    from scipy.signal import butter, lfilter
+
+    n = 735
+    wave = np.cos(2 * np.pi * 23 * np.arange(n) / n)
+    reader = CndbTools()
+    f, amplitude = reader.compute_FFT_from_Oij(wave, None, None)
+    assert f[np.argmax(amplitude)] == pytest.approx(23 / n)
+    assert amplitude.max() == pytest.approx(0.5)
+    assert np.isfinite(reader.compute_FFT_from_Oij(wave)[1]).all()
+    b, a = butter(2, np.array([1, 100]) / (n // 2), btype="bandpass")
+    expected = np.abs(np.fft.fft(lfilter(b, a, wave))[:n // 2]) / n
+    np.testing.assert_allclose(reader.compute_FFT_from_Oij(wave, 1, 100, 2)[1], expected, atol=1e-12)
+
+
 def test_empty_dataset_missing_frame_and_invalid_ranges(tmp_path):
     empty = tmp_path / "empty.cndb"
     _make_cndb(empty, frames=False)

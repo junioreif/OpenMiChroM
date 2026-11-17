@@ -4,16 +4,20 @@
 Introduction
 ============
 
-`OpenMiChroM <https://github.com/junioreif/OpenMiChroM>`_ is a Python library for performing chromatin dynamics simulations :cite:p:`oliveira_junior_scalable_2021`. OpenMiChroM uses the  `OpenMM <http://openmm.org/>`_ Python API employing the MiChroM (Minimal Chromatin Model) energy function :cite:p:`di_pierro_transferable_2016`. The chromatin dynamics simulations generate an ensemble of 3D chromosomal structures that are consistent with experimental Hi-C maps :cite:p:`contessoto_nucleome_2021`. Open-MiChroM also allows simulations of a single or multiple chromosome chain using High-Performance Computing in different platforms (GPUs and CPUs).
+OpenMiChroM is a Python library for simulating and analyzing chromosome
+dynamics :cite:p:`oliveira_junior_scalable_2021`. It uses OpenMM to simulate
+one or more chromosome chains on a CPU or GPU. The MiChroM energy function
+relates chromatin type and genomic separation to the ensemble of folded
+chromosome structures :cite:p:`di_pierro_transferable_2016`.
 
 .. image:: ../images/OpenMiChroM_intro_small.jpg
 
-The chromatin dynamics simulations can be performed for different human cell lines, cell phases (interphase to metaphase), and different organisms from  `DNAzoo <https://www.dnazoo.org/>`_. Chromatin subcompartment annotations are available at the  `NDB (Nucleome Data Bank) <https://ndb.rice.edu/>`_.
-OpenMiChroM package receives the chromatin sequence of compartments and subcompartments as input to create and simulate a chromosome polymer model. Examples of running the simulations and generating the *in silico* Hi-C maps can be found `here <../Tutorials/single_chain.html>`_
+The :doc:`single-chromosome tutorial </Tutorials/Tutorial_Single_Chromosome>`
+starts from chromatin type annotations and generates an *in silico* contact
+map from simulated structures. The Nucleome Data Bank provides annotations
+and trajectories for multiple cell lines :cite:p:`contessoto_nucleome_2021`.
+The :doc:`pulling tutorial </Tutorials/Tutorial_Pulling>` instead uses a
+mitotic chicken DT40 chromosome to study the response to axial force
+:cite:p:`ruben_pulling_2023`.
 
 .. image:: ../images/A549_NDB.jpg
-
-.. bibliography::
-    :style: unsrt
-
-We also thank the polychrom <https://github.com/open2c/polychrom>, where part of this code was inspired. You can use this citation <https://zenodo.org/records/3579473>

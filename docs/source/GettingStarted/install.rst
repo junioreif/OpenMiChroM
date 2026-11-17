@@ -4,76 +4,51 @@
 Installation
 ============
 
-The **OpenMiChroM** library can be installed via
-`pip <https://pypi.org/project/OpenMiChroM/>`_,
-`conda <https://anaconda.org/conda-forge/OpenMiChroM>`_,
-or compiled from `source (GitHub) <https://github.com/junioreif/OpenMiChroM>`_.
+Run the notebooks from this branch
+----------------------------------
 
-Install via pip
------------------
-
-The code below will install **OpenMiChroM** from PyPI:
+Use Git and Conda. A CPU is sufficient for the short tutorial runs. From a
+directory where you want to keep the clone, run:
 
 .. code-block:: bash
 
-    pip3 install OpenMiChroM
+   git clone --branch cndbtools-integration-tutorial-audit --single-branch https://github.com/junioreif/OpenMiChroM.git
+   cd OpenMiChroM
+   conda env create --solver classic -f environment.yml
+   conda activate openmichrom-tutorials
 
-.. note::
-
-    **OpenMiChroM** relies on the `OpenMM <http://openmm.org/>`_ API to run
-    chromatin dynamics simulations. Install the standard package for CPU use,
-    or the CUDA extra on a supported NVIDIA system:
-
-
-    .. code-block:: bash
-
-        pip install openmm
-        # or: pip install "openmm[cuda12]"
-
-    Alternatively, if you prefer using conda, install OpenMM from the
-    `conda-forge channel <https://conda-forge.org/>`_ with:
-
-    .. code-block:: bash
-
-        conda install -c conda-forge openmm
-
-Install via conda
------------------
-
-If you prefer using conda, you can install **OpenMiChroM** from
-`conda-forge <https://anaconda.org/conda-forge/OpenMiChroM>`_ with the following command:
+The environment installs this checkout in editable mode, with OpenMM,
+Jupyter, and the tools for testing and building the documentation. No second
+pip install is needed. To confirm which code is loaded:
 
 .. code-block:: bash
 
-    conda install -c conda-forge OpenMiChroM
+   python -c "import OpenMiChroM; print(OpenMiChroM.__file__)"
+   git rev-parse --short HEAD
 
-Required Libraries
-------------------
+The printed path should point into this clone. In VS Code, open the cloned
+folder, install the Python and Jupyter extensions if needed, open a notebook
+under ``Tutorials/``, and select the Conda environment above as its kernel.
+See :doc:`validation` for short CPU runs and the full test command. For the
+papers to cite with your results, see :doc:`/Reference/citing`.
 
-The following libraries are **required** for installing **OpenMiChroM**:
+Install a published release
+---------------------------
 
-- `Python <https://www.python.org/>`_ (>=3.10)
-- OpenMM_
-- `NumPy <https://www.numpy.org/>`_
-- `SciPy <https://www.scipy.org/>`_
-- `h5py <https://www.h5py.org/>`_
-- `pandas <https://pandas.pydata.org/>`_
-- `scikit-learn <https://scikit-learn.org/>`_
-
-The repository's ``environment.yml`` records tested versions of these libraries
-and includes Matplotlib, Jupyter, and the documentation/test tools for running
-the tutorials and validation suite.
-
-Remote CNDB streaming
----------------------
-
-Remote indexed CNDB/HDF5 streaming in ``CndbTools.from_remote`` is included in
-OpenMiChroM. No separate streaming package is required:
+If you do not need the branch tutorials, install the latest published package
+in a Python 3.10+ environment using **one** of these alternatives:
 
 .. code-block:: bash
 
-    pip install OpenMiChroM
+   python -m pip install OpenMiChroM
 
-The standard local ``h5py`` CNDB workflow remains the default. Remote streaming
-uses an internal indexed HDF5 backend when ``CndbTools.load`` receives an
-HTTP(S) URL or when ``CndbTools.from_remote`` is called explicitly.
+or:
+
+.. code-block:: bash
+
+   conda install -c conda-forge openmichrom
+
+These commands install the packaged release, not a development branch.
+OpenMM, NumPy, SciPy, h5py, pandas, and scikit-learn are declared runtime
+dependencies. For GPU-specific OpenMM setup, see the
+`OpenMM installation guide <https://docs.openmm.org/latest/userguide/application/01_getting_started.html>`_.
