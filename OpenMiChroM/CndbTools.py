@@ -622,7 +622,7 @@ class cndbTools:
         return lags, sums / (len(tangent) - lags)
 
     def compute_FFT_from_Oij(self, Oijy, lowcut=1, highcut=500, order=5):
-        """Return the historical half-spectrum in cycles per bead and |FFT| / N.
+        """Return the historical half-spectrum in cycles per bead and normalized FFT magnitude.
 
         Cutoffs are in cycles per input record, as in the original routine.
         Set both to None for an unfiltered transform. An upper cutoff at or

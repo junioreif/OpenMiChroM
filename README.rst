@@ -122,13 +122,7 @@ indexed HDF5 streaming backend to read embedded CNDB indexes and fetch
 coordinate byte ranges over HTTP. This extends CNDBTools without changing
 existing local ``h5py`` workflows.
 
-Install OpenMiChroM:
-
-::
-
-      pip install OpenMiChroM
-
-Example using a real ENCODE CNDB file:
+After installing this checkout as described below, open an indexed ENCODE file:
 
 ::
 

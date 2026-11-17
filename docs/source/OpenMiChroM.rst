@@ -48,7 +48,7 @@ OpenMiChroM.CndbTools
    :show-inheritance:
 
 Orientation and spatial periodicity
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For an individual frame, ``compute_Orientation_OP(xyz, normalization="pairs")``
 averages the dot product of unit tangents over the available pairs at each
@@ -68,13 +68,7 @@ Streaming remote CNDB files
 HDF5 backend. Existing local CNDBTools behavior is unchanged; local
 ``cndbTools().load("trajectory.cndb")`` continues to use ``h5py``.
 
-Install OpenMiChroM:
-
-.. code-block:: bash
-
-   pip install OpenMiChroM
-
-Example:
+After following :doc:`GettingStarted/install`, open an indexed ENCODE trajectory:
 
 .. code-block:: python
 
