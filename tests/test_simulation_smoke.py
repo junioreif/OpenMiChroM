@@ -2,8 +2,42 @@
 
 from pathlib import Path
 
+import numpy as np
+import pytest
+
 from OpenMiChroM.ChromDynamics import MiChroM
 from OpenMiChroM.CndbTools import CndbTools
+
+
+@pytest.mark.parametrize("configure_before_load", [True, False])
+def test_coordinates_define_a_full_chain_and_checked_runs_finish(tmp_path, configure_before_load):
+    sim = MiChroM(verbose=False)
+    sim.setup(platform="CPU")
+    sim.saveFolder(str(tmp_path))
+    if configure_before_load:
+        sim.setChains()
+    sim.loadStructure(np.array([[i, 0., 0.] for i in range(5)]))
+    sim.addFENEBonds()
+    assert sim.chains == [(0, 4, False)]
+    assert sim.forceDict["FENEBond"].getNumBonds() == 4
+    sim.createSimulation()
+    for steps, block in [(3, 2), (1, 10)]:
+        start = sim.simulation.currentStep
+        sim.run(steps, checkSystem=True, blockSize=block, report=False)
+        assert sim.simulation.currentStep == start + steps
+    assert np.isfinite(sim.getPositions()).all()
+
+
+@pytest.mark.parametrize("frames", [2, 12])
+def test_chirality_follows_bead_axis_and_reverses_under_reflection(frames):
+    t = np.arange(8, dtype=float)
+    helix = np.column_stack((np.cos(t), np.sin(t), t))
+    xyz = np.repeat(helix[None], frames, axis=0)
+    tools = CndbTools()
+    chi = tools.compute_Chirality(xyz)
+    assert chi.shape == (frames, 3)
+    assert np.all(np.abs(chi) > 0.1)
+    np.testing.assert_allclose(tools.compute_Chirality(xyz * [-1, 1, 1]), -chi)
 
 
 def test_cpu_simulation_reporting_and_structure_exports(tmp_path: Path):

@@ -43,18 +43,18 @@ The chromatin dynamics simulations can be performed for different human cell lin
 Usage
 =====
 
-The following code snippet shows how to generate a single chromosome polymer model and run a chromatin dynamics simulation using OpenMiChroM:
+From the repository root, run a short chromosome 10 simulation with the bundled BED file:
 
 ::
 
       from OpenMiChroM.ChromDynamics import MiChroM
-      sim = MiChroM(name='stomach_GRCh38', temperature=1.0, timeStep=0.01)
-      sim.setup(platform="cuda")
-      sim.saveFolder('stomach_GRCh38_chr10_simulation')
-      sim.buildClassicMichrom(ChromSeq='inputs/stomach_GRCh38.bed', chromosome='chr10')
+      sim = MiChroM(name='chr10', temperature=1.0, timeStep=0.01)
+      sim.setup(platform="CPU")
+      sim.saveFolder('chr10_simulation')
+      sim.buildClassicMichrom(ChromSeq='Tutorials/Chromosome_simulations/inputs/ENCFF963ZUJ.bed', chromosome='chr10')
 
-      sim.createReporters(statistics=True, traj=True, outputName=None, trajFormat="cndb", energyComponents=True, interval=10**3)
-      sim.run(nsteps=10**5, report=True, interval=10**4)
+      sim.createReporters(statistics=True, traj=True, trajFormat="cndb", interval=10)
+      sim.run(nsteps=20, interval=10)
 
 Structural variants and loop extrusion
 ======================================
@@ -269,22 +269,9 @@ If you prefer using conda, you can install **OpenMiChroM** from
 
     conda install -c conda-forge OpenMiChroM
 
-.. hint::
-    
-    Sometimes, the installation via conda may appear to be stuck. If this happens, update conda/anaconda using the command below and try installing **OpenMiChroM** again.
-
-::
-
-    conda update --prefix /path/to/anaconda3/ anaconda
-
 Required Libraries
 ------------------
 
-The following libraries are **required** for installing **OpenMiChroM**:
-
-- `Python <https://www.python.org/>`__ (>=3.10)
-- `NumPy <https://www.numpy.org/>`__ (>=1.14)
-- `SciPy <https://www.scipy.org/>`__ (>=1.5.0)
-- `h5py <https://www.h5py.org/>`__ (>=2.0.0)
-- `pandas <https://pandas.pydata.org/>`__ (>=1.0.0)
-- `scikit-learn <https://scikit-learn.org/>`__ (>=0.20.0)
+OpenMiChroM requires Python 3.10 or newer, OpenMM, NumPy, SciPy, h5py, pandas,
+and scikit-learn. The repository's ``environment.yml`` also installs the tools
+for running the Jupyter tutorials and building the documentation.

@@ -660,6 +660,18 @@ def test_legacy_ndb2cndb_extensionless_call_remains_compatible(tmp_path):
     )
 
 
+def test_loading_mixed_case_ndb_preserves_existing_sibling(tmp_path):
+    source = _write_ndb(tmp_path / "source.NDB")
+    sibling = source.with_suffix(".cndb")
+    sentinel = b"existing trajectory"
+    sibling.write_bytes(sentinel)
+    with CndbTools().load(source) as tools:
+        temporary = Path(tools.cndb.filename)
+        assert temporary != sibling and temporary.is_file()
+        np.testing.assert_allclose(tools.xyz()[0], COORDINATES[0])
+    assert sibling.read_bytes() == sentinel and not temporary.exists()
+
+
 def test_existing_output_requires_explicit_overwrite_and_is_preserved(tmp_path):
     source = _write_ndb(tmp_path / "source.ndb")
     output = tmp_path / "existing.cndb"

@@ -47,15 +47,6 @@ If you prefer using conda, you can install **OpenMiChroM** from
 
     conda install -c conda-forge OpenMiChroM
 
-.. hint::
-    
-    Sometimes, the installation via conda may appear to be stuck. If this happens,
-    update conda/anaconda using the command below and try installing **OpenMiChroM** again.
-
-.. code-block:: bash
-
-    conda update --prefix /path/to/anaconda3/ anaconda
-
 Required Libraries
 ------------------
 

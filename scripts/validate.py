@@ -39,7 +39,7 @@ def package_smoke(temporary: Path) -> None:
     install = temporary / "wheel-install"
     run_stage(
         "source and wheel build",
-        [sys.executable, "-m", "build", "--outdir", str(dist)],
+        [sys.executable, "-m", "build", "--no-isolation", "--outdir", str(dist)],
     )
     wheels = sorted(dist.glob("*.whl"))
     if len(wheels) != 1:
@@ -63,6 +63,7 @@ def package_smoke(temporary: Path) -> None:
             "-m",
             "pip",
             "install",
+            "--no-index",
             "--quiet",
             "--no-deps",
             "--target",

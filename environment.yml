@@ -13,6 +13,9 @@ dependencies:
   - matplotlib=3.10.9
   - pytest=9.1.1
   - jupyter=1.0.0
+  - pandoc
+  - setuptools
+  - wheel
   - pip=26.2.1
   - pip:
       - build==1.5.0

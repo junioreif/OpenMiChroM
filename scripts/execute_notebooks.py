@@ -107,28 +107,12 @@ RUNS = [
 ]
 
 
-def prepare_notebook(run: NotebookRun, *, fast: bool, output_path: Path) -> None:
+def prepare_notebook(run: NotebookRun, *, output_path: Path) -> None:
     notebook = json.loads(run.path.read_text(encoding="utf-8"))
-    mode = "fast" if fast else "full"
     for cell in notebook.get("cells", []):
         if cell.get("cell_type") == "code":
             cell["execution_count"] = None
             cell["outputs"] = []
-    setup = {
-        "cell_type": "code",
-        "id": "openmichrom-validation-setup",
-        "execution_count": None,
-        "metadata": {"tags": ["openmichrom-validation-setup"]},
-        "outputs": [],
-        "source": [
-            "import os\n",
-            f"os.environ['OPENMICHROM_TUTORIAL_MODE'] = {mode!r}\n",
-            "TUTORIAL_FAST = os.environ['OPENMICHROM_TUTORIAL_MODE'] == 'fast'\n",
-            "TUTORIAL_PLATFORM = os.environ.get('OPENMICHROM_TUTORIAL_PLATFORM', 'CPU')\n",
-            "print(f'OpenMiChroM tutorial validation: fast={TUTORIAL_FAST}, platform={TUTORIAL_PLATFORM}')\n",
-        ],
-    }
-    notebook["cells"].insert(0, setup)
     output_path.write_text(json.dumps(notebook, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
@@ -196,7 +180,7 @@ def main() -> int:
             else:
                 work_dir.mkdir()
             prepared = work_dir / run.path.name
-            prepare_notebook(run, fast=not args.full_science, output_path=prepared)
+            prepare_notebook(run, output_path=prepared)
             started = time.monotonic()
             process = subprocess.run(
                 [

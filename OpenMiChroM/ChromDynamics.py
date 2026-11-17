@@ -236,6 +236,8 @@ class MiChroM:
 
         if not hasattr(self, "chains"):
             self.setChains()
+        elif any(end is None for _, end, _ in self.chains):
+            self.setChains(self.chains)
 
 
     def setChains(self, chains=None):
@@ -246,25 +248,19 @@ class MiChroM:
         Args:
             chains (list of tuples, optional): A list of chains in the format `[(start, end, isRing)]`.
                 `isRing` is a boolean indicating whether the chromosome chain is circular or not (used to
-                simulate bacterial genomes, for example). The particle range should be semi-open; for
-                example, a chain `(0, 3, False)` links the particles `0`, `1`, and `2`. If `isRing` is
+                simulate bacterial genomes, for example). Both indices are inclusive. For
+                example, a chain `(0, 2, False)` links the particles `0`, `1`, and `2`. If `isRing` is
                 `True`, the first and last particles of the chain are linked, forming a ring. Defaults to
                 `[(0, None, False)]`, which links all particles of the system into one chain.
         """
         if chains is None:
             chains = [(0, None, False)]
-        else:
-            # Validate and process the chains
-            validated_chains = []
-            for chain in chains:
-                start, end, isRing = chain
-
-                isRing = bool(isRing)
-                validated_chains.append((start, end, isRing))
-
-            chains = validated_chains
-
-        self.chains = chains.copy()
+        # Sequence readers may define chains before coordinates are loaded.
+        last = self.N - 1 if hasattr(self, "N") else None
+        self.chains = [
+            (start, last if end is None else end, bool(isRing))
+            for start, end, isRing in chains
+        ]
 
             
     def setPositions(self, beadsPos, randomize=False, randomOffset=1e-5):
@@ -1539,12 +1535,12 @@ class MiChroM:
                                                   progress=True, speed=True, totalSteps=totalSteps, separator="\t"))
 
         if checkSystem:
-            num_blocks = nsteps // blockSize
-            pos = self.data
+            if blockSize <= 0:
+                raise ValueError("blockSize must be positive.")
+            pos = self.context.getState(getPositions=True).getPositions(asNumpy=True)
             attempts = 0
 
-            for i in range(num_blocks):
-                steps_done = i * blockSize
+            for steps_done in range(0, nsteps, blockSize):
                 remaining_steps = nsteps - steps_done
                 steps_to_run = min(blockSize, remaining_steps)
                 self.simulation.step(steps_to_run)
@@ -1552,7 +1548,7 @@ class MiChroM:
                 state = self.context.getState(getEnergy=True, getPositions=True)
                 Uenergy = state.getPotentialEnergy()/ self.N / units.kilojoule_per_mole
 
-                if np.isnan(Uenergy):
+                if not np.isfinite(Uenergy):
                     attempts += 1
                     if attempts > 5:
                         raise ValueError("Too many attempts to reinitialize positions and velocities. Simulation terminated.")
@@ -1562,8 +1558,9 @@ class MiChroM:
                     temperature = self.temperature * units.kelvin
                     self.context.setVelocitiesToTemperature(temperature)
                     print("Ok!", flush=True)
+                    continue
 
-                pos = state.getPositions(asNumpy=True) / units.nanometers
+                pos = state.getPositions(asNumpy=True)
         else:
             self.simulation.step(nsteps)
 

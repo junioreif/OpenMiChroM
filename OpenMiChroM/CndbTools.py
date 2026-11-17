@@ -10,6 +10,7 @@ import h5py
 import numpy as np
 import os
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from scipy.spatial import distance
 
 from OpenMiChroM._cndb_stream.exceptions import CNDBFormatError, FrameNotFoundError
@@ -121,6 +122,7 @@ class cndbTools:
         self._stream_backend = None
         self.is_remote = False
         self.cndb = None
+        self._temporary_conversion = None
         self.ChromSeq = []
         self.uniqueChromSeq = set()
         self.dictChromSeq = {}
@@ -205,7 +207,9 @@ class cndbTools:
         
         Args:
             fileName (file, required):
-                Path to cndb or ndb file. If an ndb file is given, it is converted to a cndb file and saved in the same directory.
+                Path to a CNDB or NDB file. For an NDB input, a sibling CNDB
+                is created if absent. If it already exists, the conversion is
+                temporary: loading an NDB never replaces an existing trajectory.
         """
         if fileName is not None and filename is not None:
             raise TypeError("Pass only one of fileName or filename.")
@@ -234,25 +238,35 @@ class cndbTools:
             raise FileNotFoundError(f"Local CNDB/NDB file does not exist: {path}")
         if not path.is_file():
             raise FileNotFoundError(f"Local CNDB/NDB source is not a regular file: {path}")
-        f_name, file_extension = os.path.splitext(path)
-        if file_extension.lower() == ".ndb":
-            path = Path(self.ndb2cndb(str(f_name)))
-
         self.close()
         try:
-            self.cndb = h5py.File(path, "r")
-        except (OSError, ValueError) as exc:
-            raise CNDBFormatError(f"Could not open {path} as a CNDB/HDF5 file: {exc}") from exc
+            if path.suffix.lower() == ".ndb":
+                try:
+                    path = self.ndb_to_cndb(path, path.with_suffix(".cndb"))
+                except FileExistsError:
+                    self._temporary_conversion = TemporaryDirectory()
+                    dest = Path(self._temporary_conversion.name) / "trajectory.cndb"
+                    path = self.ndb_to_cndb(path, dest)
+            try:
+                self.cndb = h5py.File(path, "r")
+            except (OSError, ValueError) as exc:
+                raise CNDBFormatError(f"Could not open {path} as a CNDB/HDF5 file: {exc}") from exc
+            self._load_local_metadata(path)
+        except BaseException:
+            self.close()
+            raise
+        return self
+
+    def _load_local_metadata(self, path):
         self._stream_backend = None
         self.is_remote = False
         self.closed = False
 
         if "types" not in self.cndb or not isinstance(self.cndb["types"], h5py.Dataset):
-            self.close()
             raise CNDBFormatError(f"CNDB file {path} is missing the required 'types' dataset.")
 
         metadata = metadata_from_attrs(self.cndb.attrs)
-        if not metadata["cndb_format"] and "Header" in self.cndb:
+        if not any(metadata.values()) and "Header" in self.cndb:
             header = self.cndb["Header"]
             if isinstance(header, h5py.Group):
                 metadata = metadata_from_attrs(header.attrs)
@@ -275,8 +289,6 @@ class cndbTools:
         self.trajectories = []
         self.current_trajectory = None
         
-        return(self)
-
     def _set_format_metadata(self, metadata):
         self.format_name = metadata.get("cndb_format")
         self.format_version = metadata.get("cndb_format_version")
@@ -294,6 +306,9 @@ class cndbTools:
                 local_file.close()
             finally:
                 self.cndb = None
+        if self._temporary_conversion is not None:
+            self._temporary_conversion.cleanup()
+            self._temporary_conversion = None
         self.closed = True
 
     def __enter__(self):
@@ -366,7 +381,7 @@ class cndbTools:
         New code should call :meth:`ndb_to_cndb`, which returns a
         :class:`pathlib.Path` and refuses to replace existing output by default.
         This wrapper retains the original string return type and replacement
-        behavior because :meth:`load` historically relies on both.
+        behavior for callers that explicitly request this legacy conversion.
         """
 
         source = Path(fileName).expanduser()

@@ -30,6 +30,17 @@ def test_all_canonical_notebooks_are_documented_and_executed():
     assert all(run.complete for run in execute_notebooks.RUNS)
 
 
+def test_bundled_inputs_match_tutorial_generation():
+    inputs = REPO_ROOT / "Tutorials/Chromosome_Pulling_Tutorial/input"
+    np.testing.assert_array_equal(
+        np.loadtxt(inputs / "DT40_chr7.txt", dtype=str),
+        np.loadtxt(inputs / "DT40_chr7.eigen", dtype=str),
+    )
+    inputs = REPO_ROOT / "Tutorials/MiChroM_Optimization/input"
+    sequence = np.loadtxt(inputs / "seq_chr10_100k.txt", dtype=str)
+    np.testing.assert_array_equal(np.loadtxt(inputs / "lambda_IC_0"), np.zeros(len(sequence) - 2))
+
+
 @pytest.mark.parametrize("path", audit_notebooks.notebook_paths())
 def test_tutorials_do_not_require_shell_magics(path):
     notebook = json.loads(path.read_text())

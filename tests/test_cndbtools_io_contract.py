@@ -157,7 +157,19 @@ def test_malformed_and_future_local_versions_fail(tmp_path, version, error):
     path = tmp_path / "unsupported.cndb"
     _make_cndb(path, version=version)
 
+    tools = CndbTools()
     with pytest.raises(error):
+        tools.load(path)
+    assert tools.closed and tools.cndb is None
+
+
+def test_root_version_without_name_takes_precedence_over_header(tmp_path):
+    path = tmp_path / "conflicting.cndb"
+    _make_cndb(path, version="2.0.0")
+    with h5py.File(path, "r+") as handle:
+        del handle.attrs["format"]
+        handle.create_group("Header").attrs["format_version"] = CNDB_FORMAT_VERSION
+    with pytest.raises(UnsupportedCNDBVersionError):
         CndbTools().load(path)
 
 
