@@ -56,6 +56,15 @@ From the repository root, run a short chromosome 10 simulation with the bundled 
       sim.createReporters(statistics=True, traj=True, trajFormat="cndb", interval=10)
       sim.run(nsteps=20, interval=10)
 
+Annealing a mitotic chicken chromosome
+======================================
+
+The `DT40 annealing tutorial <Tutorials/DT40_Annealing_50kb/Tutorial_DT40_Annealing_50kb.ipynb>`__
+models chromosome 7 at 50 kb per bead. Run it offline with the bundled
+structures and interaction tables to compare the orientation spectrum of a
+new trajectory with an archived 15-minute conformation. The default uses
+2,600 CPU steps; set ``RUN = "extended"`` for 130,000 steps per replica.
+
 Structural variants and loop extrusion
 ======================================
 

@@ -41,6 +41,51 @@ def test_bundled_inputs_match_tutorial_generation():
     np.testing.assert_array_equal(np.loadtxt(inputs / "lambda_IC_0"), np.zeros(len(sequence) - 2))
 
 
+DT40 = Path("DT40_Annealing_50kb/Tutorial_DT40_Annealing_50kb.ipynb")
+
+
+def test_dt40_inputs_and_annotation():
+    from openmm import app, unit
+
+    inputs = REPO_ROOT / "Tutorials" / DT40.parent / "input"
+    sequence = np.loadtxt(inputs / "DT40_chr7.txt", dtype=str)
+    np.testing.assert_array_equal(sequence[:, 0].astype(int), np.arange(1, 740))
+    structures = []
+    for filename in ("chr7_10m-Q.gro", "chr7_15m-Q.gro"):
+        gro = app.GromacsGroFile(str(inputs / filename))
+        xyz = gro.getPositions(asNumpy=True).value_in_unit(unit.nanometer)
+        assert xyz.shape == (739, 3) and np.isfinite(xyz).all()
+        np.testing.assert_array_equal(sequence[:, 1], [
+            {"ASP": "A1", "GLU": "B1"}[r] for r in gro.residueNames
+        ])
+        structures.append(xyz)
+    assert not np.allclose(*structures)
+    types = np.genfromtxt(inputs / "lambdas_types_15m", delimiter=",", names=True)
+    assert types.dtype.names == ("A1", "B1")
+    matrix = np.column_stack([types[t] for t in types.dtype.names])
+    assert np.isfinite(matrix).all()
+    np.testing.assert_allclose(matrix, matrix.T)
+    ic = np.loadtxt(inputs / "lambdas_ic_15m")
+    assert ic.ndim == 1 and ic.size > 735 and np.isfinite(ic).all()
+
+
+def test_dt40_archived_periods_and_input_discovery(monkeypatch):
+    from openmm import app, unit
+
+    monkeypatch.chdir(REPO_ROOT)
+    body = {c["id"]: source(c) for c in cells(DT40)}
+    namespace = {}
+    exec(compile(body["inputs"], str(DT40), "exec"), namespace)
+    inputs = namespace["data"]
+    assert inputs.resolve() == REPO_ROOT / "Tutorials" / DT40.parent / "input"
+    gro = app.GromacsGroFile(str(inputs / "chr7_15m-Q.gro"))
+    xyz = gro.getPositions(asNumpy=True).value_in_unit(unit.nanometer)
+    namespace.update(reference=xyz, cold=xyz[None])
+    exec(compile(body["spectrum"], str(DT40), "exec"), namespace)
+    periods = 1 / namespace["freq"][namespace["prominent"]]
+    np.testing.assert_allclose(periods, [3.670, 0.322], atol=0.001)
+
+
 @pytest.mark.parametrize("path", audit_notebooks.notebook_paths())
 def test_tutorials_do_not_require_shell_magics(path):
     notebook = json.loads(path.read_text())

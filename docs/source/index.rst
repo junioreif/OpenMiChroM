@@ -21,6 +21,7 @@
    Tutorials/Tutorial_Multiple_Chromosomes
    Tutorials/Tutorial_MiChroM_Optimization
    Tutorials/Tutorial_Full_Inversion_Optimization
+   Tutorials/Tutorial_DT40_Annealing_50kb
    Tutorials/Tutorial_Pulling
    Tutorials/Tutorial_Active_Polymer
    Tutorials/Tutorial_NDB_Converters

@@ -4,9 +4,38 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from openmm import unit
 
 from OpenMiChroM.ChromDynamics import MiChroM
 from OpenMiChroM.CndbTools import CndbTools
+
+
+def test_softcore_energy_and_force_remain_finite_during_close_crossings(tmp_path):
+    sim = MiChroM(verbose=False)
+    sim.setup(platform="CPU")
+    sim.saveFolder(tmp_path)
+    sim.loadStructure(np.array([[0., 0., 0.], [1., 0., 0.]]))
+    sim.addRepulsiveSoftCore(eCut=4.0)
+    sim.createSimulation()
+
+    # Compare both forces and energies with the uncapped analytic model on
+    # the flat core, across its transition, on the LJ branch and past cutoff.
+    for r in (0.0001, 0.001, 0.5, 0.90, 0.96, 1.0, 1.05, 1.20):
+        sim.context.setPositions([[0, 0, 0], [r, 0, 0]])
+        state = sim.context.getState(getEnergy=True, getForces=True)
+        energy = state.getPotentialEnergy().value_in_unit(unit.kilojoule_per_mole)
+        forces = state.getForces(asNumpy=True).value_in_unit(unit.kilojoule_per_mole / unit.nanometer)
+        lj = 4 * (r**-12 - r**-6) + 1
+        repulsion = 24 * (2 * r**-13 - r**-7)
+        if r >= 2**(1/6):
+            expected, repulsion = 0., 0.
+        elif lj > 2:  # Soft-core branch for eCut = 4.
+            t = np.tanh(lj/2 - 1)
+            expected, repulsion = 2 * (1 + t), repulsion * (1 - t*t)
+        else:
+            expected = lj
+        np.testing.assert_allclose(energy, expected, atol=1e-5)
+        np.testing.assert_allclose(forces, [[-repulsion, 0, 0], [repulsion, 0, 0]], atol=2e-4)
 
 
 @pytest.mark.parametrize("configure_before_load", [True, False])

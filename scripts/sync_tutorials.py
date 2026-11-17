@@ -32,6 +32,10 @@ class TutorialNotebook:
 
 TUTORIALS = [
     TutorialNotebook(
+        Path("DT40_Annealing_50kb/Tutorial_DT40_Annealing_50kb.ipynb"),
+        "Tutorial_DT40_Annealing_50kb.ipynb",
+    ),
+    TutorialNotebook(
         Path("Converters/Tutorial_NDB_Converters.ipynb"),
         "Tutorial_NDB_Converters.ipynb",
     ),

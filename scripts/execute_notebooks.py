@@ -30,6 +30,12 @@ class NotebookRun:
 
 RUNS = [
     NotebookRun(
+        REPO_ROOT / "Tutorials" / "DT40_Annealing_50kb" / "Tutorial_DT40_Annealing_50kb.ipynb",
+        REPO_ROOT / "Tutorials" / "DT40_Annealing_50kb",
+        fast=False,
+        complete=True,
+    ),
+    NotebookRun(
         REPO_ROOT / "Tutorials" / "Converters" / "Tutorial_NDB_Converters.ipynb",
         REPO_ROOT / "Tutorials" / "Converters",
         fast=True,

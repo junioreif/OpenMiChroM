@@ -16,7 +16,10 @@ The :doc:`single-chromosome tutorial </Tutorials/Tutorial_Single_Chromosome>`
 starts from chromatin type annotations and generates an *in silico* contact
 map from simulated structures. The Nucleome Data Bank provides annotations
 and trajectories for multiple cell lines :cite:p:`contessoto_nucleome_2021`.
-The :doc:`pulling tutorial </Tutorials/Tutorial_Pulling>` instead uses a
+The :doc:`DT40 annealing tutorial </Tutorials/Tutorial_DT40_Annealing_50kb>`
+uses chicken chromosome 7 at 50 kb resolution to measure helical periods
+from correlations along the chain :cite:p:`contessoto_cell_cycle_2025`.
+The separate :doc:`pulling tutorial </Tutorials/Tutorial_Pulling>` uses a
 mitotic chicken DT40 chromosome to study the response to axial force
 :cite:p:`ruben_pulling_2023`.
 

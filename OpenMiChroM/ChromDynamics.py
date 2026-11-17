@@ -620,11 +620,15 @@ class MiChroM:
         # Calculate r0 based on eCut and epsilon
         r0 = self.sigma * (((0.5 * eCut) / (4.0 * self.epsilon) - 0.25 + (0.5) ** 2.0) ** 0.5 + 0.5) ** (-1.0 / 6.0)
 
-        # Define the energy expression for the repulsive soft-core potential
+        # Below r0/2 the soft core has already reached eCut to machine
+        # precision. Bound the intermediate LJ term there: evaluating r^-12
+        # directly during a close crossing can overflow even though the
+        # physical soft-core energy and force are finite.
         repulEnergy = (
             "LJ * step(r - r0) * step(cutoff - r)"
             " + step(r0 - r) * 0.5 * eCut * (1.0 + tanh((2.0 * LJ / eCut) - 1.0));"
-            "LJ = 4.0 * epsilon * ((sigma / r)^12 - (sigma / r)^6) + epsilon"
+            "LJ = 4.0 * epsilon * ((sigma / rSafe)^12 - (sigma / rSafe)^6) + epsilon;"
+            "rSafe = max(r, 0.5*r0)"
         )
 
         # Create the custom nonbonded force

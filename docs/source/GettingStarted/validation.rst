@@ -28,7 +28,7 @@ Before review, run the complete offline suite:
 
    python scripts/validate.py complete
 
-This adds the full pytest suite, all eleven canonical notebooks in reduced CPU mode,
+This adds the full pytest suite, all twelve canonical notebooks in reduced CPU mode,
 a Sphinx build with warnings treated as errors, source/wheel builds, an isolated
 wheel install, and installed-package import checks. Temporary notebook copies,
 HTTP servers, documentation output, and wheel-install directories are cleaned
@@ -48,7 +48,19 @@ running a notebook:
    os.environ["OPENMICHROM_TUTORIAL_MODE"] = "fast"
    os.environ["OPENMICHROM_TUTORIAL_PLATFORM"] = "CPU"
 
-Without fast mode, the simulation notebooks use production step counts, and
+The :doc:`DT40 annealing tutorial </Tutorials/Tutorial_DT40_Annealing_50kb>`
+defaults to 2,600 steps on CPU. To compare longer trajectories from the same
+archived 10-minute starting structure, set ``RUN = "extended"`` in the
+notebook and repeat with different seeds (for example, 15050 and 15051).
+Each replica runs 100,000 cooling steps and 30,000 cold steps; the notebook
+reports peaks separately for the new trajectory and the archived 15-minute
+structure. The archived coordinates yield periods of 0.32 and 3.67 Mb with
+the notebook's Fourier analysis. These are a check on the bundled reference,
+not expected values for an individual annealing trajectory. The `notebook and its five input files
+<https://github.com/junioreif/OpenMiChroM/tree/cndbtools-integration-tutorial-audit/Tutorials/DT40_Annealing_50kb>`_
+are included in the clone; no additional download is needed.
+
+Without fast mode, other simulation notebooks use production step counts, and
 the remote CNDB and full-inversion examples can require network access (and
 Java for the Juicer extraction step). Input-generation cells reset their files
 on each run rather than appending to previous parameters.

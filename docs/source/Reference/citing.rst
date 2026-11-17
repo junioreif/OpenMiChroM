@@ -21,11 +21,15 @@ Add references for the methods and data you actually used:
 - **NDB and CNDB files:** cite the Nucleome Data Bank resource
   :cite:p:`contessoto_nucleome_2021`. If you use a deposited trajectory,
   also identify its accession and credit the dataset that supplied it.
-- **Chicken DT40 and entry into mitosis:** cite Contessoto et al. for modeling
-  chromosome 7 across the cell cycle :cite:p:`contessoto_cell_cycle_2025` and
+- **Chicken DT40 and entry into mitosis:** for the
+  :doc:`50 kb annealing tutorial </Tutorials/Tutorial_DT40_Annealing_50kb>`,
+  cite Contessoto et al. for modeling chromosome 7 across the cell cycle
+  :cite:p:`contessoto_cell_cycle_2025` and
   Gibcus et al. if you use the experimental time-resolved Hi-C data
-  :cite:p:`gibcus_mitotic_2018`. For the axial pulling protocol demonstrated
-  in the tutorial, cite Ruben et al. :cite:p:`ruben_pulling_2023`.
+  :cite:p:`gibcus_mitotic_2018`.
+- **Axial pulling:** for the separate
+  :doc:`pulling tutorial </Tutorials/Tutorial_Pulling>`, cite Ruben et al.
+  :cite:p:`ruben_pulling_2023`.
 
 See the :doc:`full references <references>` or
 :download:`download the BibTeX file <OpenMiChroM.bib>`.
