@@ -16,6 +16,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 FOCUSED_TESTS = [
     "tests/test_api_compatibility.py",
     "tests/test_converters.py",
+    "tests/test_gpu_validation.py",
     "tests/test_cndbtools_io_contract.py",
     "tests/test_cndbtools_stream.py",
     "tests/test_loop_extrusion.py",
@@ -94,13 +95,95 @@ def package_smoke(temporary: Path) -> None:
     )
 
 
-def gpu_smoke() -> None:
-    code = (
-        "from openmm import Platform; "
-        "platform = Platform.getPlatformByName('CUDA'); "
-        "print(platform.getName())"
-    )
-    run_stage("optional CUDA platform smoke", [sys.executable, "-c", code])
+def _check_opencl_gpu(platform_index: int, device_index: int, expected_name: str) -> None:
+    """OpenCL also runs on CPUs. Verify the actual context's device via its ICD."""
+    import ctypes as ct
+    from ctypes.util import find_library
+
+    path = find_library("OpenCL")
+    if not path:
+        raise RuntimeError("Cannot verify OpenCL GPU device type: OpenCL runtime not found")
+    lib = (ct.WinDLL if os.name == "nt" else ct.CDLL)(path)
+    ptr, uint, ulong, size = ct.c_void_p, ct.c_uint, ct.c_uint64, ct.c_size_t
+    lib.clGetPlatformIDs.argtypes = [uint, ct.POINTER(ptr), ct.POINTER(uint)]
+    lib.clGetDeviceIDs.argtypes = [ptr, ulong, uint, ct.POINTER(ptr), ct.POINTER(uint)]
+    lib.clGetDeviceInfo.argtypes = [ptr, uint, size, ptr, ct.POINTER(size)]
+
+    def check(code):
+        if code:
+            raise RuntimeError(f"Unable to query OpenCL device type (OpenCL error {code})")
+
+    def handles(query, *args):
+        count = uint()
+        check(query(*args, 0, None, ct.byref(count)))
+        items = (ptr * count.value)()
+        check(query(*args, count, items, None))
+        return items
+
+    platform = handles(lib.clGetPlatformIDs)[platform_index]
+    device = handles(lib.clGetDeviceIDs, platform, 0xffffffff)[device_index]  # CL_DEVICE_TYPE_ALL
+    length = size()
+    check(lib.clGetDeviceInfo(device, 0x102B, 0, None, ct.byref(length)))  # CL_DEVICE_NAME
+    name = ct.create_string_buffer(length.value)
+    check(lib.clGetDeviceInfo(device, 0x102B, length, name, None))
+    device_type = ulong()
+    check(lib.clGetDeviceInfo(device, 0x1000, ct.sizeof(device_type), ct.byref(device_type), None))
+    if name.value.decode().strip() != expected_name.strip() or not device_type.value & 4:  # CL_DEVICE_TYPE_GPU
+        raise RuntimeError(f"Selected OpenCL device is not a verified GPU: {expected_name}")
+
+
+def _check_dynamics(context, integrator) -> None:
+    import numpy as np
+    from openmm import unit
+
+    def read():
+        state = context.getState(positions=True, energy=True, forces=True)
+        xyz = state.getPositions(asNumpy=True).value_in_unit(unit.nanometer)
+        forces = state.getForces(asNumpy=True).value_in_unit(unit.kilojoule_per_mole / unit.nanometer)
+        energy = state.getPotentialEnergy().value_in_unit(unit.kilojoule_per_mole)
+        kinetic = state.getKineticEnergy().value_in_unit(unit.kilojoule_per_mole)
+        if not (np.isfinite(xyz).all() and np.isfinite(forces).all()
+                and np.isfinite([energy, kinetic]).all() and np.any(forces != 0)):
+            raise RuntimeError("GPU smoke test produced nonfinite values or zero forces")
+        return xyz
+
+    start_xyz = read()
+    start_step = context.getStepCount()
+    integrator.step(10)
+    if context.getStepCount() != start_step + 10 or np.array_equal(start_xyz, read()):
+        raise RuntimeError("GPU smoke test did not advance particle coordinates and step count")
+
+
+def gpu_smoke(platform_name: str = "CUDA") -> None:
+    import openmm as mm
+
+    if platform_name not in ("CUDA", "OpenCL"):
+        raise ValueError(f"Unsupported GPU backend: {platform_name}")
+    requested = mm.Platform.getPlatformByName(platform_name)
+    system = mm.System()
+    system.addParticle(1)
+    system.addParticle(1)
+    bond = mm.HarmonicBondForce()
+    bond.addBond(0, 1, 1.0, 100.0)
+    system.addForce(bond)
+    integrator = mm.VerletIntegrator(0.001)
+    context = mm.Context(system, integrator, requested, {"Precision": "single"})
+    actual = context.getPlatform()
+    if actual.getName() != platform_name:
+        raise RuntimeError(f"Expected {platform_name}; got {actual.getName()}")
+    name = actual.getPropertyValue(context, "DeviceName")
+    if platform_name == "OpenCL":
+        platform_index = int(actual.getPropertyValue(context, "OpenCLPlatformIndex"))
+        indices = actual.getPropertyValue(context, "DeviceIndex").split(",")
+        names = name.split(",") if len(indices) > 1 else [name]
+        if len(names) != len(indices):
+            raise RuntimeError(f"Cannot verify OpenCL device list: {name}")
+        for index, device_name in zip(indices, names):
+            _check_opencl_gpu(platform_index, int(index), device_name)
+    context.setPositions([[0, 0, 0], [1.25, 0, 0]])
+    context.setVelocities([[0, 0, 0], [0, 0, 0]])
+    _check_dynamics(context, integrator)
+    print(f"PASS: {platform_name} GPU dynamics on {name} (10 steps)", flush=True)
 
 
 def main() -> int:
@@ -111,11 +194,11 @@ def main() -> int:
         action="store_true",
         help="Include the optional live ENCODE streaming test.",
     )
-    parser.add_argument(
-        "--gpu",
-        action="store_true",
-        help="Require and smoke-test OpenMM's CUDA platform.",
-    )
+    gpu = parser.add_mutually_exclusive_group()
+    gpu.add_argument("--gpu", dest="gpu_platform", action="store_const", const="CUDA",
+                     help="Require a CUDA GPU (alias for --gpu-platform CUDA).")
+    gpu.add_argument("--gpu-platform", choices=("CUDA", "OpenCL"),
+                     help="Require a short dynamics test on the specified GPU backend.")
     parser.add_argument(
         "--full-science",
         action="store_true",
@@ -160,8 +243,8 @@ def main() -> int:
         notebook_command.append("--full-science")
     run_stage(f"{args.mode} notebook execution", notebook_command)
 
-    if args.gpu:
-        gpu_smoke()
+    if args.gpu_platform:
+        gpu_smoke(args.gpu_platform)
 
     if args.mode == "complete":
         with tempfile.TemporaryDirectory(prefix="openmichrom-validation-") as temporary_name:
@@ -182,7 +265,7 @@ def main() -> int:
             )
             package_smoke(temporary)
 
-    print(f"\nVALIDATION PASS: mode={args.mode}, network={args.network}, gpu={args.gpu}")
+    print(f"\nVALIDATION PASS: mode={args.mode}, network={args.network}, gpu={args.gpu_platform or False}")
     return 0
 
 

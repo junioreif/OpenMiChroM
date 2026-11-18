@@ -626,7 +626,7 @@ class MiChroM:
         # physical soft-core energy and force are finite.
         repulEnergy = (
             "LJ * step(r - r0) * step(cutoff - r)"
-            " + step(r0 - r) * 0.5 * eCut * (1.0 + tanh((2.0 * LJ / eCut) - 1.0));"
+            " + (1.0 - step(r - r0)) * 0.5 * eCut * (1.0 + tanh((2.0 * LJ / eCut) - 1.0));"
             "LJ = 4.0 * epsilon * ((sigma / rSafe)^12 - (sigma / rSafe)^6) + epsilon;"
             "rSafe = max(r, 0.5*r0)"
         )

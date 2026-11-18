@@ -60,6 +60,13 @@ not expected values for an individual annealing trajectory. The `notebook and it
 <https://github.com/junioreif/OpenMiChroM/tree/cndbtools-integration-tutorial-audit/Tutorials/DT40_Annealing_50kb>`_
 are included in the clone; no additional download is needed.
 
+To run the full DT40 schedule from a **straight chain** on an OpenCL GPU,
+set ``RUN = "slow"`` and ``PLATFORM = "OpenCL"`` in the first code cell
+of the notebook. This cools the chain over 50,000,000 steps and then holds
+it at reduced temperature 0.2 for 5,005,000 steps. The archived 15-minute
+structure is used only for comparison. Check that the simulation cell
+reports ``OpenCL`` as the backend; the default notebook run is on CPU.
+
 Without fast mode, other simulation notebooks use production step counts, and
 the remote CNDB and full-inversion examples can require network access (and
 Java for the Juicer extraction step). Input-generation cells reset their files
@@ -73,5 +80,10 @@ mode retains the density-derived radius and checks that collapse is sufficient
 before enabling that wall. To request the original production counts
 and external data, use ``python scripts/validate.py complete --full-science
 --network``; this can require many hours. Add ``--network`` alone for the live
-ENCODE smoke test. Add ``--gpu`` to require OpenMM's CUDA platform. Default
-validation is fully offline and uses OpenMM's CPU platform.
+ENCODE smoke test. Default validation is offline and uses OpenMM's CPU
+platform. For a separate ten-step GPU check, add ``--gpu-platform OpenCL``
+on an OpenCL GPU, or ``--gpu-platform CUDA`` (also spelled ``--gpu``) on a
+CUDA GPU. The check creates a context on the requested device, tests for
+finite energies and forces, and verifies that the particles move. It fails
+if the requested backend is unavailable; it does not switch the tutorial
+suite from CPU to GPU.
