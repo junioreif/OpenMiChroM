@@ -210,18 +210,20 @@ embedded outputs.
 Installation and testing
 ========================
 
-To run the tutorials from this branch, install Git and Conda, then run:
+To run the tutorials in VS Code, `download the prep-2.0 ZIP
+<https://github.com/junioreif/OpenMiChroM/archive/refs/heads/prep-2.0.zip>`__,
+extract it, and open the folder containing ``environment.yml``.
+The ZIP includes all notebooks and sample inputs; Git is not required.
+From a terminal in that folder, run:
 
 ::
 
-    git clone --depth 1 --branch prep-2.0 --single-branch https://github.com/junioreif/OpenMiChroM.git
-    cd OpenMiChroM
     conda env create --solver classic -f environment.yml
     conda activate openmichrom-tutorials
 
-The shallow clone includes the tutorials and test inputs without downloading
-historical trajectories. Conda installs OpenMM and Jupyter separately.
-OpenMiChroM itself is installed in editable mode.
+If you want to pull updates or contribute using Git, get the same files with
+``git clone -b prep-2.0 --depth 1 https://github.com/junioreif/OpenMiChroM.git``.
+Conda installs OpenMM and Jupyter separately; it installs OpenMiChroM in editable mode.
 In VS Code, open the repository folder, choose a notebook under ``Tutorials/``,
 select the ``openmichrom-tutorials`` kernel, and use **Run All**. For a short
 CPU run of every tutorial and the package tests:
