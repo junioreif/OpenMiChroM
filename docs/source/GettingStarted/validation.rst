@@ -67,6 +67,24 @@ it at reduced temperature 0.2 for 5,005,000 steps. The archived 15-minute
 structure is used only for comparison. Check that the simulation cell
 reports ``OpenCL`` as the backend; the default notebook run is on CPU.
 
+For planning, allow **about two hours** for the full schedule on an Apple
+M3 Max GPU (OpenMM 8.5.2, OpenCL, single precision). This estimate uses
+the GPU portion of a run that started on CPU: the first 1,000,000 steps
+were on CPU and the remaining 54,005,000 took 2 hours 1 minute on GPU.
+This is not an end-to-end CPU timing or a benchmark for other devices.
+For a quick installation
+check, the default ``compact`` notebook took about 13 seconds on this Mac,
+including kernel startup and plotting.
+
+In this single trajectory, averaging the orientation correlations over all
+1,001 cold frames before the Fourier transform gave dominant periods of
+0.765 and 1.529 Mb. The 20 frames sampled by the notebook gave the same
+two peak bins. Neither dominant period matched the 0.322 and 3.670 Mb
+peaks of the archived structure. The
+:download:`example spectra (CSV) <../../../Tutorials/DT40_Annealing_50kb/example_results/slow_spectrum.csv>`
+give spatial frequency in cycles per Mb and both Fourier amplitudes.
+These values describe one trajectory, not a convergence test.
+
 Without fast mode, other simulation notebooks use production step counts, and
 the remote CNDB and full-inversion examples can require network access (and
 Java for the Juicer extraction step). Input-generation cells reset their files
