@@ -67,6 +67,21 @@ checks:
 
 Run ``openmichrom-convert --help`` for route-specific metadata options.
 
+To write an indexed version 2 CNDB and retain NDB chain, loop and interval
+metadata, use ``ndb_to_cndb(..., indexed=True)``. The separate structural
+converter supports bead-window exports: it retains selected bead annotations,
+intervals and sigma, and remaps loops with both endpoints inside the window.
+It does not preserve arbitrary header fields such as genome assembly.
+
+.. code-block:: python
+
+   from OpenMiChroM.Converters import ndb_to_cndb
+
+   ndb_to_cndb("ensemble.ndb", "indexed.cndb", indexed=True)
+
+See :doc:`/Tutorials/structural_file_conversion` for selection examples and
+:doc:`/Tutorials/write_indexed_cndb` for the writer and its HTTP round trip.
+
 The historical ``CndbTools().ndb2cndb(stem)`` method remains available for
 older scripts.  New code should use ``ndb_to_cndb`` or ``convert`` so that the
 input and output paths and overwrite policy are explicit.
@@ -98,7 +113,8 @@ The other formats do not carry every NDB field:
 
 * PDB is primarily a coordinate/visualization format.  OpenMiChroM writes type
   hints for its own round trips, but generic PDB files may not identify every
-  chromatin type or genomic interval.
+  chromatin type or genomic interval. In particular, PDB snapshots from the
+  simulation reporter do not distinguish B3 and B4 by residue name.
 * SpaceWalk text preserves traces, chromosomes, genomic intervals, and
   coordinates, but not chromatin types.  With ``write_loops=True`` (the
   default), the companion ``.loops`` file is atomically replaced on every

@@ -28,6 +28,7 @@ import h5py
 import numpy as np
 
 from OpenMiChroM._cndb_stream.exceptions import CNDBFormatError
+from OpenMiChroM._pdb_fields import validate_pdb_fields
 from OpenMiChroM._cndb_stream.version import (
     CNDB_FORMAT_NAME,
     CNDB_FORMAT_VERSION,
@@ -634,13 +635,22 @@ def _chain_local_indices(chain_ids: Sequence[str]) -> list[int]:
     return result
 
 
-def _write_cndb(data: TrajectoryData, destination: Path, *, overwrite: bool) -> None:
+def _write_cndb(data: TrajectoryData, destination: Path, *, overwrite: bool,
+                indexed: bool = False, metadata: bool = False) -> None:
+    from OpenMiChroM._cndb_stream import embedded_writer
+
     _check_outputs([destination], overwrite=overwrite)
     temporary = _temporary_path(destination)
     try:
         with h5py.File(temporary, "w") as handle:
-            handle.attrs["format"] = CNDB_FORMAT_NAME
-            handle.attrs["format_version"] = CNDB_FORMAT_VERSION
+            if metadata:
+                embedded_writer.initialize_cndb_header(
+                    handle, n_beads=data.n_beads, coordinate_dtype="float64", indexed=indexed,
+                )
+                embedded_writer.finalize_cndb_header(handle, n_frames=len(data.frame_ids))
+            else:
+                handle.attrs["format"] = embedded_writer.CNDB_FORMAT_NAME if indexed else CNDB_FORMAT_NAME
+                handle.attrs["format_version"] = embedded_writer.CNDB_FORMAT_VERSION if indexed else CNDB_FORMAT_VERSION
             handle.attrs["converter"] = "OpenMiChroM.Converters"
             for name, value in data.metadata.items():
                 if name in {"title", "name", "genome"} and value:
@@ -661,18 +671,42 @@ def _write_cndb(data: TrajectoryData, destination: Path, *, overwrite: bool) -> 
             )
             handle.create_dataset("_ndb_genomic_intervals", data=data.genomic_intervals)
             handle.create_dataset("_ndb_sigma", data=data.sigma)
-        os.replace(temporary, destination)
+        if indexed:
+            embedded_writer.write_embedded_index(temporary)
+        if overwrite:
+            os.replace(temporary, destination)
+        else:
+            os.link(temporary, destination)
     finally:
         temporary.unlink(missing_ok=True)
 
 
-def ndb_to_cndb(source, output=None, *, overwrite: bool = False) -> Path:
-    """Convert NDB text to versioned CNDB/HDF5 without losing NDB metadata."""
+def ndb_to_cndb(source, output=None, *, overwrite: bool = False, indexed: bool = False,
+                metadata: bool | None = None, frames=None, max_frames=None) -> Path:
+    """Convert NDB to CNDB, keeping chain IDs, genomic intervals, sigma and loops.
+
+    Set ``indexed=True`` for a streamable v2 file. Frame selection retains both
+    the original model identifiers and bead annotations.
+    """
 
     source_path = _source_path(source, "ndb")
     destination = _destination(source_path, output, "cndb")
     data = _parse_ndb(source_path)
-    _write_cndb(data, destination, overwrite=overwrite)
+    if frames is not None or max_frames is not None:
+        from OpenMiChroM._structural_io.converters import _normalize_frame_selection
+
+        models = dict(zip(map(str, data.frame_ids), data.coordinates))
+        selected = _normalize_frame_selection(list(models), frames)
+        if max_frames is not None:
+            if not isinstance(max_frames, (int, np.integer)) or max_frames < 0:
+                raise ValueError("max_frames must be a non-negative integer.")
+            selected = selected[:max_frames]
+        if not selected or len(selected) != len(set(selected)):
+            raise ValueError("Select at least one frame without duplicate model IDs.")
+        data.frame_ids = list(map(int, selected))
+        data.coordinates = [models[key] for key in selected]
+    _write_cndb(data, destination, overwrite=overwrite, indexed=indexed,
+                metadata=indexed if metadata is None else metadata)
     return destination
 
 
@@ -872,6 +906,11 @@ def _pdb_text(data: TrajectoryData, *, title: str) -> str:
     if len(ordered_chains) > len(chain_characters):
         raise ConverterError("PDB output supports at most 62 distinct chains.")
     chain_map = dict(zip(ordered_chains, chain_characters))
+    n_segments = 1 + sum(a != b for a, b in zip(data.chain_ids, data.chain_ids[1:]))
+    try:
+        validate_pdb_fields(data.frame_ids, data.coordinates, data.chain_indices, data.n_beads + n_segments)
+    except ValueError as exc:
+        raise ConverterError(str(exc)) from exc
     lines = [f"TITLE     {title}"]
     lines.extend(
         f"REMARK 900 OPENMICHROM CHAIN {character} {chain}"
@@ -880,11 +919,13 @@ def _pdb_text(data: TrajectoryData, *, title: str) -> str:
     for frame_id, coordinates in zip(data.frame_ids, data.coordinates):
         lines.append(f"MODEL     {frame_id:4d}")
         previous_chain = None
-        for serial, (kind, chain, chain_index, coordinate) in enumerate(
-            zip(data.types, data.chain_ids, data.chain_indices, coordinates), 1
+        serial = 1
+        for kind, chain, chain_index, coordinate in zip(
+            data.types, data.chain_ids, data.chain_indices, coordinates
         ):
             if previous_chain is not None and chain != previous_chain:
                 lines.append(f"TER   {serial:5d}")
+                serial += 1
             residue = PDB_RESIDUES.get(kind, "GLY")
             atom_name = kind if len(kind) <= 4 else "CA"
             lines.append(
@@ -894,7 +935,8 @@ def _pdb_text(data: TrajectoryData, *, title: str) -> str:
                 "  1.00  0.00           C"
             )
             previous_chain = chain
-        lines.append(f"TER   {data.n_beads + 1:5d}")
+            serial += 1
+        lines.append(f"TER   {serial:5d}")
         lines.append("ENDMDL")
     lines.append("END")
     return "\n".join(lines) + "\n"

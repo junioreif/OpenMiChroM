@@ -1,0 +1,175 @@
+Structural File Formats
+=======================
+
+OpenMiChroM CNDB v2
+-------------------
+
+OpenMiChroM writes CNDB trajectory files as HDF5. The CNDB v2 writer supports
+the historical root-frame layout so existing local readers remain usable:
+
+.. code-block:: text
+
+   /Header
+   /types
+   /0
+   /1
+   /2
+   ...
+   /_index
+
+It also supports ENCODE-style files containing multiple trajectories:
+
+.. code-block:: text
+
+   /Header
+   /replica1_chr1/types
+   /replica1_chr1/genomic_position
+   /replica1_chr1/spatial_position/1
+   /replica2_chr1/types
+   /replica2_chr1/genomic_position
+   /replica2_chr1/spatial_position/1
+   /_index
+
+``/types`` contains bead type labels. Numeric root-level datasets contain frame
+coordinates with shape ``(n_beads, 3)``. Contiguous, uncompressed frame
+datasets provide the fastest exact byte-range streaming path. Chunked
+uncompressed or gzip-compressed datasets can also be read through the embedded
+backend, including gzip with shuffle and Fletcher32 filters, but whole chunks
+may be transferred.
+
+Metadata header
+---------------
+
+The ``/Header`` group stores small metadata attributes:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Attribute
+     - Meaning
+   * - ``format_name``
+     - ``OpenMiChroM-CNDB``
+   * - ``format_version``
+     - ``2.0``
+   * - ``creator``
+     - ``OpenMiChroM``
+   * - ``openmichrom_version``
+     - Writer package version when available
+   * - ``creation_time``
+     - UTC ISO timestamp
+   * - ``coordinate_units``
+     - Coordinate units, currently ``nanometer``
+   * - ``coordinate_dtype``
+     - Stored coordinate dtype
+   * - ``frame_layout``
+     - ``root_numeric_frames``
+   * - ``n_beads``
+     - Number of beads per frame
+   * - ``n_frames``
+     - Total number of written frames across all trajectories, finalized on close
+   * - ``n_trajectories``
+     - Number of trajectories containing coordinate frames
+   * - ``indexed``
+     - Whether an embedded object index was written
+   * - ``index_format``
+     - ``hdf5-object-offset-json-gzip``
+
+Embedded object index
+---------------------
+
+The embedded index follows the hdf5-indexer convention. It is a
+gzip-compressed JSON object-offset map stored in an opaque HDF5 dataset named
+``/_index``. The root attribute ``_index_offset`` stores the HDF5 object-header
+offset for ``/_index``.
+
+The JSON maps HDF5 group paths to child object-header offsets. For example:
+
+.. code-block:: json
+
+   {
+     "/": {
+       "Header": 800,
+       "types": 7096,
+       "0": 7368,
+       "1": 7640
+     },
+     "/Header": {}
+   }
+
+The JSON intentionally does not need to include ``/_index`` itself; the
+``_index_offset`` root attribute is the remote entry point for finding it.
+
+Remote streaming
+----------------
+
+``CndbTools.from_remote(...)`` reads the embedded index and selected HDF5
+metadata through HTTP Range requests. For a contiguous, uncompressed coordinate
+dataset, the backend computes the exact bead range:
+
+.. code-block:: text
+
+   byte_start = data_offset + start * 3 * dtype.itemsize
+   byte_length = (stop - start) * 3 * dtype.itemsize
+
+For chunked coordinate datasets, the backend reads whole intersecting chunks and
+then slices/reassembles the requested rows in memory. This is still Range-based
+and avoids downloading the whole file, but transferred coordinate bytes can
+exceed the requested payload. Tested filter pipelines include no filter, gzip,
+shuffle+gzip, and shuffle+gzip+Fletcher32.
+
+If a server ignores a Range request and returns ``200 OK`` instead of
+``206 Partial Content``, OpenMiChroM raises an error rather than risking an
+accidental full-file download.
+
+Text SpaceWalk
+--------------
+
+OpenMiChroM detects and converts a small text SpaceWalk dialect used for local
+interoperability. Supported files have an optional ``##format=sw1`` header,
+optional column header, ``trace`` frame markers, and whitespace-delimited rows:
+
+.. code-block:: text
+
+   ##format=sw1 name=example
+   chromosome start end x y z
+   trace 0
+   chr1 1 50000 0.0 1.0 2.0
+
+When converting text SpaceWalk to NDB/CNDB, bead type labels are set to ``UN``
+because this text format does not encode OpenMiChroM chromatin types. When
+writing SpaceWalk text from NDB/CNDB, coordinates are written as ``chr1`` rows
+with the available genomic intervals.
+
+Writer options
+--------------
+
+``SaveStructure`` accepts:
+
+.. code-block:: python
+
+   SaveStructure(..., mode="cndb", indexed=True, metadata=True)
+
+``MiChroM.createReporters`` forwards:
+
+.. code-block:: python
+
+   sim.createReporters(
+       traj=True,
+       trajFormat="cndb",
+       trajIndexed=True,
+       trajMetadata=True,
+   )
+
+Call ``close()`` on a direct ``SaveStructure`` instance when writing is done.
+That finalization updates ``n_frames``, writes ``/_index``, and records
+``_index_offset``.
+
+Current limitations
+-------------------
+
+Direct byte-range coordinate reads require coordinate datasets with shape
+``(n_beads, 3)`` and an embedded object index for remote use. Contiguous,
+uncompressed datasets are exact. Chunked uncompressed and gzip-compressed
+datasets may transfer whole chunks. Unsupported HDF5 filters such as
+scale-offset, SZIP, n-bit, unavailable LZF codecs, and custom plugin filters are
+rejected rather than decoded or downloaded wholesale.

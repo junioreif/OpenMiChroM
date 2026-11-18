@@ -19,5 +19,6 @@ dependencies:
   - pip=26.2.1
   - pip:
       - build==1.5.0
+      - truststore>=0.10,<1  # OS certificate verification for optional public-source tests
       - -r docs/requirements.txt
       - -e .

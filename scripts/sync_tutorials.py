@@ -31,6 +31,11 @@ class TutorialNotebook:
 
 
 TUTORIALS = [
+    *[TutorialNotebook(Path(name), name) for name in (
+        "write_indexed_cndb.ipynb",
+        "structural_file_conversion.ipynb",
+        "structural_file_detection.ipynb",
+    )],
     TutorialNotebook(
         Path("DT40_Annealing_50kb/Tutorial_DT40_Annealing_50kb.ipynb"),
         "Tutorial_DT40_Annealing_50kb.ipynb",

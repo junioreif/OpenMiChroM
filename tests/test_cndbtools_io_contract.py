@@ -151,7 +151,7 @@ def test_legacy_local_versions_are_supported_with_warning(tmp_path, version):
 
 @pytest.mark.parametrize(
     ("version", "error"),
-    [("next", CNDBFormatError), ("2.0.0", UnsupportedCNDBVersionError)],
+    [("next", CNDBFormatError), ("3.0.0", UnsupportedCNDBVersionError)],
 )
 def test_malformed_and_future_local_versions_fail(tmp_path, version, error):
     path = tmp_path / "unsupported.cndb"
@@ -165,7 +165,7 @@ def test_malformed_and_future_local_versions_fail(tmp_path, version, error):
 
 def test_root_version_without_name_takes_precedence_over_header(tmp_path):
     path = tmp_path / "conflicting.cndb"
-    _make_cndb(path, version="2.0.0")
+    _make_cndb(path, version="3.0.0")
     with h5py.File(path, "r+") as handle:
         del handle.attrs["format"]
         handle.create_group("Header").attrs["format_version"] = CNDB_FORMAT_VERSION
@@ -283,15 +283,17 @@ def test_remote_index_and_cndb_versions_are_validated_before_reads(tmp_path):
         IndexedCNDB(h5_path=path, index_path=future_index)
 
     future_format = tmp_path / "future-format.json"
-    format_payload = dict(index, cndb_format_version="2.0.0")
+    format_payload = dict(index, cndb_format_version="3.0.0")
     future_format.write_text(json.dumps(format_payload), encoding="utf-8")
     with pytest.raises(UnsupportedCNDBVersionError):
         IndexedCNDB(h5_path=path, index_path=future_format)
 
 
-def test_cndb_reporter_writes_authoritative_format_metadata(tmp_path):
+def test_classic_cndb_reporter_writes_authoritative_format_metadata(tmp_path):
     reporter = SaveStructure(
         filePrefix="metadata",
+        indexed=False,
+        metadata=False,
         reportInterval=10,
         mode="cndb",
         folder=tmp_path,

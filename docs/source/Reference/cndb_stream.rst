@@ -20,8 +20,8 @@ specific exceptions from ``OpenMiChroM._cndb_stream``.
 Format metadata
 ===============
 
-Current writers put these authoritative attributes on the HDF5 root (and on
-the CNDB reporter header where applicable):
+Classic writers (including ``OpenMiChroM.Converters.ndb_to_cndb``) store
+the following attributes on the HDF5 root:
 
 .. code-block:: text
 
@@ -32,13 +32,25 @@ Readers use semantic major-version compatibility:
 
 * Missing metadata and explicit 0.x versions are read as legacy files with a
   ``LegacyCNDBVersionWarning``.
-* Valid 1.x versions are supported.
+* Valid 1.x and 2.x versions are supported. The version 2 layout keeps numeric
+  frame datasets and types, and adds a Header with
+  ``format_name="OpenMiChroM-CNDB"`` and ``format_version="2.0"``.
+  The reporter can embed an index for HTTP range reads; close it to finalize
+  the index before sharing the file. See :doc:`/Tutorials/write_indexed_cndb`.
 * Malformed versions, unknown format markers, and future major versions fail
   before coordinate data is returned.
 
 The index has its own format, layout, and version fields. Both index and CNDB
-versions are validated, so a compatible index cannot override an incompatible
-file-format declaration.
+versions declared by the index are validated. A user-supplied sidecar must
+match the exact source file; rebuild it if that file has changed.
+
+Radial analysis compatibility
+=============================
+
+``compute_RDP`` and ``compute_RadNumDens`` retain their historical radial
+binning by default. Pass ``normalization="shell-volume"`` to normalize by
+the exact spherical shell volumes. Select the convention explicitly when
+comparing previously published profiles.
 
 Caching and cleanup
 ===================

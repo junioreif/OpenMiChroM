@@ -7,19 +7,23 @@ from pathlib import Path
 from typing import Any, Iterable
 from urllib.request import urlopen
 
+import h5py
 import numpy as np
 
 from .analysis import distance_matrix, radius_of_gyration
 from .exceptions import CNDBIndexError, CNDBStreamError, FrameNotFoundError, UnsupportedLayoutError
+from .filters import unsupported_filter_message
 from .index import (
     INDEX_FORMAT,
     INDEX_VERSION,
     NESTED_INDEX_VERSION,
     NESTED_NDB_LAYOUT,
     OPENMICHROM_SIMPLE_LAYOUT,
+    _validate_coordinate_index,
+    _validate_frame_info,
 )
 from .remote import RemoteByteReader
-from .utils import coerce_frame_id
+from .utils import coerce_frame_id, json_safe_value
 from .version import validate_format_metadata
 
 
@@ -76,6 +80,7 @@ class IndexedCNDB:
     ) -> None:
         self.timeout = timeout
         self._embedded_provider = _embedded_provider
+        self.closed = False
 
         has_local_h5 = h5_path is not None
         has_remote_h5 = h5_url is not None
@@ -101,7 +106,6 @@ class IndexedCNDB:
             self._byte_reader = RemoteByteReader(str(h5_url), timeout=timeout)
             self.h5_source = str(h5_url)
 
-        self.closed = False
         try:
             self._validate_index()
             self.format_metadata = validate_format_metadata(
@@ -110,9 +114,12 @@ class IndexedCNDB:
             )
             self.current_trajectory = self._resolve_trajectory(trajectory)
             self._coordinate_index = self._resolve_coordinate_index()
+            _validate_coordinate_index(self._coordinate_index)
         except Exception:
             self.close()
             raise
+        self._metadata_cache: dict[str, Any] = {}
+        self._metadata_errors: dict[str, str] = {}
 
     @classmethod
     def from_embedded_index(
@@ -190,15 +197,33 @@ class IndexedCNDB:
 
     @property
     def types(self) -> list[Any] | None:
-        """Chromatin type labels embedded by ``build_index`` when available."""
+        """Chromatin type labels when available."""
 
-        return self._coordinate_index.get("types")
+        if "types" in self._coordinate_index:
+            return self._coordinate_index.get("types")
+        values = self._read_metadata_values(self._coordinate_index.get("types_path"))
+        if values is None:
+            return None
+        safe_values = json_safe_value(values)
+        labels = safe_values if isinstance(safe_values, list) else [safe_values]
+        if len(labels) != self.n_beads:
+            raise CNDBIndexError(f"Expected {self.n_beads} chromatin types, found {len(labels)}.")
+        return labels
+
+    @property
+    def genomic_positions(self) -> Any | None:
+        """Genomic position metadata when available."""
+
+        return self._read_metadata_values(self._coordinate_index.get("genomic_position_path"))
 
     @property
     def data_bytes_read(self) -> int:
         """Coordinate payload bytes read by direct frame byte-range requests."""
 
-        return int(self._byte_reader.bytes_read)
+        embedded_data = 0
+        if self._embedded_provider is not None:
+            embedded_data = int(getattr(self._embedded_provider, "data_bytes_read", 0))
+        return int(self._byte_reader.bytes_read) + embedded_data
 
     @property
     def index_bytes_read(self) -> int:
@@ -270,12 +295,14 @@ class IndexedCNDB:
         if self.closed:
             raise ValueError("Cannot read coordinates from a closed CNDB reader.")
         frame_info = self._get_frame_info(frame)
-        self._ensure_supported(frame_info)
 
         shape = tuple(int(dim) for dim in frame_info["shape"])
         start_row, stop_row = self._normalize_rows(start, stop, n_rows=shape[0])
         rows = stop_row - start_row
         dtype = np.dtype(frame_info["dtype"])
+        if frame_info.get("direct_read_supported") is not True:
+            return self._read_noncontiguous_layout(frame_info, start_row, stop_row)
+
         row_size = int(shape[1] * dtype.itemsize)
         byte_start = int(frame_info["data_offset"]) + start_row * row_size
         byte_stop = byte_start + rows * row_size
@@ -322,7 +349,7 @@ class IndexedCNDB:
     def prefetch_frame_metadata(self, frames: Iterable[int | str]) -> dict[str, dict[str, Any]]:
         """Resolve and cache frame dataset metadata without reading coordinates."""
 
-        return {coerce_frame_id(frame): self._get_frame_info(frame) for frame in frames}
+        return {self._resolve_frame_id(frame): self._get_frame_info(frame) for frame in frames}
 
     def get_distance_matrix(
         self,
@@ -435,26 +462,89 @@ class IndexedCNDB:
         return self.index["trajectories"][self.current_trajectory]
 
     def _get_frame_info(self, frame: int | str) -> dict[str, Any]:
-        frame_id = coerce_frame_id(frame)
+        frame_id = self._resolve_frame_id(frame)
         frames = self._coordinate_index["frames"]
         if frame_id not in frames and self._embedded_provider is not None:
-            frames[frame_id] = self._embedded_provider.frame_info(frame_id)
+            info = self._embedded_provider.frame_info(frame_id)
+            _validate_frame_info(frame_id, info, self.n_beads)
+            frames[frame_id] = info
         if frame_id not in frames:
             raise FrameNotFoundError(
                 f"Frame {frame_id!r} was not found. Available frames: {self.frame_ids[:10]}"
             )
         return frames[frame_id]
 
+    def _resolve_frame_id(self, frame: int | str) -> str:
+        frame_id = coerce_frame_id(frame)
+        if frame_id in self.frame_ids:
+            return frame_id
+        t_frame_id = f"t_{frame_id}"
+        if t_frame_id in self.frame_ids:
+            return t_frame_id
+        return frame_id
+
+    def _read_metadata_values(self, path: str | None) -> Any | None:
+        if path is None:
+            return None
+        if path in self._metadata_cache:
+            return self._metadata_cache[path]
+        try:
+            if self._embedded_provider is not None:
+                values = self._embedded_provider.read_dataset(path)
+            elif isinstance(self._byte_reader, LocalByteReader):
+                with h5py.File(self._byte_reader.path, "r") as h5:
+                    values = h5[path][()]
+            else:
+                return None
+        except Exception as exc:
+            self._metadata_errors[path] = str(exc)
+            return None
+        self._metadata_cache[path] = values
+        return values
+
     @staticmethod
     def _ensure_supported(frame_info: dict[str, Any]) -> None:
         if frame_info.get("direct_read_supported") is True:
             return
         raise UnsupportedLayoutError(
-            "Frame dataset cannot be read with direct byte ranges in the MVP. "
+            "Frame dataset cannot be read with direct contiguous byte ranges. "
             f"path={frame_info.get('path')!r}, layout={frame_info.get('layout')!r}, "
             f"compression={frame_info.get('compression')!r}, "
-            f"data_offset={frame_info.get('data_offset')!r}."
+            f"filters={frame_info.get('filters')!r}, "
+            f"data_offset={frame_info.get('data_offset')!r}. "
+            f"{unsupported_filter_message(frame_info.get('filters'))}"
         )
+
+    def _read_noncontiguous_layout(
+        self,
+        frame_info: dict[str, Any],
+        start_row: int,
+        stop_row: int,
+    ) -> np.ndarray:
+        """Read non-contiguous layouts only through safe local/embedded backends."""
+
+        path = frame_info.get("path")
+        layout = frame_info.get("layout")
+        if (
+            layout == "chunked"
+            and frame_info.get("chunked_read_supported") is True
+            and path
+        ):
+            if self._embedded_provider is not None:
+                try:
+                    return self._embedded_provider.read_dataset_rows(path, start_row, stop_row).copy()
+                except Exception as exc:
+                    raise UnsupportedLayoutError(
+                        "Chunked dataset could not be streamed by the embedded HDF5 backend. "
+                        f"path={path!r}, compression={frame_info.get('compression')!r}, "
+                        f"filters={frame_info.get('filters')!r}."
+                    ) from exc
+            h5_path = Path(self.h5_source)
+            if h5_path.exists():
+                with h5py.File(h5_path, "r") as h5:
+                    return np.asarray(h5[path][start_row:stop_row, :]).copy()
+        self._ensure_supported(frame_info)
+        raise AssertionError("unreachable")
 
     @staticmethod
     def _normalize_rows(

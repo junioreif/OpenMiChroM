@@ -9,6 +9,14 @@ from openmm.app import StateDataReporter
 from datetime import datetime
 
 from ._cndb_stream.version import CNDB_FORMAT_NAME, CNDB_FORMAT_VERSION
+from ._pdb_fields import validate_pdb_fields
+from ._cndb_stream.embedded_writer import (
+    CNDB_FORMAT_NAME as INDEXED_FORMAT_NAME,
+    CNDB_FORMAT_VERSION as INDEXED_FORMAT_VERSION,
+    finalize_cndb_header,
+    initialize_cndb_header,
+    write_embedded_index,
+)
 
 
 class SaveStructure(StateDataReporter):
@@ -28,7 +36,8 @@ class SaveStructure(StateDataReporter):
     """
 
     def __init__(self, filePrefix, reportInterval, mode='cndb', folder='.',
-                 chains=None, typeListLetter=None, diffTypes=None):
+                 chains=None, typeListLetter=None, diffTypes=None,
+                 indexed=True, metadata=True, coordinate_dtype=None):
         #super().__init__(reportInterval)
         # super(SaveStructure, self).__init__(filePrefix, reportInterval)
         self.filePrefix = filePrefix
@@ -39,6 +48,14 @@ class SaveStructure(StateDataReporter):
         self.typeListLetter = typeListLetter
         self.diffTypes = diffTypes
         self.step = 0
+        self.indexed = bool(indexed)
+        self.metadata = bool(metadata)
+        self.coordinate_dtype = np.dtype(coordinate_dtype) if coordinate_dtype is not None else None
+        self._closed = False
+        self._storage_paths = []
+        self._frame_counts = []
+        self._n_beads = []
+        self._coordinate_dtypes = []
 
         # Ensure the output folder exists
         os.makedirs(self.folder, exist_ok=True)
@@ -50,8 +67,7 @@ class SaveStructure(StateDataReporter):
             'format' : 'swb',
             'genome' : 'hg38',
             'pointtype' : 'single_point',
-            'title': 'Trajectory from OpenmiChroM apy',
-            'author' : 'Antonio B Oliveira Junior',
+            'title': 'Trajectory from OpenMiChroM',
             'date' : str(datetime.now())
             }
             self.storage = []
@@ -73,20 +89,59 @@ class SaveStructure(StateDataReporter):
             for k, chain in enumerate(self.chains):
                 fname = os.path.join(self.folder, f"{self.filePrefix}_{k}.cndb")
                 storageFile = h5py.File(fname, "w")
-                storageFile.attrs["format"] = CNDB_FORMAT_NAME
-                storageFile.attrs["format_version"] = CNDB_FORMAT_VERSION
+                n_beads = chain[1] + 1 - chain[0]
+                if self.metadata:
+                    initialize_cndb_header(
+                        storageFile,
+                        n_beads=n_beads,
+                        coordinate_dtype=self.coordinate_dtype.name if self.coordinate_dtype else None,
+                        indexed=self.indexed,
+                    )
+                else:
+                    # Suppressing rich metadata must not suppress format validation.
+                    storageFile.attrs["format"] = INDEXED_FORMAT_NAME if self.indexed else CNDB_FORMAT_NAME
+                    storageFile.attrs["format_version"] = INDEXED_FORMAT_VERSION if self.indexed else CNDB_FORMAT_VERSION
                 storageFile['types'] = self.typeListLetter[chain[0]:chain[1]+1]
                 self.storage.append(storageFile)
+                self._storage_paths.append(fname)
+                self._frame_counts.append(0)
+                self._n_beads.append(n_beads)
+                self._coordinate_dtypes.append(self.coordinate_dtype.name if self.coordinate_dtype else None)
 
     def __del__(self):
-        self.close()
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def close(self):
-        """Flush and close trajectory files; safe to call repeatedly."""
+        """Flush and close output files, finalizing CNDB metadata and indexes."""
 
-        for storageFile in getattr(self, "storage", []):
-            if storageFile.id.valid:
-                storageFile.close()
+        if self._closed or not hasattr(self, 'storage'):
+            return
+
+        if self.mode == 'cndb':
+            for k, storageFile in enumerate(self.storage):
+                if storageFile.id.valid:
+                    if self.metadata:
+                        finalize_cndb_header(
+                            storageFile,
+                            n_frames=self._frame_counts[k],
+                            n_beads=self._n_beads[k],
+                            coordinate_dtype=self._coordinate_dtypes[k],
+                            indexed=self.indexed,
+                        )
+                    storageFile.flush()
+                    storageFile.close()
+                if self.indexed:
+                    write_embedded_index(self._storage_paths[k])
+
+        elif self.mode == 'swb':
+            for storageFile in self.storage:
+                if storageFile.id.valid:
+                    storageFile.close()
+
+        self._closed = True
 
     def describeNextReport(self, simulation):
         """Get information about the next report this object will generate.
@@ -118,7 +173,13 @@ class SaveStructure(StateDataReporter):
         # Save the structure based on the specified mode
         elif self.mode == 'cndb':
             for k, chain in enumerate(self.chains):
-                self.storage[k][str(self.step)] = data[chain[0]:chain[1]+1]
+                frame_data = np.asarray(data[chain[0]:chain[1]+1])
+                if self.coordinate_dtype is not None:
+                    frame_data = frame_data.astype(self.coordinate_dtype, copy=False)
+                if self._coordinate_dtypes[k] is None:
+                    self._coordinate_dtypes[k] = str(frame_data.dtype)
+                self.storage[k].create_dataset(str(self.step), data=frame_data)
+                self._frame_counts[k] += 1
 
         elif self.mode == 'xyz':
             filename = os.path.join(self.folder, f"{self.filePrefix}_state{self.step}.xyz")
@@ -128,6 +189,9 @@ class SaveStructure(StateDataReporter):
                 for particle in data:
                     myfile.write("{0:.3f} {1:.3f} {2:.3f}\n".format(*particle))
         elif self.mode == 'pdb':
+            for start, end, _ in self.chains:
+                length = end - start + 1
+                validate_pdb_fields([self.step + 1], [data[start:end + 1]], [length], length)
             for chainNum, chain in enumerate(self.chains):
                 filename = f"{self.filePrefix}_{chainNum}_state{self.step}.pdb"
                 filename = os.path.join(self.folder, filename)
@@ -136,7 +200,7 @@ class SaveStructure(StateDataReporter):
 
                 with open(filename, 'w') as pdb_file:
                     pdb_file.write(f"TITLE     {self.filePrefix} - chain {chainNum}\n")
-                    pdb_file.write(f"MODEL     {self.step+1}\n")
+                    pdb_file.write(f"MODEL     {self.step + 1:4d}\n")
 
                     totalAtom = 1
                     Res_conversion = {'A1':'ASP', 'A2':'GLU', 'B1':'HIS', 'B2':'LYS', 'B3':'ARG', 'B4':'ARG', 'NA':'ASN'}

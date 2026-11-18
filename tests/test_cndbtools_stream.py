@@ -3,10 +3,90 @@ import struct
 
 import h5py
 import numpy as np
+import pytest
+import functools
+import os
+import re
+import threading
+from contextlib import contextmanager
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 import OpenMiChroM._cndb_stream as internal_stream
 from OpenMiChroM._cndb_stream import IndexedCNDB
+from OpenMiChroM._cndb_stream.embedded_writer import initialize_cndb_header, write_embedded_index
 from OpenMiChroM.CndbTools import CndbTools, cndbTools
+from OpenMiChroM._structural_io import coalesce_indices
+
+
+class _RangeRequestHandler(SimpleHTTPRequestHandler):
+    def log_message(self, format, *args):
+        return
+
+    def send_head(self):
+        path = self.translate_path(self.path)
+        if not os.path.isfile(path):
+            self.send_error(404, "File not found")
+            return None
+
+        file_size = os.path.getsize(path)
+        range_header = self.headers.get("Range")
+        handle = open(path, "rb")
+        if range_header:
+            match = re.match(r"bytes=(\d+)-(\d+)$", range_header)
+            if match is None:
+                handle.close()
+                self.send_error(416, "Invalid Range")
+                return None
+            start = int(match.group(1))
+            stop_inclusive = min(int(match.group(2)), file_size - 1)
+            if start >= file_size or stop_inclusive < start:
+                handle.close()
+                self.send_error(416, "Range Not Satisfiable")
+                return None
+            length = stop_inclusive - start + 1
+            self.send_response(206)
+            self.send_header("Content-type", "application/octet-stream")
+            self.send_header("Accept-Ranges", "bytes")
+            self.send_header("Content-Range", f"bytes {start}-{stop_inclusive}/{file_size}")
+            self.send_header("Content-Length", str(length))
+            self.end_headers()
+            handle.seek(start)
+            self._range_length = length
+            return handle
+
+        self.send_response(200)
+        self.send_header("Content-type", "application/octet-stream")
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Content-Length", str(file_size))
+        self.end_headers()
+        self._range_length = None
+        return handle
+
+    def copyfile(self, source, outputfile):
+        if getattr(self, "_range_length", None) is None:
+            return super().copyfile(source, outputfile)
+        remaining = self._range_length
+        while remaining:
+            chunk = source.read(min(64 * 1024, remaining))
+            if not chunk:
+                break
+            outputfile.write(chunk)
+            remaining -= len(chunk)
+
+
+@contextmanager
+def _serve_directory(directory):
+    factory = functools.partial(_RangeRequestHandler, directory=str(directory))
+    server = ThreadingHTTPServer(("127.0.0.1", 0), factory)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        yield f"http://{host}:{port}"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
 
 
 def _make_simple_cndb(path):
@@ -44,6 +124,7 @@ class _FakeIndexedCNDB:
             "cndb_format_version": "1.0.0",
             "cndb_format_status": "supported",
         }
+        self.genomic_positions = np.arange(40).reshape(20, 2)
         self.index_bytes_read = 100
         self.metadata_bytes_read = 40
         self.data_bytes_read = 0
@@ -62,6 +143,8 @@ class _FakeIndexedCNDB:
         return cls.last_instance
 
     def get_coordinates(self, frame, start=None, stop=None):
+        if self.closed:
+            raise ValueError("closed")
         start = 0 if start is None else start
         stop = self.n_beads if stop is None else stop
         self.requests.append((str(frame), start, stop))
@@ -135,9 +218,58 @@ def test_from_remote_uses_internal_stream_backend(monkeypatch):
     assert tools.trajectories == ["replica1_chr1"]
     assert tools.format_version == "1.0.0"
     assert tools.dictChromSeq["A1"][:2] == [0, 2]
+    assert tools.dictChromSeq["A1"] == list(range(0, 20, 2))
+    assert tools.dictChromSeq["B1"] == list(range(1, 20, 2))
+    np.testing.assert_array_equal(tools.genomic_positions, np.arange(40).reshape(20, 2))
     assert _FakeIndexedCNDB.last_kwargs["h5_url"] == "https://example.org/test.cndb"
     assert _FakeIndexedCNDB.last_kwargs["trajectory"] == "replica1_chr1"
     assert _FakeIndexedCNDB.last_kwargs["index_cache_path"] == "/tmp/test-index.json.gz"
+
+
+def test_cndbtools_context_manager_closes_stream_backend(monkeypatch):
+    _install_fake_internal_stream(monkeypatch)
+
+    with CndbTools.from_remote("https://example.org/test.cndb") as tools:
+        assert tools.closed is False
+        assert tools.xyz(frames=[1], beadSelection=range(0, 2)).shape == (1, 2, 3)
+
+    assert tools.closed is True
+    assert _FakeIndexedCNDB.last_instance.closed is True
+    with pytest.raises(ValueError, match="closed CNDBTools"):
+        tools.xyz(frames=[1], beadSelection=range(0, 2))
+
+
+def test_from_remote_normalizes_legacy_numeric_type_codes(monkeypatch):
+    _install_fake_internal_stream(monkeypatch)
+    monkeypatch.setattr(
+        _FakeIndexedCNDB,
+        "from_embedded_index",
+        classmethod(lambda cls, **kwargs: cls()),
+    )
+    original_init = _FakeIndexedCNDB.__init__
+
+    def numeric_init(self):
+        original_init(self)
+        self.types = np.array([0, 1, 2, 3, 4, 5, 6] + [0] * 13)
+
+    monkeypatch.setattr(_FakeIndexedCNDB, "__init__", numeric_init)
+
+    tools = CndbTools.from_remote("https://example.org/legacy.cndb")
+
+    assert tools.types[:7] == ["A1", "A2", "B1", "B2", "B3", "B4", "NA"]
+    assert tools.dictChromSeq["A1"] == [0] + list(range(7, 20))
+
+
+def test_classic_local_loader_normalizes_legacy_numeric_type_codes(tmp_path):
+    path = tmp_path / "legacy.cndb"
+    with h5py.File(path, "w") as handle:
+        handle.create_dataset("types", data=np.arange(7, dtype=np.int64))
+        handle.create_dataset("1", data=np.zeros((7, 3), dtype=np.float32))
+
+    tools = CndbTools()
+    tools.load(path)
+
+    assert tools.types == ["A1", "A2", "B1", "B2", "B3", "B4", "NA"]
 
 
 def test_streaming_xyz_contiguous_range_reads_exact_coordinate_bytes(monkeypatch):
@@ -152,19 +284,203 @@ def test_streaming_xyz_contiguous_range_reads_exact_coordinate_bytes(monkeypatch
     stats = tools.stream_stats()
     assert stats["data_bytes_read"] == 240
     assert stats["index_cache_hit"] is True
+    assert stats["selection_strategy"] == "single-range"
+    assert stats["range_request_count"] == 2
+    assert stats["requested_coordinate_bytes"] == 240
+    assert stats["transferred_coordinate_bytes"] == 240
+    assert stats["overfetch_coordinate_bytes"] == 0
     np.testing.assert_array_equal(xyz[0], _FakeIndexedCNDB.last_instance.data["1"][:10])
 
 
-def test_streaming_xyz_noncontiguous_selection_reads_enclosing_range(monkeypatch):
+def test_streaming_xyz_slice_selection_reads_one_range(monkeypatch):
+    _install_fake_internal_stream(monkeypatch)
+    tools = cndbTools.from_remote("https://example.org/test.cndb", trajectory="replica1_chr1")
+
+    xyz = tools.xyz(frames=[1], beadSelection=slice(2, 8), XYZ=[1, 2])
+
+    assert xyz.shape == (1, 6, 2)
+    assert _FakeIndexedCNDB.last_instance.requests == [("1", 2, 8)]
+    expected = _FakeIndexedCNDB.last_instance.data["1"][2:8][:, [1, 2]]
+    np.testing.assert_array_equal(xyz[0], expected)
+    stats = tools.stream_stats()
+    assert stats["selection_strategy"] == "single-range"
+    assert stats["requested_coordinate_bytes"] == 6 * 3 * np.dtype("float32").itemsize
+
+
+def test_streaming_xyz_contiguous_list_reads_one_range(monkeypatch):
+    _install_fake_internal_stream(monkeypatch)
+    tools = cndbTools.from_remote("https://example.org/test.cndb", trajectory="replica1_chr1")
+
+    xyz = tools.xyz(frames=[1], beadSelection=[2, 3, 4, 5], XYZ=[0, 1, 2])
+
+    assert xyz.shape == (1, 4, 3)
+    assert _FakeIndexedCNDB.last_instance.requests == [("1", 2, 6)]
+    assert tools.stream_stats()["selection_strategy"] == "single-range"
+
+
+def test_streaming_xyz_noncontiguous_selection_reads_coalesced_ranges(monkeypatch):
     _install_fake_internal_stream(monkeypatch)
     tools = cndbTools.from_remote("https://example.org/test.cndb", trajectory="replica1_chr1")
 
     xyz = tools.xyz(frames=[1], beadSelection=[1, 3, 4], XYZ=[0, 2])
 
     assert xyz.shape == (1, 3, 2)
-    assert _FakeIndexedCNDB.last_instance.requests == [("1", 1, 5)]
+    assert _FakeIndexedCNDB.last_instance.requests == [("1", 1, 2), ("1", 3, 5)]
     expected = _FakeIndexedCNDB.last_instance.data["1"][[1, 3, 4]][:, [0, 2]]
     np.testing.assert_array_equal(xyz[0], expected)
+    stats = tools.stream_stats()
+    assert stats["coordinate_range_requests"] == 2
+    assert stats["range_request_count"] == 2
+    assert stats["coalesced_range_count"] == 2
+    assert stats["selection_strategy"] == "coalesced-ranges"
+    assert stats["requested_data_bytes"] == 3 * 3 * np.dtype("float32").itemsize
+    assert stats["transferred_data_bytes"] == stats["requested_data_bytes"]
+    assert stats["overfetch_bytes"] == 0
+    assert stats["requested_coordinate_bytes"] == stats["requested_data_bytes"]
+    assert stats["transferred_coordinate_bytes"] == stats["transferred_data_bytes"]
+    assert stats["overfetch_coordinate_bytes"] == stats["overfetch_bytes"]
+
+
+def test_streaming_xyz_noncontiguous_preserves_requested_order(monkeypatch):
+    _install_fake_internal_stream(monkeypatch)
+    tools = cndbTools.from_remote("https://example.org/test.cndb", trajectory="replica1_chr1")
+
+    xyz = tools.xyz(frames=[1], beadSelection=[4, 1, 4, 3], XYZ=[0, 1, 2])
+
+    expected = _FakeIndexedCNDB.last_instance.data["1"][[4, 1, 4, 3]]
+    np.testing.assert_array_equal(xyz[0], expected)
+    assert tools.stream_stats()["selection_strategy"] == "coalesced-ranges"
+
+
+def test_streaming_xyz_sparse_selection_can_fall_back_to_enclosing_range(monkeypatch):
+    _install_fake_internal_stream(monkeypatch)
+    tools = cndbTools.from_remote("https://example.org/test.cndb", trajectory="replica1_chr1")
+
+    xyz = tools.xyz(frames=[1], beadSelection=[1, 3, 4], XYZ=[0, 2], max_ranges=1)
+
+    assert xyz.shape == (1, 3, 2)
+    assert _FakeIndexedCNDB.last_instance.requests == [("1", 1, 5)]
+    stats = tools.stream_stats()
+    assert stats["coordinate_range_requests"] == 1
+    assert stats["range_request_count"] == 1
+    assert stats["selection_strategy"] == "enclosing-range"
+    assert stats["requested_data_bytes"] == 3 * 3 * np.dtype("float32").itemsize
+    assert stats["transferred_data_bytes"] == 4 * 3 * np.dtype("float32").itemsize
+    assert stats["overfetch_bytes"] == 1 * 3 * np.dtype("float32").itemsize
+
+
+def test_coalesce_indices_groups_adjacent_blocks():
+    assert coalesce_indices([0, 1, 2, 10, 11, 12]) == [(0, 3), (10, 13)]
+    assert coalesce_indices([0, 10, 20], max_gap=10) == [(0, 21)]
+    assert coalesce_indices([0, 10, 20], max_ranges=2) == [(0, 11), (20, 21)]
+
+
+@pytest.mark.parametrize(
+    "dataset_kwargs",
+    [
+        {},
+        {"compression": "gzip"},
+        {"compression": "gzip", "shuffle": True},
+        {"compression": "gzip", "shuffle": True, "fletcher32": True},
+    ],
+)
+def test_remote_chunked_cndb_streams_with_embedded_backend(tmp_path, dataset_kwargs):
+    suffix = "-".join(str(key) for key, value in dataset_kwargs.items() if value) or "none"
+    cndb_path = tmp_path / f"chunked-{suffix}.cndb"
+    coords = np.arange(30, dtype=np.float32).reshape(10, 3)
+    with h5py.File(cndb_path, "w") as handle:
+        handle.create_dataset("types", data=np.array([b"A1"] * 10))
+        handle.create_dataset("1", data=coords, chunks=(4, 3), **dataset_kwargs)
+    write_embedded_index(cndb_path)
+
+    with _serve_directory(tmp_path) as base_url:
+        tools = CndbTools.from_remote(
+            h5_url=f"{base_url}/{cndb_path.name}",
+            fetch_size=512,
+            cache_size=2048,
+        )
+        xyz = tools.xyz(frames=[1], beadSelection=range(2, 7))
+
+    np.testing.assert_array_equal(xyz[0], coords[2:7])
+    stats = tools.stream_stats()
+    assert stats["requested_coordinate_bytes"] == 5 * 3 * np.dtype("float32").itemsize
+    assert stats["transferred_coordinate_bytes"] >= stats["requested_coordinate_bytes"]
+    assert stats["data_bytes_read"] >= stats["requested_coordinate_bytes"]
+    assert stats["data_bytes_read"] < cndb_path.stat().st_size
+
+
+def test_nested_header_counts_survive_embedded_index_finalization(tmp_path):
+    path = tmp_path / "nested.cndb"
+    with h5py.File(path, "w") as handle:
+        initialize_cndb_header(
+            handle,
+            n_beads=4,
+            coordinate_dtype="float32",
+            frame_layout="nested_trajectories",
+        )
+        for replica in (1, 2, 10):
+            group = handle.create_group(f"replica{replica}_chr1")
+            group.create_dataset("types", data=np.array([b"A1"] * 4))
+            spatial = group.create_group("spatial_position")
+            for frame in (1, 2, 3):
+                spatial.create_dataset(
+                    str(frame),
+                    data=np.full((4, 3), replica * frame, dtype=np.float32),
+                    chunks=(4, 3),
+                    compression="gzip",
+                )
+
+    write_embedded_index(path)
+
+    with h5py.File(path, "r") as handle:
+        header = handle["Header"].attrs
+        assert header["n_frames"] == 9
+        assert header["n_beads"] == 4
+        assert header["n_trajectories"] == 3
+
+    with _serve_directory(tmp_path) as base_url:
+        with CndbTools.from_remote(
+            h5_url=f"{base_url}/{path.name}",
+            trajectory="replica2_chr1",
+            fetch_size=512,
+            cache_size=2048,
+        ) as tools:
+            xyz = tools.xyz(frames=[1], beadSelection=range(1, 3))
+            assert tools.format_version == "2.0"
+            assert tools.format_status == "supported"
+            assert tools.trajectories == [
+                "replica1_chr1",
+                "replica2_chr1",
+                "replica10_chr1",
+            ]
+
+    np.testing.assert_array_equal(xyz[0], np.full((2, 3), 2, dtype=np.float32))
+
+
+@pytest.mark.parametrize("wrong", ["types", "beads", "xyz"])
+def test_cndb_index_rejects_inconsistent_coordinate_metadata(tmp_path, wrong):
+    from OpenMiChroM._cndb_stream.exceptions import CNDBIndexError
+    from OpenMiChroM._cndb_stream.index import build_index
+
+    path = tmp_path / "inconsistent.cndb"
+    with h5py.File(path, "w") as h5:
+        h5.create_dataset("types", data=np.ones(2 if wrong == "types" else 3))
+        h5.create_dataset("1", data=np.ones((3, 3)))
+        shape = {"beads": (2, 3), "xyz": (3, 2), "types": (3, 3)}[wrong]
+        h5.create_dataset("2", data=np.ones(shape))
+    with pytest.raises(CNDBIndexError, match="shape|types"):
+        build_index(path)
+
+
+def test_sidecar_index_cannot_replace_the_input_file(tmp_path):
+    from OpenMiChroM._cndb_stream.index import build_index
+
+    path = tmp_path / "trajectory.cndb"
+    _make_simple_cndb(path)
+    original = path.read_bytes()
+    with pytest.raises(ValueError, match="must be different"):
+        build_index(path, path)
+    assert path.read_bytes() == original
 
 
 def test_remote_resources_are_closed(monkeypatch):

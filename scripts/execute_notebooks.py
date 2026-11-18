@@ -22,24 +22,23 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 class NotebookRun:
     path: Path
     cwd: Path
-    fast: bool
-    complete: bool
-    network: bool = False
     copy_workdir: bool = True
 
 
 RUNS = [
+    *[NotebookRun(REPO_ROOT / "Tutorials" / name, REPO_ROOT / "Tutorials",
+                  copy_workdir=False) for name in (
+        "write_indexed_cndb.ipynb",
+        "structural_file_conversion.ipynb",
+        "structural_file_detection.ipynb",
+    )],
     NotebookRun(
         REPO_ROOT / "Tutorials" / "DT40_Annealing_50kb" / "Tutorial_DT40_Annealing_50kb.ipynb",
         REPO_ROOT / "Tutorials" / "DT40_Annealing_50kb",
-        fast=False,
-        complete=True,
     ),
     NotebookRun(
         REPO_ROOT / "Tutorials" / "Converters" / "Tutorial_NDB_Converters.ipynb",
         REPO_ROOT / "Tutorials" / "Converters",
-        fast=True,
-        complete=True,
     ),
     NotebookRun(
         REPO_ROOT
@@ -47,8 +46,6 @@ RUNS = [
         / "Structural_Variations"
         / "Tutorial_Apply_Structural_Variants.ipynb",
         REPO_ROOT / "Tutorials" / "Structural_Variations",
-        fast=True,
-        complete=True,
     ),
     NotebookRun(
         REPO_ROOT
@@ -56,59 +53,39 @@ RUNS = [
         / "Structural_Variations"
         / "Tutorial_Loop_Formation.ipynb",
         REPO_ROOT / "Tutorials" / "Structural_Variations",
-        fast=True,
-        complete=True,
     ),
     NotebookRun(
         REPO_ROOT / "Tutorials" / "stream_remote_cndb.ipynb",
         REPO_ROOT / "Tutorials",
-        fast=True,
-        complete=True,
-        network=True,
         copy_workdir=False,
     ),
     NotebookRun(
         REPO_ROOT / "Tutorials" / "Active_Chromosome_Dynamics" / "Active_Polymer_Tutorial.ipynb",
         REPO_ROOT / "Tutorials" / "Active_Chromosome_Dynamics",
-        fast=True,
-        complete=True,
     ),
     NotebookRun(
         REPO_ROOT / "Tutorials" / "Chromosome_Pulling_Tutorial" / "Tutorial_Pulling.ipynb",
         REPO_ROOT / "Tutorials" / "Chromosome_Pulling_Tutorial",
-        fast=False,
-        complete=True,
     ),
     NotebookRun(
         REPO_ROOT / "Tutorials" / "Chromosome_simulations" / "Tutorial_MiChroM_Simulation.ipynb",
         REPO_ROOT / "Tutorials" / "Chromosome_simulations",
-        fast=False,
-        complete=True,
     ),
     NotebookRun(
         REPO_ROOT / "Tutorials" / "Chromosome_simulations" / "Tutorial_Multiple_Chromosomes.ipynb",
         REPO_ROOT / "Tutorials" / "Chromosome_simulations",
-        fast=False,
-        complete=True,
     ),
     NotebookRun(
         REPO_ROOT / "Tutorials" / "Chromosome_simulations" / "Tutorial_Single_Chromosome.ipynb",
         REPO_ROOT / "Tutorials" / "Chromosome_simulations",
-        fast=False,
-        complete=True,
     ),
     NotebookRun(
         REPO_ROOT / "Tutorials" / "Full_Inversion_Optimization" / "Tutorial_Full_Inversion_Optimization.ipynb",
         REPO_ROOT / "Tutorials" / "Full_Inversion_Optimization",
-        fast=False,
-        complete=True,
-        network=True,
     ),
     NotebookRun(
         REPO_ROOT / "Tutorials" / "MiChroM_Optimization" / "Tutorial_MiChroM_Optimization.ipynb",
         REPO_ROOT / "Tutorials" / "MiChroM_Optimization",
-        fast=False,
-        complete=True,
     ),
 ]
 
@@ -144,7 +121,7 @@ def main() -> int:
         parser.error("--full-science is available only in complete mode")
     if args.full_science and not args.allow_network:
         parser.error("--full-science requires --allow-network for external-data tutorial cells")
-    selected = [run for run in RUNS if run.fast] if args.mode == "fast" else list(RUNS)
+    selected = list(RUNS)
     if args.only:
         selected = [
             run

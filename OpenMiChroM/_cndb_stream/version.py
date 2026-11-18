@@ -15,7 +15,8 @@ from .exceptions import (
 
 CNDB_FORMAT_NAME = "cndb"
 CNDB_FORMAT_VERSION = "1.0.0"
-SUPPORTED_CNDB_FORMAT_MAJOR = 1
+INDEXED_CNDB_FORMAT_VERSION = "2.0"
+SUPPORTED_CNDB_FORMAT_MAJORS = frozenset({1, 2})
 _KNOWN_FORMAT_NAMES = {"cndb", "openmichrom-cndb", "ndb", "swb"}
 _VERSION_RE = re.compile(r"^(?P<major>0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){0,2}$")
 
@@ -23,7 +24,7 @@ _VERSION_RE = re.compile(r"^(?P<major>0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){0,2}
 def metadata_from_attrs(attrs: Mapping[str, Any]) -> dict[str, str | None]:
     """Extract authoritative format fields from an HDF5 attribute mapping."""
 
-    format_name = _text_value(attrs.get("format"))
+    format_name = _text_value(attrs.get("format")) or _text_value(attrs.get("format_name"))
     version = _text_value(attrs.get("format_version"))
     if version is None and format_name is not None:
         version = _text_value(attrs.get("version"))
@@ -42,8 +43,8 @@ def validate_format_metadata(
 
     Files without version metadata predate OpenMiChroM's explicit version
     marker. They remain readable as legacy files and produce a visible warning.
-    Explicit 0.x metadata is treated the same way. Version 1.x is current;
-    malformed or future major versions fail before coordinate data is used.
+    Explicit 0.x metadata is treated the same way. Classic 1.x and indexed
+    2.x files are supported; malformed or future versions fail before reads.
     """
 
     format_name = _text_value(metadata.get("cndb_format"))
@@ -80,16 +81,16 @@ def validate_format_metadata(
     if major == 0:
         warnings.warn(
             f"CNDB file {source} declares legacy format version {version}; "
-            f"current writers use {CNDB_FORMAT_VERSION}.",
+            f"current writers use {CNDB_FORMAT_VERSION} or {INDEXED_CNDB_FORMAT_VERSION}.",
             LegacyCNDBVersionWarning,
             stacklevel=2,
         )
         status = "legacy-explicit"
-    elif major != SUPPORTED_CNDB_FORMAT_MAJOR:
+    elif major not in SUPPORTED_CNDB_FORMAT_MAJORS:
         raise UnsupportedCNDBVersionError(
             f"CNDB file {source} declares unsupported format version {version}; "
-            f"this OpenMiChroM release supports major version "
-            f"{SUPPORTED_CNDB_FORMAT_MAJOR}."
+            f"this OpenMiChroM release supports major versions "
+            f"{', '.join(map(str, sorted(SUPPORTED_CNDB_FORMAT_MAJORS)))}."
         )
     else:
         status = "supported"

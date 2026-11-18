@@ -13,17 +13,6 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-FOCUSED_TESTS = [
-    "tests/test_api_compatibility.py",
-    "tests/test_converters.py",
-    "tests/test_gpu_validation.py",
-    "tests/test_cndbtools_io_contract.py",
-    "tests/test_cndbtools_stream.py",
-    "tests/test_loop_extrusion.py",
-    "tests/test_simulation_smoke.py",
-    "tests/test_structural_variants.py",
-    "tests/test_tutorial_validation.py",
-]
 
 
 def run_stage(name: str, command: list[str], *, cwd: Path = REPO_ROOT, env=None) -> None:
@@ -50,6 +39,8 @@ def package_smoke(temporary: Path) -> None:
     required_members = {
         "OpenMiChroM/share/MiChroM.ff",
         "OpenMiChroM/_cndb_stream/py.typed",
+        "OpenMiChroM/_cndb_stream/embedded_writer.py",
+        "OpenMiChroM/_structural_io/converters.py",
         "OpenMiChroM/_cndb_stream/_vendor/hdf5_indexed_reader/LICENSE",
     }
     missing = required_members - members
@@ -78,6 +69,10 @@ def package_smoke(temporary: Path) -> None:
         "OpenMiChroM.StructuralVariants; "
         "import OpenMiChroM.CustomReporter, OpenMiChroM.Integrators, "
         "OpenMiChroM.Optimization, OpenMiChroM._cndb_stream; "
+        "from importlib.metadata import version; "
+        "from OpenMiChroM.CndbTools import CndbTools; "
+        "assert version('OpenMiChroM') == OpenMiChroM.__version__; "
+        "assert callable(CndbTools.open) and callable(CndbTools.convert); "
         "assert callable(OpenMiChroM.apply_structural_variant); "
         "assert callable(OpenMiChroM.LoopExtrusionManager); "
         "print(OpenMiChroM.__version__)"
@@ -194,6 +189,8 @@ def main() -> int:
         action="store_true",
         help="Include the optional live ENCODE streaming test.",
     )
+    parser.add_argument("--public-sources", action="store_true",
+                        help="Also test the public NDB, ENCODE and NCBI file servers (implies --network).")
     gpu = parser.add_mutually_exclusive_group()
     gpu.add_argument("--gpu", dest="gpu_platform", action="store_const", const="CUDA",
                      help="Require a CUDA GPU (alias for --gpu-platform CUDA).")
@@ -206,11 +203,16 @@ def main() -> int:
     )
     parser.add_argument("--notebook-timeout", type=int, default=1800)
     args = parser.parse_args()
+    if args.public_sources:
+        args.network = True
     if args.full_science and args.mode != "complete":
         parser.error("--full-science is available only in complete mode")
     if args.full_science and not args.network:
         parser.error("--full-science requires --network for external-data tutorial cells")
 
+    # Modest CPU defaults for laptop validation; explicit user settings win.
+    for name in ("OPENMM_CPU_THREADS", "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
+        os.environ.setdefault(name, "1")
     run_stage("notebook static audit", [sys.executable, "scripts/audit_notebooks.py"])
     run_stage(
         "canonical/docs notebook synchronization",
@@ -218,11 +220,11 @@ def main() -> int:
     )
 
     test_command = [sys.executable, "-m", "pytest", "-q"]
-    if args.mode == "fast":
-        test_command.extend(FOCUSED_TESTS)
-        if args.network:
-            test_command.append("tests/test_cndbtools_encode_stream.py")
     test_env = dict(os.environ)
+    if args.public_sources:
+        test_env["OPENMICHROM_RUN_STRUCTURAL_IO_INTEGRATION"] = "1"
+    else:
+        test_env.pop("OPENMICHROM_RUN_STRUCTURAL_IO_INTEGRATION", None)
     if args.network:
         test_env["OPENMICHROM_RUN_ENCODE_STREAM_TESTS"] = "1"
     else:

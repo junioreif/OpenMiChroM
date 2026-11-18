@@ -42,6 +42,23 @@ def _normalize_matrix(matrix):
     return matrix
 
 
+def _balance_contact_matrix(matrix, tol=1e-5, max_iter=100):
+    """Iteratively balance nonempty rows and columns, preserving empty bins."""
+    a = np.array(matrix, dtype=float, copy=True)
+    if a.ndim != 2 or a.shape[0] != a.shape[1] or not np.isfinite(a).all() or (a < 0).any():
+        raise ValueError("Balancing requires a finite, nonnegative, square Hi-C matrix.")
+    for _ in range(max_iter):
+        rows = np.sqrt(a.sum(axis=1))
+        rows[rows == 0] = 1
+        a /= rows[:, None]
+        cols = np.sqrt(a.sum(axis=0))
+        cols[cols == 0] = 1
+        a /= cols
+        if np.all(np.abs(rows - 1) < tol) and np.all(np.abs(cols - 1) < tol):
+            break
+    return a
+
+
 class AdamTraining:
     R"""
     The :class:`~.AdamTraining` class performs the parameters training for each selected loci pair interaction. 
@@ -259,23 +276,8 @@ class AdamTraining:
 
 
     def knight_ruiz_balance(self, matrix, tol=1e-5, max_iter=100):
-        R"""
-        Perform the Knight-Ruiz matrix balancing.
-        """
-        A = np.array(matrix, dtype=float)
-        n = A.shape[0]
-        row_scaling = np.ones(n)
-        col_scaling = np.ones(n)
-        for _ in range(max_iter):
-            row_scaling = np.sqrt(np.sum(A, axis=1))
-            A /= row_scaling[:, None]
-            col_scaling = np.sqrt(np.sum(A, axis=0))
-            A /= col_scaling
-
-            if np.all(np.abs(row_scaling - 1) < tol) and np.all(np.abs(col_scaling - 1) < tol):
-                break
-
-        return A
+        """Balance a nonnegative contact matrix while preserving empty bins."""
+        return _balance_contact_matrix(matrix, tol, max_iter)
 
     
     
@@ -652,7 +654,9 @@ class CustomMiChroMTraining:
 
         self.lambdas_old = np.triu(tab.values) + np.triu(tab.values, k=1).T
 
-        self.n_types = len(self.diff_types)
+        # Retain the parameter-table order. An absent type has no observed
+        # pairs and therefore no update, but its coefficient stays in the table.
+        self.n_types = len(self.header_types)
         self.n_inter = int(self.n_types*(self.n_types-1)/2 + self.n_types)
         self.Pold_type = np.zeros((self.n_types, self.n_types))
         self.PiPj_type = np.zeros((self.n_inter,self.n_inter))
@@ -663,12 +667,7 @@ class CustomMiChroMTraining:
         self.dend = dend
         self.cutoff = cutoff
 
-        if not IClist == None:
-            try:
-                f = open(str(IClist),"r")
-                self.IClist = IClist
-            except IOError:
-                print("Error in opening the file containing the Ideal Chromosome interactions!")
+        self.IClist = IClist
 
     def get_chrom_seq(self, filename):
         R"""Reads the chromatin sequence as letters of the types/compartments.
@@ -683,14 +682,8 @@ class CustomMiChroMTraining:
                 Returns an array of the sequence of chromatin types.
 
         """
-        my_list = []
-        af = open(filename,'r')
-        pos = af.read().splitlines()
-        for t in range(len(pos)):
-            pos[t] = pos[t].split()
-            my_list.append(pos[t][1])
-
-        return np.array(my_list)
+        with open(filename) as handle:
+            return np.array([line.split()[1] for line in handle if line.strip()])
 
    
     def prob_calculation_IC(self, state):
@@ -735,6 +728,8 @@ class CustomMiChroMTraining:
         Normalize the matrix for simulation optimization. Here the first neighbor should have the probability of contact P=1.0.
         """
         return _normalize_matrix(matrix)
+
+    knight_ruiz_balance = AdamTraining.knight_ruiz_balance
 
     def get_HiC_exp(self, HiC, centerRemove=False, centrange=[0,0], norm=False, cutoff_low=0.0, cutoff_high=1.0, KR=False, neighbors=0):
         R"""
@@ -884,7 +879,9 @@ class CustomMiChroMTraining:
         
         vec = []
         for pcount,q in enumerate(itertools.combinations_with_replacement(just.keys(), r=2)):
-            p_instant[ind[0][pcount], ind[1][pcount]] = np.average(self.P[np.ix_(just[q[0]], just[q[1]])])
+            pairs = self.P[np.ix_(just[q[0]], just[q[1]])]
+            if pairs.size:
+                p_instant[ind[0][pcount], ind[1][pcount]] = np.mean(pairs)
             vec.append(p_instant[ind[0][pcount], ind[1][pcount]])
         vec = np.array(vec)
 
@@ -911,7 +908,8 @@ class CustomMiChroMTraining:
             for i, j in itertools.product(just[q[0]],just[q[1]]):
                 phi[ind[0][pcount], ind[1][pcount]] += self.expHiC[i,j]
                 nt += 1
-            phi[ind[0][pcount], ind[1][pcount]] = phi[ind[0][pcount], ind[1][pcount]]/nt
+            if nt:
+                phi[ind[0][pcount], ind[1][pcount]] /= nt
 
         return phi
     

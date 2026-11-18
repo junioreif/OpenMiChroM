@@ -1,15 +1,17 @@
-__version__ = '1.1.1'
+__version__ = '2.0.0rc1'
 
 from importlib import import_module
 
-from .ChromDynamics import MiChroM
-from .Optimization import FullTraining, CustomMiChroMTraining
 from .CndbTools import CndbTools, cndbTools
-from .Integrators import ActiveBrownianIntegrator
-from .CustomReporter import *
 
 
 _LAZY_EXPORTS = {
+    "MiChroM": ".ChromDynamics",
+    "FullTraining": ".Optimization",
+    "CustomMiChroMTraining": ".Optimization",
+    "ActiveBrownianIntegrator": ".Integrators",
+    "SaveStructure": ".CustomReporter",
+    "SimulationReporter": ".CustomReporter",
     "convert": ".Converters",
     "ndb_to_cndb": ".Converters",
     "cndb_to_ndb": ".Converters",
@@ -35,6 +37,9 @@ _LAZY_EXPORTS = {
     "LoopExtrusionManager": ".Extrusion_Bonds",
     "Loop_Extrusion_Manager": ".Extrusion_Bonds",
 }
+
+
+__all__ = ["CndbTools", "cndbTools", *_LAZY_EXPORTS]
 
 
 def __getattr__(name):

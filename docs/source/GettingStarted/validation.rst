@@ -18,7 +18,8 @@ The fast offline suite is intended for frequent use:
 
 It checks all public imports, API compatibility, local CNDB access, deterministic
 HTTP range streaming, format versions, a small CPU simulation, tutorial syntax
-and synchronization, and five executable notebook smoke tests. The structural-
+and synchronization, the full offline pytest suite, and all fifteen canonical
+notebooks in reduced CPU mode. The structural-
 variant and loop-extrusion notebooks use small deterministic synthetic fixtures;
 they do not download the biological datasets that motivated the workflows.
 
@@ -28,8 +29,7 @@ Before review, run the complete offline suite:
 
    python scripts/validate.py complete
 
-This adds the full pytest suite, all twelve canonical notebooks in reduced CPU mode,
-a Sphinx build with warnings treated as errors, source/wheel builds, an isolated
+This adds a Sphinx build with warnings treated as errors, source/wheel builds, an isolated
 wheel install, and installed-package import checks. Temporary notebook copies,
 HTTP servers, documentation output, and wheel-install directories are cleaned
 automatically.
@@ -57,7 +57,7 @@ reports peaks separately for the new trajectory and the archived 15-minute
 structure. The archived coordinates yield periods of 0.32 and 3.67 Mb with
 the notebook's Fourier analysis. These are a check on the bundled reference,
 not expected values for an individual annealing trajectory. The `notebook and its five input files
-<https://github.com/junioreif/OpenMiChroM/tree/cndbtools-integration-tutorial-audit/Tutorials/DT40_Annealing_50kb>`_
+<https://github.com/junioreif/OpenMiChroM/tree/prep-2.0/Tutorials/DT40_Annealing_50kb>`_
 are included in the clone; no additional download is needed.
 
 To run the full DT40 schedule from a **straight chain** on an OpenCL GPU,
@@ -98,7 +98,9 @@ mode retains the density-derived radius and checks that collapse is sufficient
 before enabling that wall. To request the original production counts
 and external data, use ``python scripts/validate.py complete --full-science
 --network``; this can require many hours. Add ``--network`` alone for the live
-ENCODE smoke test. Default validation is offline and uses OpenMM's CPU
+ENCODE smoke test. Use ``--public-sources`` to also check the current NDB and
+NCBI endpoints with native TLS certificate verification. Availability, redirects,
+and byte-range support depend on those servers. Default validation is offline and uses OpenMM's CPU
 platform. For a separate ten-step GPU check, add ``--gpu-platform OpenCL``
 on an OpenCL GPU, or ``--gpu-platform CUDA`` (also spelled ``--gpu``) on a
 CUDA GPU. The check creates a context on the requested device, tests for

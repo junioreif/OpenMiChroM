@@ -12,7 +12,7 @@ directory where you want to keep the clone, run:
 
 .. code-block:: bash
 
-   git clone --branch cndbtools-integration-tutorial-audit --single-branch https://github.com/junioreif/OpenMiChroM.git
+   git clone --branch prep-2.0 --single-branch https://github.com/junioreif/OpenMiChroM.git
    cd OpenMiChroM
    conda env create --solver classic -f environment.yml
    conda activate openmichrom-tutorials

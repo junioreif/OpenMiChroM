@@ -39,6 +39,7 @@ from pathlib import Path
 import types
 from textwrap import dedent
 from . import __version__
+from ._pdb_fields import validate_pdb_fields
 from .CustomReporter import *
 
 class MiChroM:
@@ -1431,7 +1432,7 @@ class MiChroM:
             print(f'\nPotential energy per forceGroup:\n {self.getForces()}', file=f)
 
     def createReporters(self, statistics=True, traj=False, trajFormat="cndb", outputName=None, energyComponents=False,
-                         interval=1000):
+                         interval=1000, trajIndexed=True, trajMetadata=True, trajCoordinateDtype=None):
         R"""
         Configures and attaches reporters to the simulation for data collection during simulation runs.
         This method sets up custom reporters for the OpenMM `Simulation` object to collect simulation statistics and/or save trajectory data at specified intervals. It supports saving energies per force group and various trajectory file formats.
@@ -1456,6 +1457,18 @@ class MiChroM:
             interval (int, optional):
                 The interval (in time steps) at which to report data.
                 (Default: `1000`)
+            trajIndexed (bool, optional):
+                If `True`, new CNDB trajectory files include an embedded HDF5
+                object index for remote byte-range streaming.
+                (Default: `True`)
+            trajMetadata (bool, optional):
+                If `True`, new CNDB trajectory files include a `/Header`
+                metadata group.
+                (Default: `True`)
+            trajCoordinateDtype (str or numpy dtype, optional):
+                Optional dtype conversion for CNDB coordinates. If `None`,
+                OpenMM's position dtype is preserved.
+                (Default: `None`)
         """
         if outputName is None:
             outputName = self.name
@@ -1467,7 +1480,10 @@ class MiChroM:
                 mode=trajFormat, 
                 folder=self.folder,
                 chains=self.chains,
-                typeListLetter=self.type_list_letter
+                typeListLetter=self.type_list_letter,
+                indexed=trajIndexed,
+                metadata=trajMetadata,
+                coordinate_dtype=trajCoordinateDtype,
             )
             self.simulation.reporters.append(save_structure_reporter)
         if statistics:
@@ -1613,16 +1629,16 @@ class MiChroM:
 
         Args:
             ChromSeq (str, optional):
-                Path to the chromosome sequence file. If `None`, a default path is used.
-                Default is `None`.
+                Path to the chromosome sequence file. If ``None``, a default path is used.
+                Default is ``None``.
             
             CoordFiles (str, optional):
-                Path to the coordinate files. If `None`, a default path is used.
-                Default is `None`.
+                Path to the coordinate files. If ``None``, a default path is used.
+                Default is ``None``.
             
             mode (str, optional):
                 Mode of initialization for the structure. Supported modes include 'spring', 'line', etc.
-                Default is `'auto'`.
+                Default is ``'auto'``.
         
         Example:
 
@@ -2248,6 +2264,10 @@ class MiChroM:
                 return lines
 
         elif mode == 'pdb':
+            # Validate every chain before writing any of the snapshot files.
+            for start, end, _ in self.chains:
+                length = end - start + 1
+                validate_pdb_fields([0], [data[start:end + 1]], [length], length + 1)
             atom = "ATOM  {0:5d} {1:^4s}{2:1s}{3:3s} {4:1s}{5:4d}{6:1s}   {7:8.3f}{8:8.3f}{9:8.3f}{10:6.2f}{11:6.2f}          {12:>2s}{13:2s}"
             ter = "TER   {0:5d}      {1:3s} {2:1s}{3:4d}{4:1s}"
             model = "MODEL     {0:4d}"
@@ -2276,7 +2296,7 @@ class MiChroM:
                     pdb_string.append(atom.format(totalAtom,"CA","",Res_conversion[i],"",totalAtom,"",line[0], line[1], line[2], 1.00, 0.00, 'C', ''))
                     totalAtom += 1
                 
-                pdb_string.append(ter.format(totalAtom,Res_conversion[i],"",totalAtom,""))
+                pdb_string.append(ter.format(totalAtom,Res_conversion[i],"",totalAtom - 1,""))
                 pdb_string.append("ENDMDL")
                 np.savetxt(fileName,pdb_string,fmt="%s")
 

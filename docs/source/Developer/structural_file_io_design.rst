@@ -1,0 +1,202 @@
+Structural File I/O Design
+==========================
+
+Overview
+--------
+
+OpenMiChroM now has a small structural-file I/O layer around CNDBTools. The
+goal is to keep established local CNDBTools behavior intact while adding safe
+remote streaming, local format detection, and small local format conversions.
+
+The main entry points are:
+
+.. list-table::
+   :header-rows: 1
+
+   * - API
+     - Purpose
+   * - ``CndbTools.open(...)``
+     - Auto-detect and open local or safely streamable remote structural files
+   * - ``CndbTools.from_remote(...)``
+     - Explicitly open a remote indexed HDF5/CNDB file with HTTP Range requests
+   * - ``convert_structure_file(...)``
+     - Convert small local structural files among supported formats
+   * - ``SaveStructure(..., mode="cndb")``
+     - Write CNDB v2 files with ``/Header`` and an embedded object index
+
+Detection
+---------
+
+``OpenMiChroM._structural_io.detect_structural_file`` inspects local files
+directly and remote files conservatively. Remote detection uses HEAD requests
+and small HTTP Range probes. A remote HDF5 file is streamable only when the
+server returns ``206 Partial Content`` and the file exposes an embedded object
+index.
+
+Current local layouts include:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Layout
+     - Description
+   * - ``openmichrom-simple-cndb``
+     - Historical root-level CNDB layout with ``/types`` and numeric frames
+   * - ``openmichrom-cndb-v2``
+     - Root-level CNDB layout with ``/Header`` and embedded ``/_index``
+   * - ``nested-ndb-swb``
+     - HDF5 layout with ``/<trajectory>/spatial_position/<frame>``
+   * - ``text-ndb``
+     - Text NDB records with ``MODEL`` and ``CHROM`` entries
+   * - ``spacewalk-sw``
+     - Text SpaceWalk records with ``trace`` sections and coordinate rows
+
+Remote streaming
+----------------
+
+The internal ``OpenMiChroM._cndb_stream`` backend reads an embedded HDF5 object
+index and then uses HTTP Range requests for dataset metadata and coordinate
+payloads. Coordinate byte reads are exact for contiguous, uncompressed
+``(n_beads, 3)`` frame datasets. Chunked uncompressed and gzip-compressed
+coordinate datasets can be read through the embedded backend, including gzip
+with shuffle and Fletcher32 filters, but whole chunks may be transferred and
+counted as coordinate overfetch.
+
+``CndbTools.xyz(...)`` reads contiguous bead selections as one exact coordinate
+range. Sparse non-contiguous selections are coalesced into ordered, non-
+overlapping byte ranges and reassembled in the requested order. If a selection
+would require too many tiny HTTP requests, CNDBTools falls back to the smallest
+enclosing bead interval and reports the overfetch in ``stream_stats()``.
+
+The backend refuses ``200 OK`` responses to Range requests. This is a safety
+rule: a server that ignores ``Range`` may send the whole file.
+
+Remote HDF5 files that cannot stream safely are rejected by default. A user may
+explicitly opt into local fallback with ``allow_download=True`` and
+``max_download_size_mb=...``. That path downloads only after checking the remote
+``Content-Length`` against the configured limit, then opens the file through the
+normal local readers.
+
+Public URL compatibility
+------------------------
+
+Development probes used only HEAD requests and small
+``Range: bytes=0-1023`` requests. Results can change if hosting endpoints are
+reconfigured, so rerun ``scripts/inspect_structural_file.py`` before relying on
+a public URL in production.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Public example
+     - Current support status
+   * - NDB Rice non-indexed CNDB files
+     - Detected as HDF5/CNDB, but tested endpoints returned ``200 OK`` to
+       Range requests. These URLs are unsafe for direct remote streaming unless
+       the server begins honoring Range requests and an embedded index is
+       available.
+   * - ENCODE indexed CNDB
+     - S3 URL supports Range requests, exposes an embedded index, and direct
+       coordinate streaming is supported for contiguous uncompressed frames.
+   * - NCBI Mammoth Direct SW
+     - Direct HTTPS/FTP endpoint supports Range requests and is suitable for
+       indexed HDF5 inspection/streaming when an embedded index is present.
+   * - NCBI GEO download SW
+     - ``www.ncbi.nlm.nih.gov/geo/download`` may return ``200 OK`` to Range
+       requests; that endpoint is unsafe for direct streaming unless a
+       redirected/direct file URL supports Range requests.
+   * - Bintu NDB
+     - Detected as text NDB. Remote full parsing is not attempted by default,
+       because it would require downloading the text file.
+
+Writing CNDB v2
+---------------
+
+The CNDB v2 writer keeps coordinate data in the historical root numeric frame
+layout and adds:
+
+.. code-block:: text
+
+   /Header
+   /_index
+   _index_offset
+
+``/_index`` contains gzip-compressed JSON object offsets. ``_index_offset`` is
+the object-header offset of ``/_index`` and allows remote readers to find the
+index without walking the whole HDF5 file.
+
+Conversion
+----------
+
+``OpenMiChroM._structural_io.converters`` uses a simple in-memory trajectory
+representation:
+
+.. code-block:: python
+
+   frames: OrderedDict[str, numpy.ndarray]
+   types: list[str]
+   genomic_positions: numpy.ndarray | None
+
+This keeps conversions explicit and small. The converters are intended for
+local files and small fixtures, not for streaming or rewriting very large
+remote datasets.
+
+The same converter is available from the command line:
+
+.. code-block:: bash
+
+   python scripts/convert_structure_file.py input.ndb output.cndb
+   python scripts/convert_structure_file.py input.cndb subset.ndb --frames 1,10 --start 0 --stop 100
+
+Converters accept optional frame and bead-window filters. The selected
+trajectory is checked against a configurable in-memory payload budget
+(``max_memory_mb``, default 512 MiB) before writing. Large local conversions can
+be made explicit with ``allow_large=True`` or ``--allow-large``.
+
+Supported conversions in this initial layer:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Conversion
+     - Notes
+   * - ``ndb -> cndb``
+     - Writes CNDB v2 by default
+   * - ``cndb -> ndb``
+     - Supports simple root-level CNDB
+   * - ``ndb -> pdb``
+     - Writes CA-like bead records
+   * - ``pdb -> ndb``
+     - Supports simple ATOM/HETATM PDB files
+   * - ``sw/swb -> ndb``
+     - Supports HDF5 nested ``spatial_position`` layouts
+   * - ``sw/spw -> ndb`` and ``sw/spw -> cndb``
+     - Supports simple text SpaceWalk trace files. Bead types are set to
+       ``UN`` because the text format does not encode OpenMiChroM type labels.
+   * - ``ndb -> sw/spw``
+     - Writes a simple trace-style text SpaceWalk file with ``chr1`` rows
+
+Limitations
+-----------
+
+- Direct remote coordinate streaming requires an embedded index and
+  ``(n_beads, 3)`` coordinate datasets.
+- Contiguous, uncompressed datasets are the fastest exact-byte path.
+- Chunked uncompressed and gzip-compressed datasets may read whole intersecting
+  chunks and report coordinate overfetch. Gzip with shuffle and Fletcher32 is
+  tested.
+- Remote non-indexed HDF5 files are rejected by default rather than streamed
+  unsafely.
+- Converters are local-file only and do not download remote files.
+- PDB conversion is intentionally simple and uses residue names as approximate
+  bead type labels. PDB output exposes simple atom/residue/chain/element
+  options for visualization workflows.
+- Text SpaceWalk support is intentionally narrow: trace-style
+  ``chromosome start end x y z`` rows are supported, but richer or
+  application-specific SpaceWalk dialects may need a small adapter.
+- Unsupported HDF5 filters, including scale-offset, SZIP, n-bit, unavailable
+  LZF codecs, and custom plugin filters, are detected at read time and not
+  decoded by the streaming byte-range backend.
+- Large production conversions should be handled with explicit workflows. The
+  converter has a payload guard, but it still uses an in-memory representation
+  and is not a streaming rewriter for arbitrary large files.

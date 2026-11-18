@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from collections.abc import Sequence
 from typing import Any
 
 import h5py
 import numpy as np
 
-from .utils import json_safe_value, sort_frame_ids
+from .filters import hdf5_filter_pipeline_supported
+from .exceptions import CNDBIndexError
+from .utils import json_safe_value, sort_frame_ids, sort_trajectory_names
 from .version import metadata_from_attrs
 
 INDEX_VERSION = "0.1"
@@ -27,7 +30,7 @@ def build_index(
 ) -> dict[str, Any]:
     """Build an enhanced CNDB index for a local HDF5/CNDB file.
 
-    The MVP supports simple OpenMiChroM files with root-level numeric frame
+    The index supports simple OpenMiChroM files with root-level numeric frame
     datasets and nested NDB/SWB-style files with frame datasets under
     ``/<trajectory>/spatial_position/<frame>``. Chunked or compressed frame
     datasets are included in the index but marked unsupported for direct
@@ -44,9 +47,14 @@ def build_index(
 
     if output_index_path is not None:
         output_index_path = Path(output_index_path)
-        with output_index_path.open("w", encoding="utf-8") as handle:
-            json.dump(index, handle, indent=2)
-            handle.write("\n")
+        if output_index_path.exists() and h5_path.samefile(output_index_path):
+            raise ValueError("The CNDB input and JSON index output must be different files.")
+        with TemporaryDirectory(dir=output_index_path.parent, prefix=".cndb-index-") as directory:
+            temporary = Path(directory) / "index.json"
+            with temporary.open("w", encoding="utf-8") as handle:
+                json.dump(index, handle, indent=2)
+                handle.write("\n")
+            temporary.replace(output_index_path)
 
     return index
 
@@ -80,11 +88,17 @@ def _build_simple_index(h5: h5py.File) -> dict[str, Any]:
         "n_beads": n_beads,
         "frame_ids": frame_ids,
         "types_path": types_path,
+        "genomic_position_path": (
+            _dataset_path_or_none(h5, "_ndb_genomic_intervals")
+            or _dataset_path_or_none(h5, "genomic_position")
+        ),
         "frames": {frame_id: frames[frame_id] for frame_id in frame_ids},
         **_file_format_metadata(h5),
     }
     if types is not None:
         index["types"] = types
+    if frames:
+        _validate_coordinate_index(index)
     return index
 
 
@@ -113,6 +127,11 @@ def _build_nested_index(
             f"Available nested trajectories include: {available[:20]}"
         )
 
+    trajectory_indexes = {
+        name: trajectory_indexes[name]
+        for name in sort_trajectory_names(list(trajectory_indexes))
+    }
+
     return {
         "version": NESTED_INDEX_VERSION,
         "format": INDEX_FORMAT,
@@ -125,11 +144,16 @@ def _build_nested_index(
 def _is_simple_frame_dataset(name: str, obj: h5py.Dataset | h5py.Group) -> bool:
     if not isinstance(obj, h5py.Dataset):
         return False
-    if not name.isdigit():
+    if not _is_frame_id(name):
         return False
-    if len(obj.shape) != 2:
-        return False
-    return int(obj.shape[1]) == 3
+    if len(obj.shape) != 2 or int(obj.shape[1]) != 3:
+        raise CNDBIndexError(f"Coordinate frame {obj.name} has shape {obj.shape}; expected (n_beads, 3).")
+    return True
+
+
+def _is_frame_id(name: str) -> bool:
+    text = str(name)
+    return text.isdigit() or (text.startswith("t_") and text[2:].isdigit())
 
 
 def _is_nested_trajectory_group(obj: h5py.Dataset | h5py.Group) -> bool:
@@ -169,7 +193,26 @@ def _trajectory_index_entry(group: h5py.Group) -> dict[str, Any]:
     }
     if types is not None:
         entry["types"] = types
+    _validate_coordinate_index(entry)
     return entry
+
+
+def _validate_coordinate_index(entry: dict[str, Any]) -> None:
+    """Check all available frame headers without fetching coordinate data."""
+    n_beads = int(entry["n_beads"])
+    types = entry.get("types")
+    if types is not None and len(types) != n_beads:
+        raise CNDBIndexError(f"Index declares {n_beads} beads but contains {len(types)} chromatin types.")
+    for frame_id, info in entry["frames"].items():
+        _validate_frame_info(frame_id, info, n_beads)
+
+
+def _validate_frame_info(frame_id: str, info: dict[str, Any], n_beads: int) -> None:
+    shape = tuple(info.get("shape") or ())
+    if shape != (n_beads, 3):
+        raise CNDBIndexError(f"Coordinate frame {frame_id!r} has shape {shape}; expected ({n_beads}, 3).")
+    if "dtype" not in info or np.dtype(info["dtype"]).kind not in "iuf":
+        raise CNDBIndexError(f"Coordinate frame {frame_id!r} must use a numeric dtype.")
 
 
 def _dataset_path_or_none(group: h5py.Group, name: str) -> str | None:
@@ -186,6 +229,7 @@ def _dataset_index_entry(dataset: h5py.Dataset, frame_id: str) -> dict[str, Any]
     shape = [int(dim) for dim in dataset.shape]
     compression = dataset.compression
     chunks = [int(dim) for dim in dataset.chunks] if dataset.chunks is not None else None
+    filters = _dataset_filters(dataset)
     data_offset = dataset.id.get_offset()
     storage_size = int(dataset.id.get_storage_size())
     nbytes = int(np.prod(shape, dtype=np.int64) * dtype.itemsize)
@@ -206,11 +250,18 @@ def _dataset_index_entry(dataset: h5py.Dataset, frame_id: str) -> dict[str, Any]
         "dtype": dtype.name,
         "layout": layout,
         "compression": compression,
+        "filters": filters,
         "chunks": chunks,
         "data_offset": int(data_offset) if data_offset is not None else None,
         "storage_size": storage_size,
         "nbytes": nbytes,
         "direct_read_supported": direct_read_supported,
+        "chunked_read_supported": bool(
+            layout == "chunked"
+            and len(shape) == 2
+            and shape[1] == 3
+            and hdf5_filter_pipeline_supported(filters)
+        ),
     }
 
 
@@ -231,3 +282,22 @@ def _file_format_metadata(h5: h5py.File) -> dict[str, str | None]:
     if "Header" in h5 and isinstance(h5["Header"], h5py.Group):
         return metadata_from_attrs(h5["Header"].attrs)
     return root_metadata
+
+
+def _dataset_filters(dataset: h5py.Dataset) -> list[dict[str, Any]]:
+    filters: list[dict[str, Any]] = []
+    plist = dataset.id.get_create_plist()
+    for index in range(plist.get_nfilters()):
+        try:
+            filter_id, flags, cd_values, name = plist.get_filter(index)
+        except ValueError:
+            continue
+        filters.append(
+            {
+                "id": int(filter_id),
+                "flags": int(flags),
+                "client_data": [int(value) for value in cd_values],
+                "name": name.decode("utf-8", errors="replace") if isinstance(name, bytes) else str(name),
+            }
+        )
+    return filters

@@ -12,9 +12,10 @@ from typing import Any
 import numpy as np
 
 from .exceptions import CNDBIndexError
+from .filters import hdf5_filter_pipeline_supported, normalize_filter_pipeline
 from .index import INDEX_FORMAT, NESTED_NDB_LAYOUT, OPENMICHROM_SIMPLE_LAYOUT
 from .remote import RemoteByteReader
-from .utils import coerce_frame_id, sort_frame_ids
+from .utils import coerce_frame_id, sort_frame_ids, sort_trajectory_names
 from .version import metadata_from_attrs
 
 EMBEDDED_INDEX_CACHE_FORMAT = "cndb-stream-embedded-index-cache"
@@ -193,6 +194,7 @@ class EmbeddedIndexProvider:
         self._h5 = file_cls(self._range_file, index=embedded["index"])
         self.h5_url = h5_url
         self.object_index: dict[str, dict[str, int]] = embedded["index"]
+        self._dataset_data_bytes_read = 0
         if not self.object_index:
             raise CNDBIndexError(
                 "No embedded HDF5 object index was found. Expected a gzip-compressed "
@@ -207,6 +209,7 @@ class EmbeddedIndexProvider:
         self.embedded_index_compressed_nbytes = embedded["compressed_nbytes"]
         self.current_trajectory = self._resolve_trajectory(trajectory)
         self._frame_info_cache: dict[str, dict[str, Any]] = {}
+        self._dataset_value_cache: dict[str, Any] = {}
 
     @property
     def index_bytes_read(self) -> int:
@@ -223,7 +226,18 @@ class EmbeddedIndexProvider:
         objects.
         """
 
-        return max(0, int(self._range_file.bytes_read) - self.index_bytes_read)
+        return max(
+            0,
+            int(self._range_file.bytes_read)
+            - self.index_bytes_read
+            - self.data_bytes_read,
+        )
+
+    @property
+    def data_bytes_read(self) -> int:
+        """Coordinate/chunk payload bytes read through the embedded backend."""
+
+        return int(self._dataset_data_bytes_read)
 
     @property
     def bytes_read(self) -> int:
@@ -248,7 +262,7 @@ class EmbeddedIndexProvider:
             spatial_path = f"{group_path}/spatial_position"
             if spatial_path in self.object_index:
                 names.append(name)
-        return sorted(names)
+        return sort_trajectory_names(names)
 
     @property
     def frame_ids(self) -> list[str]:
@@ -256,10 +270,10 @@ class EmbeddedIndexProvider:
 
         if self.current_trajectory is None:
             root_children = self.object_index.get("/", {})
-            return sort_frame_ids([name for name in root_children if str(name).isdigit()])
+            return sort_frame_ids([name for name in root_children if _is_frame_id(name)])
         spatial_path = self._spatial_position_path(self.current_trajectory)
         return sort_frame_ids(
-            [name for name in self.object_index.get(spatial_path, {}) if str(name).isdigit()]
+            [name for name in self.object_index.get(spatial_path, {}) if _is_frame_id(name)]
         )
 
     def to_lazy_cndb_index(self) -> dict[str, Any]:
@@ -278,6 +292,10 @@ class EmbeddedIndexProvider:
                 "n_beads": int(first_frame["shape"][0]),
                 "frame_ids": frame_ids,
                 "types_path": "/types" if self.path_is_indexed("/types") else None,
+                "genomic_position_path": (
+                    self._dataset_path_if_indexed("/_ndb_genomic_intervals")
+                    or self._dataset_path_if_indexed("/genomic_position")
+                ),
                 "frames": {first_frame["frame_id"]: first_frame},
                 "embedded_index": self._embedded_index_summary(),
                 **self._file_format_metadata(),
@@ -323,6 +341,7 @@ class EmbeddedIndexProvider:
         shape = [int(dim) for dim in dataset.shape]
         chunks = [int(dim) for dim in dataset.chunks] if dataset.chunks is not None else None
         compression = dataset.compression
+        filters = normalize_filter_pipeline(getattr(dataset, "filter_pipeline", None))
         layout = _layout_name(dataset.id.layout_class)
         data_offset = getattr(dataset.id, "data_offset", None)
         nbytes = int(np.prod(shape, dtype=np.int64) * dtype.itemsize)
@@ -341,15 +360,37 @@ class EmbeddedIndexProvider:
             "dtype": dtype.name,
             "layout": layout,
             "compression": compression,
+            "filters": filters,
             "chunks": chunks,
             "data_offset": int(data_offset) if data_offset is not None else None,
             "storage_size": nbytes if direct_read_supported else None,
             "nbytes": nbytes,
             "direct_read_supported": direct_read_supported,
+            "chunked_read_supported": bool(
+                layout == "chunked"
+                and len(shape) == 2
+                and shape[1] == 3
+                and hdf5_filter_pipeline_supported(filters)
+            ),
             "metadata_source": "embedded-index",
         }
         self._frame_info_cache[frame_id] = info
         return info
+
+    def read_dataset_rows(self, path: str, start: int, stop: int) -> np.ndarray:
+        """Read rows from a dataset through pyfive and count remote payload bytes."""
+
+        before = int(self._range_file.bytes_read)
+        dataset = self._h5[path]
+        try:
+            values = np.asarray(dataset[start:stop, :])
+        except Exception as exc:
+            raise CNDBIndexError(
+                f"Could not stream chunked dataset rows for {path!r}: {exc}"
+            ) from exc
+        after = int(self._range_file.bytes_read)
+        self._dataset_data_bytes_read += max(0, after - before)
+        return values
 
     def embedded_index_dataset_info(self) -> dict[str, Any] | None:
         """Return metadata for the embedded ``/_index`` dataset when present."""
@@ -406,6 +447,24 @@ class EmbeddedIndexProvider:
         parent = posixpath.dirname(normalized) or "/"
         name = posixpath.basename(normalized)
         return name in self.object_index.get(parent, {})
+
+    def read_dataset(self, path: str) -> Any:
+        """Read a small indexed metadata dataset by path.
+
+        This is intended for metadata such as ``types`` or
+        ``genomic_position``. Coordinate frame payloads should continue through
+        the exact byte-range coordinate reader.
+        """
+
+        normalized = posixpath.normpath(path)
+        if normalized in self._dataset_value_cache:
+            return self._dataset_value_cache[normalized]
+        if not self.path_is_indexed(normalized):
+            raise CNDBIndexError(f"Path {normalized!r} is not present in the embedded index.")
+        dataset = self._h5[normalized]
+        value = dataset[()]
+        self._dataset_value_cache[normalized] = value
+        return value
 
     def _resolve_trajectory(self, trajectory: str | None) -> str | None:
         trajectories = self.trajectories
@@ -601,6 +660,11 @@ def _layout_name(layout_class: int) -> str:
     if layout_class == 2:
         return "chunked"
     return f"unknown-{layout_class}"
+
+
+def _is_frame_id(name: str) -> bool:
+    text = str(name)
+    return text.isdigit() or (text.startswith("t_") and text[2:].isdigit())
 
 
 def _json_int(value: Any) -> int | None:

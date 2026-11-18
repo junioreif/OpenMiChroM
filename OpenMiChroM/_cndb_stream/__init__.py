@@ -14,6 +14,7 @@ from .exceptions import (
 )
 from .reader import IndexedCNDB
 from .version import CNDB_FORMAT_NAME, CNDB_FORMAT_VERSION
+from .embedded_writer import write_embedded_index
 
 __all__ = [
     "CNDBFormatError",
@@ -30,4 +31,5 @@ __all__ = [
     "UnsupportedLayoutError",
     "distance_matrix",
     "radius_of_gyration",
+    "write_embedded_index",
 ]

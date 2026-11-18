@@ -22,7 +22,7 @@ class LegacyCNDBVersionWarning(UserWarning):
 
 
 class UnsupportedLayoutError(CNDBStreamError):
-    """Raised when a dataset layout cannot be read by the MVP byte reader."""
+    """Raised when a dataset layout cannot be read by the selected backend."""
 
 
 class RangeRequestUnsupportedError(CNDBStreamError):

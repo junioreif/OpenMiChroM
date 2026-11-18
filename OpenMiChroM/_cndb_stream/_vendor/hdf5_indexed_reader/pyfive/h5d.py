@@ -349,7 +349,11 @@ class DatasetID:
             self._btree_end, self._btree_start = None, None
             return
 
-        logging.info(f'Building chunk index in pyfive {version("pyfive")}')
+        try:
+            pyfive_version = version("pyfive")
+        except Exception:
+            pyfive_version = "vendored"
+        logging.info(f'Building chunk index in pyfive {pyfive_version}')
 
         #FIXME: How do we know it's a V1 B-tree?
         # There are potentially five different chunk indexing options according to

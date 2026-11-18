@@ -59,7 +59,7 @@ From the repository root, run a short chromosome 10 simulation with the bundled 
 Annealing a mitotic chicken chromosome
 ======================================
 
-The `DT40 annealing tutorial <Tutorials/DT40_Annealing_50kb/Tutorial_DT40_Annealing_50kb.ipynb>`__
+The `DT40 annealing tutorial <https://github.com/junioreif/OpenMiChroM/blob/prep-2.0/Tutorials/DT40_Annealing_50kb/Tutorial_DT40_Annealing_50kb.ipynb>`__
 models chromosome 7 at 50 kb per bead. Run it offline with the bundled
 structures and interaction tables to compare the orientation spectrum of a
 new trajectory with an archived 15-minute conformation. The default uses
@@ -155,17 +155,19 @@ After installing this checkout as described below, open an indexed ENCODE file:
 
 The full 139 GB CNDB file is not downloaded. The embedded HDF5 index is read
 once and can be cached locally. Coordinate reads use HTTP Range requests, and
-contiguous bead ranges are read with exact byte ranges. Non-contiguous bead
-selections may read the smallest enclosing bead range and then subset in memory.
+contiguous bead ranges are read with exact byte ranges. Sparse selections are grouped into byte ranges and returned in the requested
+order. If there are too many separate ranges, the reader fetches their
+enclosing interval; inspect ``selection_strategy`` in ``stream_stats()``.
 When type metadata is present in the index, remote and local workflows both
 populate ``ChromSeq`` and ``dictChromSeq``.
 The embedded HDF5 metadata reader includes MIT-licensed vendored components from
 ``hdf5-indexed-reader``/``pyfive`` under ``OpenMiChroM/_cndb_stream/_vendor``.
 
-Current writers store ``format="cndb"`` and ``format_version="1.0.0"`` as
-authoritative HDF5 attributes. Readers warn and accept legacy files without a
-version (or with a 0.x version), accept supported 1.x files, and reject malformed
-or future-major versions before reading coordinates.
+Classic CNDB files use format version 1; the reporter's version 2 layout
+adds a Header and can embed a byte-range index when the writer closes.
+Readers also accept unversioned legacy files with a warning. To try the full
+write → local read → HTTP read workflow, run the
+`indexed CNDB tutorial <https://github.com/junioreif/OpenMiChroM/blob/prep-2.0/Tutorials/write_indexed_cndb.ipynb>`__.
 
 An ``index_cache_path`` is optional. When supplied, the parsed embedded index is
 written atomically as a persistent JSON.gz file and is owned by the caller; it is
@@ -210,7 +212,7 @@ To run the tutorials from this branch, install Git and Conda, then run:
 
 ::
 
-    git clone --branch cndbtools-integration-tutorial-audit --single-branch https://github.com/junioreif/OpenMiChroM.git
+    git clone --branch prep-2.0 --single-branch https://github.com/junioreif/OpenMiChroM.git
     cd OpenMiChroM
     conda env create --solver classic -f environment.yml
     conda activate openmichrom-tutorials
@@ -222,11 +224,12 @@ CPU run of every tutorial and the package tests:
 
 ::
 
-    python scripts/validate.py complete
+    python scripts/validate.py fast
 
+Use ``complete`` to also build the documentation and test the installed wheel.
 Add ``--network`` to test a live ENCODE trajectory. Production-length
 simulations are not part of the default test. For details see the
-`validation guide <docs/source/GettingStarted/validation.rst>`__.
+`validation guide <https://github.com/junioreif/OpenMiChroM/blob/prep-2.0/docs/source/GettingStarted/validation.rst>`__.
 For the published package rather than this branch, use
 ``python -m pip install OpenMiChroM`` or
 ``conda install -c conda-forge openmichrom``.
@@ -237,6 +240,6 @@ How to cite
 For the software, cite Oliveira Junior et al., *A scalable computational
 approach for simulating complexes of multiple chromosomes*, Journal of Molecular
 Biology **433**, 166700 (2021), `doi:10.1016/j.jmb.2020.10.034 <https://doi.org/10.1016/j.jmb.2020.10.034>`__.
-See the `citation guide <docs/source/Reference/citing.rst>`__ and
-`BibTeX file <docs/source/Reference/OpenMiChroM.bib>`__ for optimization,
+See the `citation guide <https://github.com/junioreif/OpenMiChroM/blob/prep-2.0/docs/source/Reference/citing.rst>`__ and
+`BibTeX file <https://github.com/junioreif/OpenMiChroM/blob/prep-2.0/docs/source/Reference/OpenMiChroM.bib>`__ for optimization,
 NDB/CNDB, and the chicken DT40 mitosis and pulling studies.

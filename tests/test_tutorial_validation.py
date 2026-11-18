@@ -27,7 +27,6 @@ def test_all_canonical_notebooks_are_documented_and_executed():
     assert set(documented) == set(executed) == paths
     assert len(documented) == len(set(documented))
     assert len(executed) == len(set(executed))
-    assert all(run.complete for run in execute_notebooks.RUNS)
 
 
 def test_bundled_inputs_match_tutorial_generation():

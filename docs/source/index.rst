@@ -28,6 +28,10 @@
    Tutorials/Tutorial_Apply_Structural_Variants
    Tutorials/Tutorial_Loop_Formation
    Tutorials/stream_remote_cndb
+   Tutorials/stream_remote_cndb_explained
+   Tutorials/write_indexed_cndb
+   Tutorials/structural_file_detection
+   Tutorials/structural_file_conversion
 
 
 .. toctree::
@@ -40,6 +44,19 @@
    Reference/structural_variants
    Reference/cndb_stream
    Reference/license
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Structural file I/O
+
+   Developer/structural_file_io_explained
+   Developer/structural_file_formats
+   Developer/structural_file_io_design
+   Developer/structural_file_io_credits
+   Developer/structural_file_io_changelog
+   Developer/structural_file_io_remaining_work
+   Developer/public_structural_file_compatibility
+   Developer/remote_cndb_benchmark
 
 Indices and tables
 ==================

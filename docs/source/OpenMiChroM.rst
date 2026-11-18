@@ -92,14 +92,17 @@ After following :doc:`GettingStarted/install`, open an indexed ENCODE trajectory
 
 The full 139 GB CNDB file is not downloaded. The embedded index is read once and
 can be cached locally. Contiguous bead ranges are fetched with exact HTTP Range
-requests. Non-contiguous bead selections may read the smallest enclosing range
-and then subset in memory. Remote type dictionaries are populated when the
+requests. Sparse selections are grouped into ranges; the reader can fall back
+to the enclosing range when there would be too many separate requests. Remote type dictionaries are populated when the
 selected index contains type metadata. The embedded HDF5 metadata reader includes
 MIT-licensed vendored components from ``hdf5-indexed-reader``/``pyfive`` under
 ``OpenMiChroM/_cndb_stream/_vendor``.
 
 See :doc:`Reference/cndb_stream` for format-version compatibility, caching,
-resource cleanup, and deterministic testing details.
+resource cleanup, and deterministic testing details. See also the tutorials on
+:doc:`writing indexed CNDB </Tutorials/write_indexed_cndb>`,
+:doc:`format detection </Tutorials/structural_file_detection>` and
+:doc:`local structural conversion </Tutorials/structural_file_conversion>`.
 
 
 OpenMiChroM.Integrators
