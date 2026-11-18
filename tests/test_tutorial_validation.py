@@ -125,7 +125,8 @@ def test_input_generation_is_repeatable(relative, index, input_name, tmp_path, m
     (tmp_path / "input/DT40_chr7.eigen").write_text(
         "".join(f"{i} {kind}\n" for i, kind in enumerate(annotations, 1))
     )
-    (tmp_path / "input/seq_chr10_100k.txt").write_text(
+    (tmp_path / "iteration_0").mkdir()
+    (tmp_path / "iteration_0/seq_chr10_100k.txt").write_text(
         "1 A1\n2 B1\n3 B1\n4 A1\n5 B1\n"
     )
     output_dir = tmp_path / "results"
@@ -133,7 +134,9 @@ def test_input_generation_is_repeatable(relative, index, input_name, tmp_path, m
     namespace = {"np": np, "Path": Path, "eigen": eigen, "r": np.eye(5), "run_dir": output_dir}
     code = compile(source(cells(relative)[index]), str(relative), "exec")
     exec(code, namespace)
-    target = (output_dir if input_name == "DT40_chr7.txt" else tmp_path / "input") / input_name
+    folder = (output_dir if input_name == "DT40_chr7.txt" else
+              tmp_path / ("iteration_1" if input_name == "seq_chr10" else "iteration_0"))
+    target = folder / input_name
     first = target.read_bytes()
     exec(code, namespace)
     assert target.read_bytes() == first

@@ -5,5 +5,20 @@ __pycache__/
 build/
 dist/
 docs/_build/
-Tutorials/Chromosome_Pulling_Tutorial/pulling-run-*/
 .DS_Store
+.ipynb_checkpoints/
+/.venv/
+
+# Local runs, not the curated structure and spectrum fixtures.
+/outputs/
+/tests/output/
+pulling-run-*/
+structural_variant_output/
+output_classic_michrom/
+output_chr10/
+output_nucleus/
+/Tutorials/Active_Chromosome_Dynamics/out/
+/Tutorials/Active_Chromosome_Dynamics/test_seq.txt
+/Tutorials/*_Optimization/iteration_*/
+/Tutorials/optimization_data/chr10_100k.dense
+/Tutorials/*_Optimization/apps/juicer_tools*.jar

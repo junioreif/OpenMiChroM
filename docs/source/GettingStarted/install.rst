@@ -12,12 +12,14 @@ directory where you want to keep the clone, run:
 
 .. code-block:: bash
 
-   git clone --branch prep-2.0 --single-branch https://github.com/junioreif/OpenMiChroM.git
+   git clone --depth 1 --branch prep-2.0 --single-branch https://github.com/junioreif/OpenMiChroM.git
    cd OpenMiChroM
    conda env create --solver classic -f environment.yml
    conda activate openmichrom-tutorials
 
-The environment installs this checkout in editable mode, with OpenMM,
+The clone includes all notebooks and their bundled samples, but not past
+versions of large data files. Omit ``--depth 1`` only if you need the full Git
+history. The environment installs this checkout in editable mode, with OpenMM,
 Jupyter, and the tools for testing and building the documentation. No second
 pip install is needed. To confirm which code is loaded:
 

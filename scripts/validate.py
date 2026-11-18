@@ -83,7 +83,7 @@ def package_smoke(temporary: Path) -> None:
     converter_cli = install / "bin" / "openmichrom-convert"
     if not converter_cli.is_file():
         raise SystemExit(f"FAILED: installed wheel is missing converter CLI: {converter_cli}")
-    example = REPO_ROOT / "tests/output/test_0_step20000.ndb"
+    example = REPO_ROOT / "tests/fixtures/test_0_step20000.ndb"
     run_stage(
         "installed-wheel converter CLI",
         [sys.executable, str(converter_cli), str(example), "classic.cndb"],
@@ -232,6 +232,9 @@ def main() -> int:
     # Modest CPU defaults for laptop validation; explicit user settings win.
     for name in ("OPENMM_CPU_THREADS", "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
         os.environ.setdefault(name, "1")
+    # Source archives have no index or object database; do not inspect a parent repository.
+    if (REPO_ROOT / ".git").exists():
+        run_stage("committed repository size", [sys.executable, "scripts/check_repo_size.py"])
     run_stage("notebook static audit", [sys.executable, "scripts/audit_notebooks.py"])
     run_stage(
         "canonical/docs notebook synchronization",

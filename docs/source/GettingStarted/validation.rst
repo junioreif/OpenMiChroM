@@ -23,6 +23,21 @@ notebooks in reduced CPU mode. The structural-
 variant and loop-extrusion notebooks use small deterministic synthetic fixtures;
 they do not download the biological datasets that motivated the workflows.
 
+Keeping the clone small
+-----------------------
+
+Before committing new tutorial data, stage the intended files and run
+``python scripts/check_repo_size.py --staged``. The limits are 5 MiB per file,
+1 MiB of embedded outputs and attachments per notebook, and 24 MiB for all
+checked-out files combined (before compression). Commit small representative
+inputs; keep simulation output and optional downloads outside the index.
+
+In a clone with the base commit available, use
+``python scripts/check_repo_size.py --base <base-commit>`` to check the whole
+change. CI checks intermediate file versions too, so adding a large trajectory
+and deleting it in the next commit does not bypass the check. The cumulative
+limit for newly introduced file contents is 32 MiB.
+
 Numerical changes in the 2.0 candidate
 --------------------------------------
 
@@ -106,10 +121,13 @@ production run of the 2.0 candidate or a convergence test. Its 800-row IC
 input gives exactly the same 733 active coefficients (separations 3 through
 735) under both table implementations.
 
-Without fast mode, other simulation notebooks use production step counts, and
-the remote CNDB and full-inversion examples can require network access (and
-Java for the Juicer extraction step). Input-generation cells reset their files
-on each run rather than appending to previous parameters.
+Without fast mode, other simulation notebooks use production step counts.
+The remote CNDB example can require network access. Both optimization notebooks
+run offline with the same experimental GM12878 chromosome 10 sample (512 bins
+at 100 kb). To use the full 1,356-bin map, download the archived input once
+and select it in the notebook. Neither option requires Java or Juicer.
+Input-generation cells reset their files on each run rather than appending to
+previous parameters.
 
 Reduced mode executes every notebook cell while replacing production simulation
 counts with small deterministic counts. It validates program flow and basic

@@ -133,6 +133,15 @@ def main() -> int:
     failures = 0
     with tempfile.TemporaryDirectory(prefix="openmichrom-notebooks-") as temporary:
         temp_dir = Path(temporary)
+        if any(run.cwd.name in {"Full_Inversion_Optimization", "MiChroM_Optimization"}
+               for run in selected):
+            # Both optimization notebooks read ../optimization_data. Preserve
+            # that relative layout without copying the entire Tutorials tree.
+            shared = temp_dir / "optimization_data"
+            shared.mkdir()
+            map_name = ("chr10_100k.dense" if os.environ.get("OPENMICHROM_CHR10_FULL") == "1"
+                        else "chr10_first512_100k.dense.gz")
+            shutil.copy2(REPO_ROOT / "Tutorials" / "optimization_data" / map_name, shared)
         # A user-level ``python3`` kernelspec often points at a different Conda
         # environment.  Register an ephemeral kernel so notebook execution uses
         # exactly the interpreter that launched this validation script.
