@@ -26,6 +26,7 @@ setup(
         "Programming Language :: Python :: 3.13",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Natural Language :: English",
+        "Natural Language :: Portuguese",
     ],
     include_package_data=False,
     packages=find_packages(exclude=("tests", "tests.*")),
