@@ -97,7 +97,7 @@ class MiChroM:
 
             
     def setup(self, platform="CUDA", gpu="default",
-            integrator="langevin", precision="mixed", deviceIndex="0",
+            integrator="langevin", precision="mixed", deviceIndex=None,
             verbose=None, printing=None):
         R"""Sets up the simulation environment.
 
@@ -109,14 +109,14 @@ class MiChroM:
         Args:
             platform (str, optional): The preferred computation platform to use.
                 Defaults to 'CUDA'.
-            gpu (str, optional): GPU device index or 'default'. Defaults to 'default'.
+            gpu (str or int, optional): GPU device index, or 'default' to let OpenMM choose.
             integrator (str or OpenMM Integrator, optional): The integrator to use for the simulation.
                 Can be a string (e.g., 'langevin') or an OpenMM Integrator object.
                 Defaults to 'langevin'.
             precision (str, optional): The floating point precision to use ('mixed', 'single', or 'double').
                 Defaults to 'mixed'.
-            deviceIndex (str, optional): The device index to use if specifying a GPU device.
-                Defaults to '0'.
+            deviceIndex (str or int, optional): Explicit GPU device index. When supplied,
+                overrides ``gpu``. Both settings are ignored on the CPU platform.
             verbose (bool, optional): Print platform selection details. If None,
                 use the value supplied to :class:`MiChroM`.
             printing (bool, optional): Compatibility spelling for ``verbose``.
@@ -137,7 +137,7 @@ class MiChroM:
         self.mm = openmm
         self.system = self.mm.System()
         self.step = 0
-        self.gpu = str(gpu)
+        self.gpu = str(gpu if deviceIndex is None else deviceIndex)
 
         # Define the platform priority order
         default_platforms = {'cuda': 'CUDA', 'hip': 'HIP', 'opencl': 'OpenCL', 'cpu': 'CPU'}
@@ -165,7 +165,7 @@ class MiChroM:
                 properties = {}
                 if plat_name != 'CPU':
                     if self.gpu.lower() != "default":
-                        properties[property_names[plat_name]['DeviceIndex']] = deviceIndex
+                        properties[property_names[plat_name]['DeviceIndex']] = self.gpu
                     properties[property_names[plat_name]['Precision']] = precision
                 self.properties = properties
                 break

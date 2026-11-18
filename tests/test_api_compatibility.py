@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 import OpenMiChroM
+from OpenMiChroM.ChromDynamics import MiChroM
 from OpenMiChroM.CndbTools import CndbTools, cndbTools
 from OpenMiChroM.Optimization import AdamTraining, CustomMiChroMTraining
 
@@ -31,6 +32,32 @@ def test_cndbtools_class_capitalization_alias_is_backward_compatible():
     assert CndbTools is cndbTools
     assert OpenMiChroM.CndbTools is cndbTools
     assert OpenMiChroM.cndbTools is cndbTools
+
+
+@pytest.mark.parametrize("platform,prop", [
+    ("CUDA", "CudaDeviceIndex"), ("HIP", "HipDeviceIndex"), ("OpenCL", "OpenCLDeviceIndex"),
+])
+@pytest.mark.parametrize("kwargs,expected", [
+    ({}, None), ({"gpu": "1"}, "1"), ({"deviceIndex": 2}, "2"),
+    ({"gpu": "1", "deviceIndex": "0"}, "0"), ({"deviceIndex": "0,1"}, "0,1"),
+])
+def test_setup_respects_gpu_device_selection(monkeypatch, platform, prop, kwargs, expected):
+    import openmm
+
+    # Test property construction without needing a GPU or creating a Context.
+    monkeypatch.setattr(openmm.Platform, "getPlatformByName", staticmethod(lambda name: name))
+    sim = MiChroM(verbose=False)
+    sim.setup(platform=platform, **kwargs)
+    if expected is None:
+        assert prop not in sim.properties  # OpenMM chooses automatically.
+    else:
+        assert sim.properties[prop] == expected
+
+
+def test_cpu_setup_does_not_receive_gpu_properties():
+    sim = MiChroM(verbose=False)
+    sim.setup(platform="CPU", gpu="1", deviceIndex="2")
+    assert sim.properties == {}
 
 
 def test_converter_functions_are_available_from_the_package_namespace():
