@@ -627,20 +627,26 @@ class cndbTools:
             input_fmt = Path(source).suffix
             kwargs.pop("input_format", None)
         output_fmt = kwargs.get("output_format") or kwargs.get("to_format") or (Path(output).suffix if output else "")
-        route = tuple(str(fmt).lower().lstrip(".") for fmt in (input_fmt, output_fmt))
-        route = tuple(FORMAT_ALIASES.get(fmt, fmt) for fmt in route)
+        def format_key(value):
+            raw = str(value).lower().lstrip(".")
+            return FORMAT_ALIASES.get(raw, raw)
+
+        route = (format_key(input_fmt), format_key(output_fmt))
         structural = {"indexed", "metadata", "trajectory", "frames", "start", "stop", "max_frames",
                       "max_memory_mb", "allow_large", "pdb_atom_name", "pdb_residue_name",
                       "pdb_chain_id", "pdb_element"}
         structural_options = structural.intersection(kwargs)
         if route == ("ndb", "cndb"):
             structural_options -= {"indexed", "metadata", "frames", "max_frames"}
-        if route in SUPPORTED_CONVERSIONS and not structural_options:
+        # The annotation-preserving SpaceWalk converter uses the .spw suffix;
+        # an explicit text .sw destination belongs to the structural writer.
+        text_sw_path = route[1] == "spw" and output is not None and Path(output).suffix.lower() == ".sw"
+        if route in SUPPORTED_CONVERSIONS and not structural_options and not text_sw_path:
             return convert(source, output, **kwargs)
         for alias, key in (("from_format", "input_format"), ("to_format", "output_format")):
             if alias in kwargs:
                 value = kwargs.pop(alias)
-                if key in kwargs and kwargs[key] != value:
+                if key in kwargs and format_key(kwargs[key]) != format_key(value):
                     raise ValueError(f"{alias} and {key} disagree.")
                 kwargs[key] = value
         return convert_structure_file(source, output, **kwargs)

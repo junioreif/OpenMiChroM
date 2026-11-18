@@ -5,6 +5,7 @@ import subprocess
 import sys
 
 from OpenMiChroM.CndbTools import CndbTools, convert_structure_file
+from OpenMiChroM.Converters import convert as convert_ndb
 from OpenMiChroM._structural_io.readers import NDBTextReader
 
 
@@ -192,8 +193,9 @@ def test_convert_memory_guard_can_be_overridden(tmp_path):
     assert cndb_path.exists()
 
 
-def test_supported_hdf5_sw_to_ndb(tmp_path):
-    sw_path = tmp_path / "toy.sw"
+@pytest.mark.parametrize("suffix", ["sw", "swb"])
+def test_supported_hdf5_sw_to_ndb(tmp_path, suffix):
+    sw_path = tmp_path / f"toy.{suffix}"
     ndb_path = tmp_path / "toy.ndb"
     coords = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.float32)
     with h5py.File(sw_path, "w") as h5:
@@ -209,6 +211,48 @@ def test_supported_hdf5_sw_to_ndb(tmp_path):
     reader = NDBTextReader(ndb_path)
     assert reader.types == ["A1", "B1"]
     np.testing.assert_array_equal(reader.get_coordinates(1), coords)
+
+
+@pytest.mark.parametrize("converter", [convert_structure_file, CndbTools.convert, convert_ndb])
+@pytest.mark.parametrize(("name", "explicit_format"), [
+    ("out.SWB", None), ("out.swb", "spw"), ("out.sw", "swb"), (None, "swb"),
+])
+def test_unsupported_binary_spacewalk_output_never_publishes(tmp_path, converter, name, explicit_format):
+    source = tmp_path / "source.ndb"
+    _write_tiny_ndb(source)
+    destination = tmp_path / name if name else None
+    formats = {"output_format": explicit_format} if explicit_format else {}
+    with pytest.raises(ValueError):
+        converter(source, destination, **formats)
+    assert list(tmp_path.iterdir()) == [source]
+
+    protected = [destination] if destination else [source.with_suffix(".sw"), source.with_suffix(".swb")]
+    for path in protected:
+        path.write_bytes(b"keep the original content")
+    with pytest.raises(ValueError):
+        converter(source, destination, overwrite=True, **formats)
+    assert all(path.read_bytes() == b"keep the original content" for path in protected)
+    assert set(tmp_path.iterdir()) == {source, *protected}
+
+
+@pytest.mark.parametrize("alias", ["spacewalk", "spacewalk-text", "spw"])
+def test_spacewalk_alias_with_subset_matches_text_export(tmp_path, alias):
+    source, explicit, inferred = [tmp_path / name for name in ("in.ndb", "selected.spw", "selected.sw")]
+    _write_tiny_ndb(source)
+    CndbTools.convert(source, explicit, to_format=alias, output_format="spw", frames=[2], start=1)
+    convert_structure_file(source, inferred, frames=[2], start=1)
+    assert explicit.read_bytes() == inferred.read_bytes()
+    assert len([line for line in explicit.read_text().splitlines() if line.startswith("chr1\t")]) == 2
+    restored = CndbTools.convert(explicit, tmp_path / "restored.ndb", from_format=alias, start=1)
+    reader = NDBTextReader(restored)
+    np.testing.assert_array_equal(reader.get_coordinates(reader.frame_ids[0]), [[16., 17., 18.]])
+
+
+def test_explicit_spacewalk_text_alias_can_use_sw_suffix(tmp_path):
+    source = tmp_path / "in.ndb"
+    _write_tiny_ndb(source)
+    result = CndbTools.convert(source, tmp_path / "out.sw", to_format="spacewalk")
+    assert result.read_text().startswith("##format=sw1")
 
 
 def test_text_spacewalk_to_ndb(tmp_path):

@@ -727,6 +727,11 @@ def _resolve_input_format(path: Path, input_format: str) -> str:
 
 
 def _resolve_output_format(output_path: str | Path | None, output_format: str | None) -> str | None:
+    # SWB is a readable binary HDF5 layout, not a spelling of our text writer.
+    # Check both values so an explicit format cannot create mislabeled files.
+    if ((output_path is not None and Path(output_path).suffix.lower() == ".swb")
+            or (output_format is not None and output_format.lower().lstrip(".") == "swb")):
+        raise ValueError("Cannot write binary SpaceWalk (.swb); use .sw or .spw for text output.")
     if output_format is not None:
         return _normalize_format(output_format)
     if output_path is None:
@@ -736,7 +741,7 @@ def _resolve_output_format(output_path: str | Path | None, output_format: str | 
 
 def _normalize_format(value: str) -> str:
     text = value.lower().lstrip(".")
-    if text in {"swb", "spw"}:
+    if text in {"swb", "spw", "spacewalk", "spacewalk-text"}:
         return "sw"
     if text in {"h5", "hdf5"}:
         return "hdf5"

@@ -70,7 +70,7 @@ def package_smoke(temporary: Path) -> None:
         "import OpenMiChroM.CustomReporter, OpenMiChroM.Integrators, "
         "OpenMiChroM.Optimization, OpenMiChroM._cndb_stream; "
         "from pathlib import Path; from importlib.metadata import version; "
-        "import os; assert Path(OpenMiChroM.__file__).resolve().is_relative_to(Path(os.environ['PYTHONPATH'])); "
+        "import os; assert Path(OpenMiChroM.__file__).resolve().is_relative_to(Path(os.environ['PYTHONPATH']).resolve()); "
         "from OpenMiChroM.CndbTools import CndbTools; "
         "assert version('OpenMiChroM') == OpenMiChroM.__version__; "
         "assert callable(CndbTools.open) and callable(CndbTools.convert); "
@@ -83,11 +83,29 @@ def package_smoke(temporary: Path) -> None:
     converter_cli = install / "bin" / "openmichrom-convert"
     if not converter_cli.is_file():
         raise SystemExit(f"FAILED: installed wheel is missing converter CLI: {converter_cli}")
+    example = REPO_ROOT / "tests/output/test_0_step20000.ndb"
     run_stage(
         "installed-wheel converter CLI",
-        [sys.executable, str(converter_cli), "--help"],
+        [sys.executable, str(converter_cli), str(example), "classic.cndb"],
         cwd=temporary,
         env=smoke_env,
+    )
+    round_trip = """
+import sys
+import h5py
+import numpy as np
+from OpenMiChroM import CndbTools, ndb_to_cndb
+ndb_to_cndb(sys.argv[1], "indexed.cndb", indexed=True)
+with h5py.File("indexed.cndb") as h5:
+    assert "_index" in h5 and "_index_offset" in h5.attrs
+with CndbTools.open("classic.cndb") as classic, CndbTools.open("indexed.cndb") as indexed:
+    first = classic.xyz(frames=[1], beadSelection=range(2))
+    np.testing.assert_allclose(first[0, 0], [77.999, -1.480, 6.516], atol=1e-4)
+    np.testing.assert_array_equal(first, indexed.xyz(frames=[1], beadSelection=range(2)))
+"""
+    run_stage(
+        "installed-wheel classic and indexed CNDB round trip",
+        [sys.executable, "-c", round_trip, str(example)], cwd=temporary, env=smoke_env,
     )
 
 
