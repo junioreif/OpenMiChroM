@@ -5,4 +5,5 @@ __pycache__/
 build/
 dist/
 docs/_build/
+Tutorials/Chromosome_Pulling_Tutorial/pulling-run-*/
 .DS_Store

@@ -128,10 +128,12 @@ def test_input_generation_is_repeatable(relative, index, input_name, tmp_path, m
     (tmp_path / "input/seq_chr10_100k.txt").write_text(
         "1 A1\n2 B1\n3 B1\n4 A1\n5 B1\n"
     )
-    namespace = {"np": np, "Path": Path, "eigen": eigen, "r": np.eye(5)}
+    output_dir = tmp_path / "results"
+    output_dir.mkdir()
+    namespace = {"np": np, "Path": Path, "eigen": eigen, "r": np.eye(5), "run_dir": output_dir}
     code = compile(source(cells(relative)[index]), str(relative), "exec")
     exec(code, namespace)
-    target = tmp_path / "input" / input_name
+    target = (output_dir if input_name == "DT40_chr7.txt" else tmp_path / "input") / input_name
     first = target.read_bytes()
     exec(code, namespace)
     assert target.read_bytes() == first
@@ -145,6 +147,31 @@ def test_input_generation_is_repeatable(relative, index, input_name, tmp_path, m
             assert [row.split()[1] for row in rows] == ["B1", "A1", "A1", "B1", "A1"]
         elif input_name == "seq_chr10_100k.txt":
             assert [row.split()[1] for row in rows] == ["A1", "B1", "B1", "A1", "B1"]
+
+
+@pytest.mark.parametrize("energy, bond, stable", [(3.0, 1.1, True), (np.nan, 1.1, False),
+                                                  (3.0, 1.5, False), (3.0, np.inf, False)])
+def test_pulling_trajectory_guard(energy, bond, stable):
+    from types import SimpleNamespace
+    from openmm import unit
+
+    state = SimpleNamespace(
+        getPositions=lambda asNumpy: np.array([[0., 0., 0.], [bond, 0., 0.]]) * unit.nanometer,
+        getPotentialEnergy=lambda: energy * unit.kilojoule_per_mole,
+        getKineticEnergy=lambda: 1.0 * unit.kilojoule_per_mole,
+    )
+    sim = SimpleNamespace(context=SimpleNamespace(getState=lambda **kwargs: state,
+                                                  getParameter=lambda name: 1.5),
+                          simulation=SimpleNamespace(currentStep=5))
+    setup = next(c for c in cells("Chromosome_Pulling_Tutorial/Tutorial_Pulling.ipynb")
+                 if source(c).startswith("def checked_positions("))
+    namespace = {"np": np, "unit": unit}
+    exec(source(setup), namespace)
+    if stable:
+        assert namespace["checked_positions"](sim).shape == (2, 3)
+    else:
+        with pytest.raises(RuntimeError, match="Unstable trajectory at step 5"):
+            namespace["checked_positions"](sim)
 
 
 @pytest.mark.parametrize("args", [
