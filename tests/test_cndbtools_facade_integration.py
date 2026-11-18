@@ -17,26 +17,27 @@ def test_local_frame_must_agree_with_bead_count_even_for_subselection(tmp_path, 
         reader.xyz(frames=1, beadSelection=[0])
 
 
-def test_radial_shells_conserve_counts():
+@pytest.mark.parametrize("options", [{}, {"normalization": "shell-volume"}], ids=["default", "explicit"])
+def test_radial_shells_conserve_counts(options):
     tool = CndbTools()
     xyz = np.array([[[-3., 0, 0], [0., 0, 0], [3., 0, 0]]])
-    density, mids = tool.compute_RadNumDens(xyz, dr=2, normalization="shell-volume")
+    density, mids = tool.compute_RadNumDens(xyz, dr=2, **options)
     np.testing.assert_array_equal(mids, [1, 3])
     volumes = 4 * np.pi / 3 * np.diff(np.array([0., 2., 4.]) ** 3)
     np.testing.assert_allclose(density * volumes, [1, 2])
-    mids, rdp = tool.compute_RDP(xyz, np.array([0, 1, 2]), radius=3, bins=2,
-                                 normalization="shell-volume")
+    mids, rdp = tool.compute_RDP(xyz, np.array([0, 1, 2]), radius=3, bins=2, **options)
     np.testing.assert_array_equal(mids, [0.75, 2.25])
     volumes = 4 * np.pi / 3 * np.diff(np.array([0., 1.5, 3.]) ** 3)
     np.testing.assert_allclose(rdp * volumes, [1, 2])
 
 
-def test_legacy_radial_normalization_and_historical_radii_are_default():
+def test_legacy_radial_normalization_reproduces_historical_radii_and_densities():
     tool = CndbTools()
     xyz = np.array([[[-3., 0, 0], [0., 0, 0], [3., 0, 0]]])
-    density, mids = tool.compute_RadNumDens(xyz, dr=2)
+    density, mids = tool.compute_RadNumDens(xyz, dr=2, normalization="legacy")
     np.testing.assert_array_equal(mids, [1])
     np.testing.assert_allclose(density, [1 / (4 * np.pi / 3 * 2**3)])
-    radii, rdp = tool.compute_RDP(xyz, np.array([0, 1, 2]), radius=4, bins=4)
+    radii, rdp = tool.compute_RDP(xyz, np.array([0, 1, 2]), radius=4, bins=4,
+                                  normalization="legacy")
     np.testing.assert_array_equal(radii, [0, 1, 2, 3, 4])
     np.testing.assert_allclose(rdp, [0, 0, 2 / (4 * np.pi * 3**2), 0])

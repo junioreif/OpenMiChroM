@@ -42,6 +42,23 @@ from . import __version__
 from ._pdb_fields import validate_pdb_fields
 from .CustomReporter import *
 
+def _custom_ic_table(path, n_beads, dinit, dend, max_separation):
+    """Map file row zero to dinit and include both separation endpoints."""
+    if not all(isinstance(d, (int, np.integer)) for d in (dinit, dend)) or not 0 <= dinit <= dend:
+        raise ValueError("Require integer IC bounds 0 <= dinit <= dend.")
+    if path is None:
+        raise ValueError("IClist must be a one-column file of IC coefficients.")
+    values = np.loadtxt(path, ndmin=2)
+    if values.shape[1] != 1 or not np.isfinite(values).all():
+        raise ValueError("IClist must contain one column of finite IC coefficients.")
+    count = max(0, min(dend, max_separation) - dinit + 1)
+    if len(values) < count:
+        raise ValueError(f"IClist has {len(values)} coefficients; {count} are required starting at d={dinit}.")
+    table = np.zeros(n_beads)
+    table[dinit:dinit + count] = values[:count, 0]
+    return table
+
+
 class MiChroM:
     R"""
     The `MiChroM` class performs chromatin dynamics simulations using the default MiChroM energy function parameters for type-to-type and Ideal Chromosome interactions.
@@ -892,8 +909,7 @@ class MiChroM:
                
         IC = self.mm.CustomNonbondedForce(energyIC)
 
-        IClist_listfromfile = np.loadtxt(IClist)
-        IClist = np.append(np.zeros(dinit),IClist_listfromfile)[:-dinit]
+        IClist = _custom_ic_table(IClist, self.N, dinit, dend, self.N - 1)
         
         tabIClist = self.mm.Discrete1DFunction(IClist)
         IC.addTabulatedFunction('IClist', tabIClist) 
@@ -924,10 +940,8 @@ class MiChroM:
         
         IC = self.mm.CustomNonbondedForce(energyIC)
 
-        IClist_listfromfile = np.loadtxt(IClist)
-        IClist = np.zeros(self.N)
-        for d, value in enumerate(IClist_listfromfile, start=dinit):
-            IClist[d] = value
+        chain = self.chains[chainIndex]
+        IClist = _custom_ic_table(IClist, self.N, dinit, dend, chain[1] - chain[0])
                 
         tabIClist = self.mm.Discrete1DFunction(IClist)
         IC.addTabulatedFunction('ic', tabIClist)
@@ -940,8 +954,6 @@ class MiChroM:
         
         IC.setCutoffDistance(CutoffDistance)
         
-        chain = self.chains[chainIndex]
-
         groupList = list(range(chain[0],chain[1]+1))
         
         IC.addInteractionGroup(groupList,groupList)

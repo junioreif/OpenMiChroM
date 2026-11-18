@@ -1147,7 +1147,7 @@ class cndbTools:
             S1.append(Q/(N-m))
         return np.array(S1) - 2*S2
 
-    def compute_RadNumDens(self, xyz, dr=1.0, ref='centroid', center=None, *, normalization="legacy"):
+    def compute_RadNumDens(self, xyz, dr=1.0, ref='centroid', center=None, *, normalization="shell-volume"):
 
         R"""
         Calculates the radial number density of monomers; which when integrated over 
@@ -1173,9 +1173,9 @@ class cndbTools:
             center (list of float, len 3):
                 defines the reference point in custom reference. required when ref='custom'
             normalization (str):
-                ``"legacy"`` reproduces historical bin edges. With
-                ``"shell-volume"``, the final shell always includes the furthest
-                bead, including when ``dr > 1``.
+                The default, ``"shell-volume"``, includes the furthest bead
+                even when ``dr > 1``. Select ``"legacy"`` to reproduce the
+                historical bin edges.
                        
         Returns:
             num_density (numpy.ndarray):
@@ -1221,7 +1221,7 @@ class cndbTools:
         return (num_density, bin_mids)
 
         
-    def compute_RDP(self, xyz, beadSelection=None, radius=20.0, bins=200, *, normalization="legacy"):
+    def compute_RDP(self, xyz, beadSelection=None, radius=20.0, bins=200, *, normalization="shell-volume"):
         R"""
         Calculate mean bead number per shell volume about the per-frame centroid.
         
@@ -1233,10 +1233,10 @@ class cndbTools:
             bins (int, required):
                 Number of slices to be considered as spherical shells. (Default value = 200).
             normalization (str):
-                ``"legacy"`` reproduces the historical radii and thin-shell
-                approximation, starting at one bin width. ``"shell-volume"``
-                uses exact shell volumes from zero to ``radius`` and returns
-                the matching midpoint for each bin.
+                The default, ``"shell-volume"``, uses exact shell volumes and
+                matching midpoints, including beads at zero and at ``radius``.
+                Select ``"legacy"`` to reproduce the historical thin-shell
+                approximation and radii, starting at one bin width.
                        
         Returns:
             tuple: Shell radii in units of :math:`\sigma` and the RDP for each

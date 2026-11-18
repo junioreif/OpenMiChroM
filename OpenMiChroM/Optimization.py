@@ -29,17 +29,34 @@ import pandas as pd
 import warnings
 
 
-def _normalize_matrix(matrix):
-    """Shared implementation for the two public training-class wrappers."""
+def _finite_hic_matrix(matrix):
+    matrix = np.nan_to_num(np.asarray(matrix, dtype=float), nan=0, posinf=0, neginf=0)
+    if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1] or not matrix.size:
+        raise ValueError("The Hi-C matrix must be nonempty and square.")
+    return matrix
 
-    matrix = np.nan_to_num(matrix, nan=0, posinf=0, neginf=0)
+
+def _normalize_matrix(matrix):
+    """Normalize each row of the upper triangle to its maximum, then mirror."""
+    matrix = _finite_hic_matrix(matrix)
     np.fill_diagonal(matrix, 0.0)
     max_values = np.amax(np.triu(matrix), axis=1)
-    max_values[max_values == 0] = 0.0000001
+    max_values[max_values == 0] = 1
     normalized_matrix = np.triu(matrix) / max_values[:, np.newaxis]
     matrix = normalized_matrix + np.triu(normalized_matrix, k=1).T
     np.fill_diagonal(matrix, 1.0)
     return matrix
+
+
+def _contact_probabilities(matrix):
+    """Scale each upper-triangle row by its first neighbor, then mirror once."""
+    upper = np.triu(_finite_hic_matrix(matrix), k=1)
+    scale = np.diag(upper, k=1).copy()
+    upper[:-1] = np.divide(upper[:-1], scale[:, None], out=np.zeros_like(upper[:-1]), where=scale[:, None] > 0)
+    np.clip(upper, 0, 1, out=upper)
+    result = upper + upper.T
+    np.fill_diagonal(result, 1)
+    return result
 
 
 def _balance_contact_matrix(matrix, tol=1e-5, max_iter=100):
@@ -221,22 +238,8 @@ class AdamTraining:
         if KR==True:
             allmap = self.knight_ruiz_balance(allmap)
 
-        if norm==True:
-            r=self.normalize_matrix(allmap)
-
-            for i in range(len(r)-1):
-                maxElem = r[i][i+1]
-                if (maxElem != np.max(r[i])):
-                    for j in range(len(r[i])):
-                        if maxElem != 0.0:
-                            r[i][j] = float(r[i][j] / maxElem)
-                        else:
-                            r[i][j] = 0.0 
-                        if r[i][j] > 1.0:
-                            r[i][j] = np.mean(np.diag(r,k=i))
-
-            rd = np.transpose(r) 
-            self.expHiC = r+rd + np.diag(np.ones(len(r)))
+        if norm:
+            self.expHiC = _contact_probabilities(allmap)
         else:
             self.expHiC = allmap
         
@@ -307,22 +310,8 @@ class AdamTraining:
         if KR==True:
             allmap = self.knight_ruiz_balance(allmap)
 
-        if norm==True:
-            r=self.normalize_matrix(allmap)
-
-            for i in range(len(r)-1):
-                maxElem = r[i][i+1]
-                if (maxElem != np.max(r[i])):
-                    for j in range(len(r[i])):
-                        if maxElem != 0.0:
-                            r[i][j] = float(r[i][j] / maxElem)
-                        else:
-                            r[i][j] = 0.0 
-                        if r[i][j] > 1.0:
-                            r[i][j] = np.mean(np.diag(r,k=i))
-
-            rd = np.transpose(r) 
-            self.expHiC = r+rd + np.diag(np.ones(len(r)))
+        if norm:
+            self.expHiC = _contact_probabilities(allmap)
         else:
             self.expHiC = allmap
         
@@ -626,7 +615,7 @@ class CustomMiChroMTraining:
         cutoff (float, optional):
             Cutoff value for reducing the noise in the original data. Values lower than the **cutoff** are considered :math:`0.0`.
         IClist (file, required for Ideal Chromosome training):
-            A one-column text file containing the energy interaction values for loci *i* and *j* separated by a genomic distance :math:`d`. The list should be at least of the size :math:`dend-dinit`. (Default value: :code:`None`).
+            One coefficient per separation, starting at dinit and including dend (or the last possible separation, if shorter).
         dinit (int, required):
             The first neighbor in sequence separation (Genomic Distance) to be considered in the Ideal Chromosome potential for training. (Default value = 3).
         dend (int, required):
@@ -662,7 +651,10 @@ class CustomMiChroMTraining:
         self.PiPj_type = np.zeros((self.n_inter,self.n_inter))
         self.Nframes = 0 
         
-        self.PiPj_IC = np.zeros((dend-dinit,dend-dinit))
+        if not all(isinstance(d, (int, np.integer)) for d in (dinit, dend)) or not 0 <= dinit <= dend:
+            raise ValueError("Require integer IC bounds 0 <= dinit <= dend.")
+        self._n_ic = max(0, min(self.size - 1, dend) - dinit + 1)
+        self.PiPj_IC = np.zeros((self._n_ic, self._n_ic))
         self.dinit = dinit
         self.dend = dend
         self.cutoff = cutoff
@@ -691,11 +683,11 @@ class CustomMiChroMTraining:
         Calculates the contact probability matrix and the cross term of the Hessian for the Ideal Chromosome optimization.
         """
 
-        dmax = self.dend - self.dinit
+        dmax = self._n_ic
 
-        self.Pold += self.P
         self.P = 0.5*(1.0 + np.tanh(self.mu*(self.r_cut - distance.cdist(state,state, 'euclidean'))))
         self.P[self.P<self.cutoff] = 0.0
+        self.Pold += self.P
         
         Pi = np.array([])
         for i in range(dmax):
@@ -709,7 +701,7 @@ class CustomMiChroMTraining:
         R"""
         Calculates the contact probability as a function of the genomic distance from simulations for the Ideal Chromosome optimization.
         """
-        dmax = self.dend - self.dinit
+        dmax = self._n_ic
         phi = np.zeros(dmax)
         Pmean = self.Pold/self.Nframes
         for i in range(dmax):
@@ -757,22 +749,8 @@ class CustomMiChroMTraining:
         if KR==True:
             allmap = self.knight_ruiz_balance(allmap)
 
-        if norm==True:
-            r=self.normalize_matrix(allmap)
-
-            for i in range(len(r)-1):
-                maxElem = r[i][i+1]
-                if (maxElem != np.max(r[i])):
-                    for j in range(len(r[i])):
-                        if maxElem != 0.0:
-                            r[i][j] = float(r[i][j] / maxElem)
-                        else:
-                            r[i][j] = 0.0 
-                        if r[i][j] > 1.0:
-                            r[i][j] = np.mean(np.diag(r,k=i))
-
-            rd = np.transpose(r) 
-            self.expHiC = r+rd + np.diag(np.ones(len(r)))
+        if norm:
+            self.expHiC = _contact_probabilities(allmap)
         else:
             self.expHiC = allmap
         
@@ -803,7 +781,7 @@ class CustomMiChroMTraining:
         R"""
         Calculates the contact probability as a function of the genomic distance from the experimental Hi-C for the Ideal Chromosome optimization.
         """
-        dmax = self.dend - self.dinit
+        dmax = self._n_ic
         phi = np.zeros(dmax)
         for i in range(dmax):
              phi[i] =  np.mean(np.diagonal(self.expHiC, offset=(i+self.dinit)))
@@ -826,7 +804,7 @@ class CustomMiChroMTraining:
                 Energy values for the Ideal Chromosome optimization step.
         """    
         
-        dmax = self.dend - self.dinit
+        dmax = self._n_ic
 
         self.get_HiC_exp(exp_map)
         
@@ -845,7 +823,12 @@ class CustomMiChroMTraining:
         invB = sc.linalg.pinv(B)
 
         self.lambdas_new = np.dot(invB,g)
-        self.lambdas_old = np.genfromtxt(str(self.IClist))
+        if self.IClist is None:
+            raise ValueError("IClist is required to update IC coefficients.")
+        self.lambdas_old = np.loadtxt(self.IClist, ndmin=2)
+        if self.lambdas_old.shape[1] != 1 or len(self.lambdas_old) < dmax:
+            raise ValueError(f"IClist must have one column with at least {dmax} IC coefficients.")
+        self.lambdas_old = self.lambdas_old[:, 0]
         
         lambdas_final = self.lambdas_old[:dmax] - damp*self.lambdas_new
 
@@ -872,10 +855,9 @@ class CustomMiChroMTraining:
         for tt in self.header_types:
             just[tt] = ([i for i, e in enumerate(self.ChromSeq) if e == tt])
 
-        self.Pold += self.P       
-        
         self.P = 0.5*(1.0 + np.tanh(self.mu*(self.r_cut - distance.cdist(state,state, 'euclidean'))))
         self.P[self.P<self.cutoff] = 0.0
+        self.Pold += self.P
         
         vec = []
         for pcount,q in enumerate(itertools.combinations_with_replacement(just.keys(), r=2)):

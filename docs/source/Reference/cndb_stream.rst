@@ -47,10 +47,10 @@ match the exact source file; rebuild it if that file has changed.
 Radial analysis compatibility
 =============================
 
-``compute_RDP`` and ``compute_RadNumDens`` retain their historical radial
-binning by default. Pass ``normalization="shell-volume"`` to normalize by
-the exact spherical shell volumes. Select the convention explicitly when
-comparing previously published profiles.
+``compute_RDP`` and ``compute_RadNumDens`` use exact spherical shell
+volumes by default (``normalization="shell-volume"``). To reproduce older
+profiles, pass ``normalization="legacy"`` explicitly. Report the convention
+when comparing results across software versions.
 
 Caching and cleanup
 ===================

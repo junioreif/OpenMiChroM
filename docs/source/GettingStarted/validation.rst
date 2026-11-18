@@ -23,6 +23,24 @@ notebooks in reduced CPU mode. The structural-
 variant and loop-extrusion notebooks use small deterministic synthetic fixtures;
 they do not download the biological datasets that motivated the workflows.
 
+Numerical changes in the 2.0 candidate
+--------------------------------------
+
+* Training now accumulates the contact map of the current frame, including the
+  first one. Previously a one-frame IC training run could accumulate a zero
+  map. Normalizing Hi-C contact probabilities no longer doubles symmetric
+  off-diagonal entries. Recompute previously trained parameters before
+  comparing fitted values across versions.
+* A custom ideal-chromosome (IC) table starts at ``dinit``; the last requested
+  separation ``dend`` is included when physically possible. Compact tables are
+  no longer silently truncated. Coordinate trajectories can change if an
+  earlier run used one of the affected coefficients.
+* Radial density profiles now use exact shell volumes. For comparison with
+  older profiles pass ``normalization="legacy"``: :doc:`/Reference/cndb_stream`.
+
+Complete validation
+-------------------
+
 Before review, run the complete offline suite:
 
 .. code-block:: bash
@@ -83,7 +101,10 @@ two peak bins. Neither dominant period matched the 0.322 and 3.670 Mb
 peaks of the archived structure. The
 :download:`example spectra (CSV) <../../../Tutorials/DT40_Annealing_50kb/example_results/slow_spectrum.csv>`
 give spatial frequency in cycles per Mb and both Fourier amplitudes.
-These values describe one trajectory, not a convergence test.
+These values describe one historically measured trajectory, not a new
+production run of the 2.0 candidate or a convergence test. Its 800-row IC
+input gives exactly the same 733 active coefficients (separations 3 through
+735) under both table implementations.
 
 Without fast mode, other simulation notebooks use production step counts, and
 the remote CNDB and full-inversion examples can require network access (and
