@@ -1,5 +1,7 @@
 import ast
 import importlib
+import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -26,6 +28,16 @@ from OpenMiChroM.Optimization import AdamTraining, CustomMiChroMTraining
 )
 def test_public_modules_import(module_name):
     assert importlib.import_module(module_name) is not None
+
+
+def test_analysis_namespace_can_load_without_openmm():
+    code = """
+import sys
+sys.modules["openmm"] = sys.modules["simtk"] = None
+from OpenMiChroM import CndbTools, cndbTools, convert
+assert CndbTools is cndbTools and callable(convert)
+"""
+    subprocess.run([sys.executable, "-c", code], cwd=Path(__file__).resolve().parents[1], check=True)
 
 
 def test_cndbtools_class_capitalization_alias_is_backward_compatible():
